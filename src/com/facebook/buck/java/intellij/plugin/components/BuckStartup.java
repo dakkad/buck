@@ -1,7 +1,9 @@
 package com.facebook.buck.java.intellij.plugin.components;
 
 /**
- * Created by dak on 12/01/15.
+ * Implementation of the buck startup and configuration.
+ *
+ * @author code@damienallison.com
  */
 public class BuckStartup {
 }

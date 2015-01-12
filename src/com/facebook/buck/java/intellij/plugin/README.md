@@ -6,8 +6,11 @@ development.
 
 # Developer Project Setup
 
-* Install scala & python
+General instruction are available on [configuring IntelliJ](https://confluence.jetbrains.com/display/IDEADEV/Getting+Started+with+Plugin+Development#GettingStartedwithPluginDevelopment-anchor2)
+
 * Install IntelliJ IDEA 14 Community Edition.
+* Clone the IntelliJ source code (for debugging) from
+    * git clone git://git.jetbrains.org/idea/community.git idea
 * Intall IntelliJ plugins for:
   * Python Community Edition
   * Scala

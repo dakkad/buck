@@ -46,3 +46,7 @@ test/com/facebook/buck/ocaml/testdata/ocaml/.buckconfig
 .*.swp
 .*.swo
 
+# IntelliJ Plugin Ignores
+.idea/compiler.xml
+.idea/misc.xml
+
