@@ -1,4 +1,4 @@
-package com.facebook.buck.java.intellij.plugin.components;
+package com.facebook.buck.intellijplugin.components;
 
 /**
  * Implementation of the buck startup and configuration.

@@ -1,4 +1,4 @@
-package com.facebook.buck.java.intellij.plugin.components;
+package com.facebook.buck.intellijplugin.components;
 
 /**
  * Name lookup for the action groups defined in IntelliJ for different components.

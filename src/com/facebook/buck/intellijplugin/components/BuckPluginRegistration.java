@@ -1,4 +1,4 @@
-package com.facebook.buck.java.intellij.plugin.components;
+package com.facebook.buck.intellijplugin.components;
 
 import com.intellij.openapi.actionSystem.ActionManager;
 import com.intellij.openapi.actionSystem.DefaultActionGroup;

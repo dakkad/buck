@@ -7,4 +7,4 @@
  *
  * @author code@damienallison.com
  */
-package com.facebook.buck.java.intellij.plugin;
+package com.facebook.buck.intellijplugin;
