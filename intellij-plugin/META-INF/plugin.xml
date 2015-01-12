@@ -1,0 +1,49 @@
+<idea-plugin version="2">
+  <id>com.facebook.buck.intellijplugin</id>
+  <name>Buck IntelliJ Plugin</name>
+  <version>0.0.1</version>
+  <vendor email="code@damienallison.com" url="http://www.facebook.com/">Facebook</vendor>
+
+  <description><![CDATA[
+      The Facebook IntelliJ IDEA 14 Buck plugin supports basic run functions of
+      the buck platform by integrating with different buck targets.
+    ]]></description>
+
+  <change-notes><![CDATA[
+      0.0.0 : Initial Version.<br>
+    ]]>
+  </change-notes>
+
+  <!-- please see http://confluence.jetbrains.com/display/IDEADEV/Build+Number+Ranges for description -->
+  <idea-version since-build="139.*" until-build="139.*"/>
+
+  <!-- please see http://confluence.jetbrains.com/display/IDEADEV/Plugin+Compatibility+with+IntelliJ+Platform+Products
+       on how to target different products -->
+  <!-- uncomment to enable plugin in all products
+  <depends>com.intellij.modules.lang</depends>
+  -->
+  <depends>com.intellij.modules.java</depends>
+
+  <extensions defaultExtensionNs="com.intellij">
+    <!-- Add your extensions here -->
+  </extensions>
+
+  <application-components>
+    <!-- Add your application components here -->
+  </application-components>
+
+  <project-components>
+    <!-- Add your project components here -->
+  </project-components>
+
+  <actions>
+    <!-- Add your actions here -->
+    <action id="BuckPlugin.BuckProjectRunner"
+            class="com.facebook.buck.intellijplugin.components.BuckProjectRunner"
+            text="Run Buck Project">
+      <add-to-group group-id="RunMenu" anchor="first"/>
+      <keyboard-shortcut keymap="$default" first-keystroke="shift F10"/>
+    </action>
+  </actions>
+
+</idea-plugin>
