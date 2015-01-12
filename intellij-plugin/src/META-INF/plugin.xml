@@ -26,6 +26,7 @@
 
   <extensions defaultExtensionNs="com.intellij">
     <!-- Add your extensions here -->
+    <programRunner implementation="com.facebook.buck.intellijplugin.components.BuckRunner"/>
   </extensions>
 
   <application-components>
@@ -38,9 +39,10 @@
 
   <actions>
     <!-- Add your actions here -->
-    <action id="BuckPlugin.BuckProjectRunner"
+    <action id="BuckPlugin.BuckProject"
             class="com.facebook.buck.intellijplugin.components.BuckProjectRunner"
-            text="Run Buck Project">
+            text="Buck Project Runner"
+            description="Run a buck project configuration">
       <add-to-group group-id="RunMenu" anchor="first"/>
       <keyboard-shortcut keymap="$default" first-keystroke="shift F10"/>
     </action>
