@@ -11,10 +11,8 @@ General instruction are available on [configuring IntelliJ](https://confluence.j
 * Install IntelliJ IDEA 14 Community Edition.
 * Clone the IntelliJ source code (for debugging) from
     * git clone git://git.jetbrains.org/idea/community.git idea
-* Intall IntelliJ plugins for:
-  * Python Community Edition
-  * Scala
-  * Gradle
+* Import IntelliJ Module for plugin development.
+* Set the path to the plugin directory to be buck/src/com/facebook/buck/intellijplugin/resources
 * Set up the project SDK (Project Structure -> SDK -> (+ Add) -> Select IntelliJ Platform Plugin SDK
 * Set your compiler to use compatibility with 1.6 (Settings -> Build, Execution and Deployment ->
   Compiler -> Java Compiler -> Project Bytecode Version = 1.6.
