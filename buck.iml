@@ -13,8 +13,20 @@
       <sourceFolder url="file://$MODULE_DIR$/third-party/java/dx-from-kitkat/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/build/ij/immutables" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/build/ij/immutables-test" isTestSource="true" />
+      <excludeFolder url="file://$MODULE_DIR$/src/com/facebook/buck/android" />
       <excludeFolder url="file://$MODULE_DIR$/src/com/facebook/buck/android/support" />
+      <excludeFolder url="file://$MODULE_DIR$/src/com/facebook/buck/apple" />
+      <excludeFolder url="file://$MODULE_DIR$/src/com/facebook/buck/cli" />
       <excludeFolder url="file://$MODULE_DIR$/src/com/facebook/buck/cli/quickstart" />
+      <excludeFolder url="file://$MODULE_DIR$/src/com/facebook/buck/command" />
+      <excludeFolder url="file://$MODULE_DIR$/src/com/facebook/buck/cxx" />
+      <excludeFolder url="file://$MODULE_DIR$/src/com/facebook/buck/dalvik" />
+      <excludeFolder url="file://$MODULE_DIR$/src/com/facebook/buck/event" />
+      <excludeFolder url="file://$MODULE_DIR$/src/com/facebook/buck/extension" />
+      <excludeFolder url="file://$MODULE_DIR$/src/com/facebook/buck/file" />
+      <excludeFolder url="file://$MODULE_DIR$/src/com/facebook/buck/graph" />
+      <excludeFolder url="file://$MODULE_DIR$/src/com/facebook/buck/gwt" />
+      <excludeFolder url="file://$MODULE_DIR$/src/com/facebook/buck/httpserver" />
       <excludeFolder url="file://$MODULE_DIR$/src/com/facebook/buck/junit" />
       <excludeFolder url="file://$MODULE_DIR$/test/com/facebook/buck/android/agent/util/testdata" />
       <excludeFolder url="file://$MODULE_DIR$/test/com/facebook/buck/android/testdata" />

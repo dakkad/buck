@@ -39,11 +39,12 @@
 
   <actions>
     <!-- Add your actions here -->
-    <action id="BuckPlugin.BuckProject"
-            class="com.facebook.buck.intellijplugin.components.BuckProjectRunner"
-            text="Buck Project Runner"
-            description="Run a buck project configuration">
-      <add-to-group group-id="RunMenu" anchor="first"/>
+    <action id="BuckPlugin.BuckProjectAction"
+            class="com.facebook.buck.intellijplugin.components.BuckProjectAction"
+            text="Run Buck Project"
+            description="Run buck project on the current module">
+      <add-to-group group-id="RunMenu" anchor="before"
+                    relative-to-action="RunnerActions"/>
       <keyboard-shortcut keymap="$default" first-keystroke="shift F10"/>
     </action>
   </actions>
