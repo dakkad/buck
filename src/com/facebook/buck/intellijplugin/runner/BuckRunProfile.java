@@ -18,7 +18,7 @@ public class BuckRunProfile implements RunProfile {
   @Override
   public RunProfileState getState(Executor executor,
       ExecutionEnvironment executionEnvironment) throws ExecutionException {
-    return new BuckRunProfileState();
+    return new BuckRunProfileState(executionEnvironment, new BuckRunParameters());
   }
 
   @Override

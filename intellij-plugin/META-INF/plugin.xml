@@ -34,6 +34,8 @@
     <!-- https://confluence.jetbrains.com/display/IDEADEV/Customizing+the+IDEA+Settings+Dialog -->
     <!-- https://confluence.jetbrains.com/display/IDEADEV/Persisting+State+of+Components -->
     <applicationConfigurable id="BuckProject.BuckConfiguration" instance="com.facebook.buck.intellijplugin.components.BuckConfiguration" displayName="Buck Config" parentId="project.propCompiler" />
+
+    <programRunner implementation="com.facebook.buck.intellijplugin.runner.BuckProjectRunner" />
   </extensions>
 
   <application-components>
@@ -47,11 +49,11 @@
         com.facebook.buck.intellijplugin.components.ExternalBuckProjectConfig
       </implementation-class>
     </component>
-    <component>
+    <!--<component>
       <implementation-class>
         com.facebook.buck.intellijplugin.components.BuckConfiguration
       </implementation-class>
-    </component>
+    </component> -->
   </project-components>
 
   <actions>

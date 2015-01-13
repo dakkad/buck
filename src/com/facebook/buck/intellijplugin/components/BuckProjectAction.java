@@ -1,9 +1,12 @@
 package com.facebook.buck.intellijplugin.components;
 
 import com.facebook.buck.intellijplugin.BuckPlugin;
+import com.facebook.buck.intellijplugin.runner.BackgroundBuckProject;
 import com.intellij.ide.util.PropertiesComponent;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
+import com.intellij.openapi.progress.ProgressManager;
+import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.wm.ToolWindow;
@@ -33,7 +36,9 @@ public class BuckProjectAction extends AnAction {
     ToolWindowManager windowManager = ToolWindowManager.getInstance(project);
     ToolWindow window = windowManager.getToolWindow("BuckPlugin.ToolWindow");
 
-    Messages.showMessageDialog(project, "Second Title",
-        null == window? "Window Not Found" : window.getTitle(), Messages.getInformationIcon());
+    // https://theantlrguy.atlassian.net/wiki/display/~admin/Intellij+plugin+development+notes#Intellijplugindevelopmentnotes-GUIandthreads,backgroundtasks
+    Task.Backgroundable task = new BackgroundBuckProject(project);
+    ProgressManager progressManager = ProgressManager.getInstance();
+    progressManager.run(task);
   }
 }
