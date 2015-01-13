@@ -18,11 +18,7 @@ import javax.swing.*;
  */
 public class BuckConfiguration implements Configurable, ProjectComponent {
 
-  private final Project project;
-
-  public BuckConfiguration(Project project) {
-    this.project = project;
-  }
+  private Project project;
 
   public void initComponent() {
     // TODO: insert component initialization logic here
@@ -61,8 +57,21 @@ public class BuckConfiguration implements Configurable, ProjectComponent {
   @Override
   public JComponent createComponent() {
     // create a layout for the project properties
+    JLabel projectsLabel = new JLabel("Buck Projects");
+    JTextField projectsInput = new JTextField(20);
+    Box outer = new Box(BoxLayout.Y_AXIS);
+    GroupLayout layout = new GroupLayout(outer);
+    layout.setAutoCreateGaps(true);
+    layout.setAutoCreateContainerGaps(true);
+    layout.setHorizontalGroup(layout.createSequentialGroup()
+        .addComponent(projectsLabel)
+        .addComponent(projectsInput));
+    layout.setVerticalGroup(layout.createSequentialGroup()
+        .addComponent(projectsLabel)
+        .addComponent(projectsInput));
+
     // Set up the properties content
-    return null;
+    return outer;
   }
 
   /**

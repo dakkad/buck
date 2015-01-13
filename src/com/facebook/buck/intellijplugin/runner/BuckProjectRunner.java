@@ -1,4 +1,4 @@
-package com.facebook.buck.intellijplugin.components;
+package com.facebook.buck.intellijplugin.runner;
 
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
