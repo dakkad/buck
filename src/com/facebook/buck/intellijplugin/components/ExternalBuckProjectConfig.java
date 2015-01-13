@@ -5,9 +5,16 @@ import com.intellij.openapi.project.Project;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Created by dak on 13/01/15.
+ * External project configuration for telling buck which projects to run.
+ *
+ * The external configuration is used to configure separate and independent
+ * systems so is an ideal place to configure Buck on a project basis to set up
+ * the project list to build.
+ *
+ * @author code@damieallison.com
  */
 public class ExternalBuckProjectConfig implements ProjectComponent {
+
   public ExternalBuckProjectConfig(Project project) {
   }
 

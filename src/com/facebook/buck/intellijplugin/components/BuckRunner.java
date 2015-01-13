@@ -18,6 +18,6 @@ public class BuckRunner extends GenericProgramRunner {
   @Override
   public boolean canRun(@NotNull String executorId, @NotNull RunProfile runProfile) {
     return DefaultRunExecutor.EXECUTOR_ID.equals(executorId) &&
-        runProfile instanceof BuckRunConfiguration;
+        runProfile instanceof BuckRunProfile;
   }
 }

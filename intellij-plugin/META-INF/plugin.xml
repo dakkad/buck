@@ -15,7 +15,7 @@
   </change-notes>
 
   <!-- please see http://confluence.jetbrains.com/display/IDEADEV/Build+Number+Ranges for description -->
-  <idea-version since-build="139.*" until-build="139.*"/>
+  <idea-version since-build="139.659" until-build="139.*"/>
 
   <!-- please see http://confluence.jetbrains.com/display/IDEADEV/Plugin+Compatibility+with+IntelliJ+Platform+Products
        on how to target different products -->
@@ -26,7 +26,14 @@
 
   <extensions defaultExtensionNs="com.intellij">
     <!-- Add your extensions here -->
-    <programRunner implementation="com.facebook.buck.intellijplugin.components.BuckRunner"/>
+    <!-- <programRunner implementation="com.facebook.buck.intellijplugin.components.BuckRunner"/> -->
+    <!-- https://confluence.jetbrains.com/display/IDEADEV/IntelliJ+IDEA+Tool+Windows -->
+    <toolWindow id="Buck Project"  anchor="bottom" secondary="false" factoryClass="com.facebook.buck.intellijplugin.tools.BuckToolWindow" />
+
+    <!-- Set up the project configuration integration to allow setting of the project settings -->
+    <!-- https://confluence.jetbrains.com/display/IDEADEV/Customizing+the+IDEA+Settings+Dialog -->
+    <!-- https://confluence.jetbrains.com/display/IDEADEV/Persisting+State+of+Components -->
+    <applicationConfigurable id="BuckProject.BuckConfiguration" instance="com.facebook.buck.intellijplugin.components.BuckConfiguration" displayName="Buck Config" parentId="project.propCompiler" />
   </extensions>
 
   <application-components>
@@ -35,9 +42,20 @@
 
   <project-components>
     <!-- Add your project components here -->
+    <component>
+      <implementation-class>
+        com.facebook.buck.intellijplugin.components.ExternalBuckProjectConfig
+      </implementation-class>
+    </component>
+    <component>
+      <implementation-class>
+        com.facebook.buck.intellijplugin.components.BuckConfiguration
+      </implementation-class>
+    </component>
   </project-components>
 
   <actions>
+    <!-- Editor actions http://git.jetbrains.org/?p=idea/community.git;a=blob;f=platform/platform-api/src/com/intellij/openapi/actionSystem/IdeActions.java;hb=HEAD -->
     <!-- Add your actions here -->
     <action id="BuckPlugin.BuckProjectAction"
             class="com.facebook.buck.intellijplugin.components.BuckProjectAction"
