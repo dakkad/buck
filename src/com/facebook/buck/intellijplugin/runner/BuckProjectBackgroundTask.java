@@ -1,9 +1,14 @@
 package com.facebook.buck.intellijplugin.runner;
 
+import com.facebook.buck.intellijplugin.buckprocess.BuckWatcher;
+import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.progress.PerformInBackgroundOption;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.Project;
+
+import java.io.File;
+import java.io.IOException;
 
 /**
  * Background buck task to run buck project.
@@ -13,6 +18,8 @@ import com.intellij.openapi.project.Project;
 public class BuckProjectBackgroundTask extends Task.Backgroundable {
 
   private static final String DEFAULT_TITLE = "Buck Project";
+  private static final Logger LOG = Logger.getInstance(BuckProjectBackgroundTask.class);
+  private static final double DONE_FRACTION = 1.0;
 
   public BuckProjectBackgroundTask(Project project,
       String title, boolean canBeCancelled,
@@ -35,17 +42,26 @@ public class BuckProjectBackgroundTask extends Task.Backgroundable {
 
   @Override
   public void run(ProgressIndicator progressIndicator) {
-    getProject().
-    int i = 0;
-    while (i < 5) {
-      progressIndicator.setFraction((double) i / 4.0);
-      try {
-        Thread.sleep(500);
-      } catch (InterruptedException e) {
-      }
-      i++;
-      progressIndicator.setFraction(1.0);
-    }
+    progressIndicator.start();
+    try {
+      Runtime runtime = Runtime.getRuntime();
+      progressIndicator.setFraction((double)runtime.freeMemory() /
+          (double)runtime.maxMemory());
 
+      BuckRunParameters parameters = new BuckRunParameters();
+      BaseDirectoryResolver baseResolver = BaseDirectoryResolver.fromProject(getProject());
+      Process process = runtime.exec(parameters.getFullCommand(),
+          parameters.getEnvironment(), new File(baseResolver.resolve()));
+
+      BuckWatcher watcher = BuckWatcher.fromProcess(process, progressIndicator);
+      watcher.watch();
+
+    } catch (IOException e) {
+      progressIndicator.cancel();
+      progressIndicator.setText("Buck Project Failed: " + e.getMessage());
+      LOG.error("Error running buck project", e);
+    }
+    progressIndicator.setFraction(DONE_FRACTION);
+    progressIndicator.stop();
   }
 }

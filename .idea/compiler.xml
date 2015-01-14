@@ -9,29 +9,18 @@
     </excludeFromCompile>
     <resourceExtensions />
     <wildcardResourcePatterns>
-      <entry name="?*.properties" />
-      <entry name="?*.xml" />
+      <entry name="?*.dtd" />
+      <entry name="?*.ftl" />
       <entry name="?*.gif" />
-      <entry name="?*.png" />
+      <entry name="?*.html" />
       <entry name="?*.jpeg" />
       <entry name="?*.jpg" />
-      <entry name="?*.html" />
-      <entry name="?*.dtd" />
+      <entry name="?*.png" />
+      <entry name="?*.properties" />
       <entry name="?*.tld" />
-      <entry name="?*.ftl" />
-      <entry name="?*.soy" />
+      <entry name="?*.xml" />
+      <entry name="?*.json" />
+      <entry name="?*.txt" />
     </wildcardResourcePatterns>
-    <annotationProcessing>
-      <profile default="true" name="Default" enabled="true">
-        <sourceOutputDir name="build/ij/immutables" />
-        <sourceTestOutputDir name="build/ij/immutables-test" />
-        <outputRelativeToContentRoot value="true" />
-        <processor name="org.immutables.value.internal.processor.Processor" />
-        <processorPath useClasspath="false">
-          <entry name="$PROJECT_DIR$/third-party/java/immutables/value-standalone-1.0.1.jar" />
-        </processorPath>
-      </profile>
-    </annotationProcessing>
-    <bytecodeTargetLevel target="1.6" />
   </component>
 </project>

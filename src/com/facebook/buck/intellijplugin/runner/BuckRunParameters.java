@@ -1,5 +1,7 @@
 package com.facebook.buck.intellijplugin.runner;
 
+import com.intellij.util.EnvironmentUtil;
+
 import java.util.Arrays;
 import java.util.List;
 
@@ -20,5 +22,9 @@ public class BuckRunParameters {
 
   public String getWorkingDirectory() {
     return ".";
+  }
+
+  public String[] getEnvironment() {
+    return EnvironmentUtil.getEnvironment();
   }
 }
