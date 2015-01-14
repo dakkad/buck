@@ -25,8 +25,13 @@ public class BuckWatcher {
 
   public static BuckWatcher fromProcess(Process process,
       ProgressIndicator progressIndicator) {
+//    try {
+//      process.waitFor();
+//    } catch (InterruptedException e) {
+//      throw new RuntimeException("Interrupted waiting for buck");
+//    }
     return BuckWatcher.newBuilder()
-        .setInputStream(process.getInputStream())
+        .setInputStream(process.getErrorStream())
         .setProgressIndicator(progressIndicator)
         .build();
   }
@@ -38,10 +43,18 @@ public class BuckWatcher {
   public void watch() {
     try {
       BufferedReader in = new BufferedReader(new InputStreamReader(inputStream));
+      while (!in.ready()) {
+        try {
+          Thread.sleep(100);
+        } catch (InterruptedException e) {
+          LOG.error("Interrupted waiting for buck input stream");
+        }
+      }
       String line;
       while (null != (line = in.readLine())) {
         LOG.info("Buck: " + line);
       }
+      LOG.info("Buck: DONE");
     } catch (IOException e) {
       LOG.error("Error watching buck", e);
     }

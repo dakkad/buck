@@ -12,8 +12,18 @@ import java.util.List;
  * @author code@damienallison.com
  */
 public class BuckRunParameters {
+  private static final String DEFAULT_BUCK_COMMAND = "buck";
+  private static final String PADDING = " ";
+
   public String getFullCommand() {
-    return "buck";
+    StringBuilder builder = new StringBuilder(16);
+    builder.append(DEFAULT_BUCK_COMMAND)
+        .append(PADDING);
+    for (String argument : getArguments()) {
+      builder.append(argument)
+          .append(PADDING);
+    }
+    return builder.toString();
   }
 
   public List<String> getArguments() {

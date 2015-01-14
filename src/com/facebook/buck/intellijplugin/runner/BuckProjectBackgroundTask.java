@@ -42,7 +42,6 @@ public class BuckProjectBackgroundTask extends Task.Backgroundable {
 
   @Override
   public void run(ProgressIndicator progressIndicator) {
-    progressIndicator.start();
     try {
       Runtime runtime = Runtime.getRuntime();
       progressIndicator.setFraction((double)runtime.freeMemory() /
@@ -50,9 +49,11 @@ public class BuckProjectBackgroundTask extends Task.Backgroundable {
 
       BuckRunParameters parameters = new BuckRunParameters();
       BaseDirectoryResolver baseResolver = BaseDirectoryResolver.fromProject(getProject());
+      LOG.info("Running Buck Command: " + parameters.getFullCommand());
       Process process = runtime.exec(parameters.getFullCommand(),
           parameters.getEnvironment(), new File(baseResolver.resolve()));
 
+      LOG.info("Starting buck waiter");
       BuckWatcher watcher = BuckWatcher.fromProcess(process, progressIndicator);
       watcher.watch();
 
@@ -62,6 +63,5 @@ public class BuckProjectBackgroundTask extends Task.Backgroundable {
       LOG.error("Error running buck project", e);
     }
     progressIndicator.setFraction(DONE_FRACTION);
-    progressIndicator.stop();
   }
 }
