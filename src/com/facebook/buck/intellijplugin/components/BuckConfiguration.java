@@ -1,12 +1,12 @@
 package com.facebook.buck.intellijplugin.components;
 
 import com.facebook.buck.intellijplugin.BuckPlugin;
-import com.intellij.openapi.components.ProjectComponent;
+import com.intellij.ide.util.PropertiesComponent;
+import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.options.Configurable;
 import com.intellij.openapi.options.ConfigurationException;
 import com.intellij.openapi.project.Project;
 import org.jetbrains.annotations.Nls;
-import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
@@ -16,30 +16,22 @@ import javax.swing.*;
  *
  * @author code@damienallison.com
  */
-public class BuckConfiguration implements Configurable, ProjectComponent {
+public class BuckConfiguration implements Configurable {
+
+  public static final String BUCK_PROJECT_NAMES = BuckPlugin.PLUGIN_NAME +
+      ".BuckProjectNames";
+  public static final String DEFAULT_PROJECT_NAMES = "";
+  private static final Logger LOG = Logger.getInstance(BuckConfiguration.class);
 
   private Project project;
 
-  public void initComponent() {
-    // TODO: insert component initialization logic here
+  private String projectNames = DEFAULT_PROJECT_NAMES;
+  private JTextField projectsInput;
+
+  public BuckConfiguration(Project project) {
+    this.project = project;
   }
 
-  public void disposeComponent() {
-    // TODO: insert component disposal logic here
-  }
-
-  @NotNull
-  public String getComponentName() {
-    return BuckPlugin.CONFIGURATION_NAME;
-  }
-
-  public void projectOpened() {
-    // called when project is opened
-  }
-
-  public void projectClosed() {
-    // called when project is being closed
-  }
 
   @Nls
   @Override
@@ -56,10 +48,15 @@ public class BuckConfiguration implements Configurable, ProjectComponent {
   @Nullable
   @Override
   public JComponent createComponent() {
+    PropertiesComponent projectProperties = PropertiesComponent.getInstance(project);
+    projectNames = projectProperties.getValue(BUCK_PROJECT_NAMES, DEFAULT_PROJECT_NAMES);
+    LOG.info("Loaded Buck Project Names " + projectNames);
+    // https://confluence.jetbrains.com/display/IDEADEV/Customizing+the+IDEA+Settings+Dialog
     // create a layout for the project properties
     JLabel projectsLabel = new JLabel("Buck Projects");
-    JTextField projectsInput = new JTextField(20);
-    Box outer = new Box(BoxLayout.Y_AXIS);
+    projectsInput = new JTextField(projectNames, 10);
+
+    Box outer = new Box(BoxLayout.X_AXIS);
     GroupLayout layout = new GroupLayout(outer);
     layout.setAutoCreateGaps(true);
     layout.setAutoCreateContainerGaps(true);
@@ -92,11 +89,14 @@ public class BuckConfiguration implements Configurable, ProjectComponent {
   public void apply() throws ConfigurationException {
     // Get the basic project properties
     // Write the contents of the form into the project properties
+    PropertiesComponent projectProperties = PropertiesComponent.getInstance(project);
+    String text = projectsInput.getText();
+    projectProperties.setValue(BUCK_PROJECT_NAMES, text);
   }
 
   @Override
   public void reset() {
-
+    // TODO (dka) Reset the project names
   }
 
   @Override

@@ -1,6 +1,5 @@
 package com.facebook.buck.intellijplugin.components;
 
-import com.facebook.buck.intellijplugin.BuckPlugin;
 import com.facebook.buck.intellijplugin.runner.BuckProjectBackgroundTask;
 import com.intellij.ide.util.PropertiesComponent;
 import com.intellij.openapi.actionSystem.AnAction;
@@ -17,9 +16,8 @@ import com.intellij.openapi.wm.ToolWindowManager;
  */
 public class BuckProjectAction extends AnAction {
   
-  private static final String DEFAULT_PROJECT_NAMES = "";
-  private static final String BUCK_PROJECT_NAMES = BuckPlugin.PLUGIN_NAME +
-      ".BuckProjectNames";
+
+
 
 
   public void actionPerformed(AnActionEvent actionEvent) {
@@ -27,9 +25,9 @@ public class BuckProjectAction extends AnAction {
 
     // Get the project name to run
     PropertiesComponent projectProperties = PropertiesComponent.getInstance(project);
-    String projectNames = projectProperties.getValue(BUCK_PROJECT_NAMES, 
-        DEFAULT_PROJECT_NAMES);
-    if (DEFAULT_PROJECT_NAMES.equals(projectNames)) {
+    String projectNames = projectProperties.getValue(BuckConfiguration.BUCK_PROJECT_NAMES,
+        BuckConfiguration.DEFAULT_PROJECT_NAMES);
+    if (BuckConfiguration.DEFAULT_PROJECT_NAMES.equals(projectNames)) {
       Messages.showErrorDialog(project, "No Project Names Specified. " +
           "Please check your buck settings", "Buck Projects");
       //return;
