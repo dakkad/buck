@@ -39,9 +39,7 @@ public class BuckRunProfileState extends CommandLineState {
     }
     commandLine.setExePath(command);
     commandLine.setPassParentEnvironment(true);
-    for (String argument : parameters.getArguments()) {
-      commandLine.addParameters(parameters.getArguments());
-    }
+    commandLine.addParameters(parameters.getArguments());
     OSProcessHandler processHandler = new ColoredProcessHandler(
         commandLine.withWorkDirectory(parameters.getWorkingDirectory())
         .createProcess(), commandLine.getCommandLineString());

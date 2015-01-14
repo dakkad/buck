@@ -33,7 +33,7 @@
     <!-- Set up the project configuration integration to allow setting of the project settings -->
     <!-- https://confluence.jetbrains.com/display/IDEADEV/Customizing+the+IDEA+Settings+Dialog -->
     <!-- https://confluence.jetbrains.com/display/IDEADEV/Persisting+State+of+Components -->
-    <applicationConfigurable id="BuckProject.BuckConfiguration" instance="com.facebook.buck.intellijplugin.components.BuckConfiguration" displayName="Buck Config" parentId="project.propCompiler" />
+    <applicationConfigurable id="BuckProject.BuckConfiguration" instance="com.facebook.buck.intellijplugin.components.BuckConfiguration" displayName="Buck Config" />
 
     <programRunner implementation="com.facebook.buck.intellijplugin.runner.BuckProjectRunner" />
   </extensions>

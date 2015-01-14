@@ -1,7 +1,7 @@
 package com.facebook.buck.intellijplugin.components;
 
 import com.facebook.buck.intellijplugin.BuckPlugin;
-import com.facebook.buck.intellijplugin.runner.BackgroundBuckProject;
+import com.facebook.buck.intellijplugin.runner.BuckProjectBackgroundTask;
 import com.intellij.ide.util.PropertiesComponent;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
@@ -13,7 +13,7 @@ import com.intellij.openapi.wm.ToolWindow;
 import com.intellij.openapi.wm.ToolWindowManager;
 
 /**
- * Created by dak on 13/01/15.
+ * Basic action to run a buck project
  */
 public class BuckProjectAction extends AnAction {
   
@@ -29,15 +29,18 @@ public class BuckProjectAction extends AnAction {
     PropertiesComponent projectProperties = PropertiesComponent.getInstance(project);
     String projectNames = projectProperties.getValue(BUCK_PROJECT_NAMES, 
         DEFAULT_PROJECT_NAMES);
-    Messages.showErrorDialog(project, projectNames.isEmpty()?
-        "No Project Names Specified" : projectNames, "Buck Projects");
+    if (DEFAULT_PROJECT_NAMES.equals(projectNames)) {
+      Messages.showErrorDialog(project, "No Project Names Specified. " +
+          "Please check your buck settings", "Buck Projects");
+      //return;
+    }
 
     // Get a reference to the tool manager to access content
     ToolWindowManager windowManager = ToolWindowManager.getInstance(project);
     ToolWindow window = windowManager.getToolWindow("BuckPlugin.ToolWindow");
 
     // https://theantlrguy.atlassian.net/wiki/display/~admin/Intellij+plugin+development+notes#Intellijplugindevelopmentnotes-GUIandthreads,backgroundtasks
-    Task.Backgroundable task = new BackgroundBuckProject(project);
+    Task.Backgroundable task = new BuckProjectBackgroundTask(project);
     ProgressManager progressManager = ProgressManager.getInstance();
     progressManager.run(task);
   }

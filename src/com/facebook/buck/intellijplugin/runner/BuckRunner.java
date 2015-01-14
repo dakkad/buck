@@ -1,18 +1,21 @@
 package com.facebook.buck.intellijplugin.runner;
 
+import com.facebook.buck.intellijplugin.BuckPlugin;
 import com.intellij.execution.configurations.RunProfile;
 import com.intellij.execution.executors.DefaultRunExecutor;
 import com.intellij.execution.runners.GenericProgramRunner;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Created by dak on 12/01/15.
+ * The buck runner offers a basis for external compile and run functions.
+ *
+ * @author code@damienallison.com
  */
 public class BuckRunner extends GenericProgramRunner {
   @NotNull
   @Override
   public String getRunnerId() {
-    return null;
+    return BuckPlugin.RUNNER_ID;
   }
 
   @Override
