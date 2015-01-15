@@ -67,6 +67,7 @@ public class BuckProjectBackgroundTask extends Task.Backgroundable {
 
       LOG.info("Starting buck waiter");
       BuckWatcher watcher = BuckWatcher.newBuilder()
+          .setBuckCommand(parameters.getFullCommand())
           .setProgressIndicator(progressIndicator)
           .setInputStream(process.getErrorStream())
           .setToolWindow(window)

@@ -33,9 +33,6 @@ public class BuckRunProfileState extends CommandLineState {
     log.info("Starting Buck Command Line Process");
     GeneralCommandLine commandLine = new GeneralCommandLine();
     String command = parameters.getFullCommand();
-    if (null == command) {
-      throw new ExecutionException("Invalid / Missing buck project config");
-    }
     commandLine.setExePath(command);
     commandLine.setPassParentEnvironment(true);
     commandLine.addParameters(parameters.getArguments());
@@ -45,5 +42,4 @@ public class BuckRunProfileState extends CommandLineState {
     ProcessTerminatedListener.attach(processHandler, getEnvironment().getProject());
     return processHandler;
   }
-
 }

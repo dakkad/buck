@@ -15,7 +15,7 @@ import java.awt.*;
  */
 public class BuckToolWindow implements ToolWindowFactory {
 
-  public static String ID = "Buck Project";
+  public static final String ID = "Buck Project";
 
   @Override
   public void createToolWindowContent(Project project, ToolWindow toolWindow) {

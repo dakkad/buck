@@ -11,6 +11,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 
 /**
  * The Buck watcher provides functions for watching a buck process and handling
@@ -21,22 +22,17 @@ import java.io.InputStreamReader;
 public class BuckWatcher {
 
   private static final Logger LOG = Logger.getInstance(BuckWatcher.class);
-  private static final String EMPTY = "";
   private static final String NEW_LINE = "\n";
 
   private InputStream inputStream;
   private ProgressIndicator progressIndicator;
   private ToolWindow toolWindow;
+  private String buckCommand;
 
   protected BuckWatcher() {}
 
   public static BuckWatcher fromProcess(Process process,
       ProgressIndicator progressIndicator) {
-//    try {
-//      process.waitFor();
-//    } catch (InterruptedException e) {
-//      throw new RuntimeException("Interrupted waiting for buck");
-//    }
     return BuckWatcher.newBuilder()
         .setInputStream(process.getErrorStream())
         .setProgressIndicator(progressIndicator)
@@ -49,19 +45,14 @@ public class BuckWatcher {
 
   public void watch() {
     try {
-      BufferedReader in = new BufferedReader(new InputStreamReader(inputStream));
-      /*while (!in.ready()) {
-        try {
-          Thread.sleep(100);
-        } catch (InterruptedException e) {
-          LOG.error("Interrupted waiting for buck input stream");
-        }
-      } */
+      BufferedReader in = new BufferedReader(new InputStreamReader(inputStream,
+          StandardCharsets.UTF_8));
 
       JTextArea textArea = BuckToolWindow.resolveTextPane(toolWindow);
-      textArea.setText(EMPTY);
-      String line;
+      clearTextArea(textArea);
+      appendLine(textArea, "Buck Command: " + buckCommand);
 
+      String line;
       while (null != (line = in.readLine())) {
         LOG.info("Buck: " + line);
         appendLine(textArea, line);
@@ -70,6 +61,16 @@ public class BuckWatcher {
     } catch (IOException e) {
       LOG.error("Error watching buck", e);
     }
+  }
+
+  private void clearTextArea(final JTextArea textArea) {
+    ApplicationManager.getApplication().invokeLater(new Runnable() {
+      @Override
+      public void run() {
+        textArea.setText("");
+        textArea.repaint();
+      }
+    });
   }
 
   private void appendLine(final JTextArea textArea, final String line) {
@@ -104,6 +105,11 @@ public class BuckWatcher {
 
     public BuckWatcher build() {
       return result;
+    }
+
+    public Builder setBuckCommand(String buckCommand) {
+      result.buckCommand = buckCommand;
+      return this;
     }
   }
 }

@@ -24,7 +24,7 @@ public class BuckProjectAction extends AnAction {
 
     // Get the project name to run
     String projectNames = BuckConfiguration.getProjectNames(project);
-    if (BuckConfiguration.DEFAULT_PROJECT_NAMES.equals(projectNames)) {
+    if (BuckConfiguration.DEFAULT_PROJECT_NAMES.equals(projectNames.trim())) {
       Messages.showErrorDialog(project, "No Project Names Specified. " +
           "Please check your buck settings", "Buck Projects");
       return;
@@ -33,17 +33,23 @@ public class BuckProjectAction extends AnAction {
     // Activate the tool window
     ToolWindowManager toolWindowManager = ToolWindowManager.getInstance(project);
     final ToolWindow toolWindow = toolWindowManager.getToolWindow(BuckToolWindow.ID);
-    toolWindow.activate(new Runnable() {
-      @Override
-      public void run() {
-        BuckToolWindow.resolveTextPane(toolWindow).setText("");
-      }
-    });
+    toolWindow.activate(NullAction.newInstance());
 
 
     // https://theantlrguy.atlassian.net/wiki/display/~admin/Intellij+plugin+development+notes#Intellijplugindevelopmentnotes-GUIandthreads,backgroundtasks
     Task.Backgroundable task = new BuckProjectBackgroundTask(project);
     ProgressManager progressManager = ProgressManager.getInstance();
     progressManager.run(task);
+  }
+
+  private static class NullAction implements Runnable {
+
+    public static NullAction newInstance() {
+      return new NullAction();
+    }
+
+    @Override
+    public void run() {
+    }
   }
 }
