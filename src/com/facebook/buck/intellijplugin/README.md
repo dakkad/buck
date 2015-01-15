@@ -17,7 +17,13 @@ General instruction are available on [configuring IntelliJ](https://confluence.j
 * Set your compiler to use compatibility with 1.6 (Settings -> Build, Execution and Deployment ->
   Compiler -> Java Compiler -> Project Bytecode Version = 1.6.
 
+# Entry Points
+The initial version of the runner supports basic buck project commands with the ability
+to feed back that buck is running in a background. The BuckProjectAction contains
+the primary entry point for the buck project action.
+
 # Plugin Packaging
+
 
 
 

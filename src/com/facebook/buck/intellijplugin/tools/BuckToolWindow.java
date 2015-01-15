@@ -37,7 +37,6 @@ public class BuckToolWindow implements ToolWindowFactory {
   public void createToolWindowContent(Project project, ToolWindow toolWindow) {
     // TODO(dka) 20140113 Create tool window content console
     toolWindow.setTitle("Buck Project");
-
     JTextArea toolText = new JTextArea();
     toolText.setEditable(false);
     toolWindow.getComponent()

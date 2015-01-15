@@ -27,8 +27,7 @@ import org.jetbrains.annotations.NotNull;
  * The buck project runner is a program runner which runs the external buck
  * command line tool.
  *
- * Currently the buck project runner is executed along with the other default
- * runners
+ * @author code@damienallison.com
  */
 public class BuckProjectRunner extends DefaultProgramRunner {
 
