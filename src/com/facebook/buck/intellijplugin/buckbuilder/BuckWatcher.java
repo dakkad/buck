@@ -14,7 +14,7 @@
  * under the License.
  */
 
-package com.facebook.buck.intellijplugin.buckprocess;
+package com.facebook.buck.intellijplugin.buckbuilder;
 
 import com.facebook.buck.intellijplugin.tools.BuckToolWindow;
 import com.intellij.openapi.application.ApplicationManager;

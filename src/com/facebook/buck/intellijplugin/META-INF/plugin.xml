@@ -49,8 +49,12 @@
     <!-- https://confluence.jetbrains.com/display/IDEADEV/Customizing+the+IDEA+Settings+Dialog -->
     <!-- https://confluence.jetbrains.com/display/IDEADEV/Persisting+State+of+Components -->
     <!-- <applicationConfigurable id="BuckProject.BuckConfiguration" instance="com.facebook.buck.intellijplugin.components.BuckConfiguration" displayName="Buck Config" /> -->
-    <projectConfigurable id="BuckProject.BuckConfiguration" instance="com.facebook.buck.intellijplugin.components.BuckConfiguration" displayName="Buck Config" />
-
+    <projectConfigurable id="BuckPlugin.BuckConfiguration" instance="com.facebook.buck.intellijplugin.components.BuckConfiguration" displayName="Buck Config" />
+    <!-- TODO Consider for targets command integraion <bundledQuickListsProvider implementation="" /> -->
+    <!-- TODO Consider for target scope calculation <compiler.buildTargetScopeProvider implementation="" /> -->
+    <!-- TODO Consider for buck config watcher for JVM selection <buildProcess.parametersProvider implementation="" /> -->
+    <!-- TODO Consider for buck compiler integration <compileServer.plugin id="BuckPlugin.BuckCompileServer" -->
+    <!-- TODO Consider for compiler checker. <compiler implementation="com.facebook.buck.intellijplugin.buckprocess.BuckCompiler" id="BuckPlugin.Compiler" /> -->
   </extensions>
 
   <application-components>
@@ -69,6 +73,16 @@
         com.facebook.buck.intellijplugin.components.BuckConfiguration
       </implementation-class>
     </component> -->
+    <component>
+      <implementation-class>
+        com.facebook.buck.intellijplugin.buckbuilder.BuckServer
+      </implementation-class>
+    </component>
+    <!-- As per the service documentation external services need to be named
+    in a services directory of the meta inf. The services are lazy loaded.
+    https://confluence.jetbrains.com/display/IDEADEV/External+Builder+API+and+Plugins
+    http://docs.oracle.com/javase/6/docs/api/java/util/ServiceLoader.html
+    -->
   </project-components>
 
   <actions>

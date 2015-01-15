@@ -16,7 +16,7 @@
 
 package com.facebook.buck.intellijplugin.runner;
 
-import com.facebook.buck.intellijplugin.buckprocess.BuckWatcher;
+import com.facebook.buck.intellijplugin.buckbuilder.BuckWatcher;
 import com.facebook.buck.intellijplugin.tools.BuckToolWindow;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.progress.PerformInBackgroundOption;
