@@ -54,8 +54,9 @@ public class BuckConfiguration implements Configurable {
     LOG.info("Loaded Buck Project Names " + projectNames);
     // https://confluence.jetbrains.com/display/IDEADEV/Customizing+the+IDEA+Settings+Dialog
     // create a layout for the project properties
+
     JLabel projectsLabel = new JLabel("Buck Projects");
-    projectsInput = new JTextField(projectNames, 20);
+    projectsInput = new JTextField(projectNames, 32);
 
     FlowLayout layout = new FlowLayout(FlowLayout.LEADING, 5, 5);
     JPanel outer = new JPanel(layout);

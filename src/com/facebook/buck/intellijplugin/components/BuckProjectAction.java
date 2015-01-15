@@ -1,9 +1,11 @@
 package com.facebook.buck.intellijplugin.components;
 
 import com.facebook.buck.intellijplugin.runner.BuckProjectBackgroundTask;
+import com.facebook.buck.intellijplugin.tools.BuckToolWindow;
 import com.intellij.ide.util.PropertiesComponent;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
+import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.Project;
@@ -17,9 +19,7 @@ import com.intellij.openapi.wm.WindowManager;
  */
 public class BuckProjectAction extends AnAction {
   
-
-
-
+  private static final Logger LOG = Logger.getInstance(BuckProjectAction.class);
 
   public void actionPerformed(AnActionEvent actionEvent) {
     Project project = actionEvent.getProject();
@@ -34,9 +34,14 @@ public class BuckProjectAction extends AnAction {
       //return;
     }
 
-    // Get a reference to the tool manager to access content
-    ToolWindowManager windowManager = ToolWindowManager.getInstance(project);
-    ToolWindow window = windowManager.getToolWindow("BuckPlugin.ToolWindow");
+    // Activate the tool window
+    ToolWindowManager toolWindowManager = ToolWindowManager.getInstance(project);
+    final ToolWindow toolWindow = toolWindowManager.getToolWindow(BuckToolWindow.ID);
+    toolWindow.activate(new Runnable() {
+      @Override
+      public void run() {
+      }
+    });
 
     // https://theantlrguy.atlassian.net/wiki/display/~admin/Intellij+plugin+development+notes#Intellijplugindevelopmentnotes-GUIandthreads,backgroundtasks
     Task.Backgroundable task = new BuckProjectBackgroundTask(project);

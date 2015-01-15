@@ -1,8 +1,12 @@
 package com.facebook.buck.intellijplugin.buckprocess;
 
+import com.facebook.buck.intellijplugin.tools.BuckToolWindow;
+import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.progress.ProgressIndicator;
+import com.intellij.openapi.wm.ToolWindow;
 
+import javax.swing.*;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -17,9 +21,12 @@ import java.io.InputStreamReader;
 public class BuckWatcher {
 
   private static final Logger LOG = Logger.getInstance(BuckWatcher.class);
+  private static final String EMPTY = "";
+  private static final String NEW_LINE = "\n";
 
   private InputStream inputStream;
   private ProgressIndicator progressIndicator;
+  private ToolWindow toolWindow;
 
   protected BuckWatcher() {}
 
@@ -43,21 +50,37 @@ public class BuckWatcher {
   public void watch() {
     try {
       BufferedReader in = new BufferedReader(new InputStreamReader(inputStream));
-      while (!in.ready()) {
+      /*while (!in.ready()) {
         try {
           Thread.sleep(100);
         } catch (InterruptedException e) {
           LOG.error("Interrupted waiting for buck input stream");
         }
-      }
+      } */
+
+      JTextArea textArea = BuckToolWindow.resolveTextPane(toolWindow);
+      textArea.setText(EMPTY);
       String line;
+
       while (null != (line = in.readLine())) {
         LOG.info("Buck: " + line);
+        appendLine(textArea, line);
       }
       LOG.info("Buck: DONE");
     } catch (IOException e) {
       LOG.error("Error watching buck", e);
     }
+  }
+
+  private void appendLine(final JTextArea textArea, final String line) {
+    ApplicationManager.getApplication().invokeLater(new Runnable() {
+      @Override
+      public void run() {
+        textArea.append(line);
+        textArea.append(NEW_LINE);
+        textArea.repaint();
+      }
+    });
   }
 
   public static class Builder {
@@ -71,6 +94,11 @@ public class BuckWatcher {
 
     public Builder setProgressIndicator(ProgressIndicator progressIndicator) {
       result.progressIndicator = progressIndicator;
+      return this;
+    }
+
+    public Builder setToolWindow(ToolWindow toolWindow) {
+      result.toolWindow = toolWindow;
       return this;
     }
 
