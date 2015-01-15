@@ -13,15 +13,18 @@ import com.intellij.openapi.wm.ToolWindow;
 import com.intellij.openapi.wm.ToolWindowManager;
 
 /**
- * Basic action to run a buck project
+ * Simple action to run a buck project with project name taken from properties
+ * configuration.
+ *
+ * @author code@damienallison.com
  */
 public class BuckProjectAction extends AnAction {
   
   private static final Logger LOG = Logger.getInstance(BuckProjectAction.class);
 
+  @Override
   public void actionPerformed(AnActionEvent actionEvent) {
     Project project = actionEvent.getProject();
-
     // Get the project name to run
     String projectNames = BuckConfiguration.getProjectNames(project);
     if (BuckConfiguration.DEFAULT_PROJECT_NAMES.equals(projectNames.trim())) {
@@ -35,7 +38,6 @@ public class BuckProjectAction extends AnAction {
     final ToolWindow toolWindow = toolWindowManager.getToolWindow(BuckToolWindow.ID);
     toolWindow.activate(NullAction.newInstance());
 
-
     // https://theantlrguy.atlassian.net/wiki/display/~admin/Intellij+plugin+development+notes#Intellijplugindevelopmentnotes-GUIandthreads,backgroundtasks
     Task.Backgroundable task = new BuckProjectBackgroundTask(project);
     ProgressManager progressManager = ProgressManager.getInstance();
@@ -43,6 +45,7 @@ public class BuckProjectAction extends AnAction {
   }
 
   private static class NullAction implements Runnable {
+
 
     public static NullAction newInstance() {
       return new NullAction();

@@ -9,8 +9,11 @@ import com.intellij.openapi.project.Project;
 import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.Nullable;
 
-import javax.swing.*;
-import java.awt.*;
+import java.awt.FlowLayout;
+import javax.swing.JComponent;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.JTextField;
 
 /**
  * Buck configuration management using basic project properties component to
@@ -20,13 +23,15 @@ import java.awt.*;
  */
 public class BuckConfiguration implements Configurable {
 
+  private static final Logger LOG = Logger.getInstance(BuckConfiguration.class);
   public static final String BUCK_PROJECT_NAMES = BuckPlugin.PLUGIN_NAME +
       ".BuckProjectNames";
   public static final String DEFAULT_PROJECT_NAMES = "";
-  private static final Logger LOG = Logger.getInstance(BuckConfiguration.class);
   private static final String TARGETS = "targets";
+  private static final int INPUT_TEXT_SIZE = 32;
+  private static final int PADDING = 5;
 
-  private Project project;
+  private final Project project;
 
   private String projectNames = DEFAULT_PROJECT_NAMES;
   private JTextField projectsInput;
@@ -55,29 +60,24 @@ public class BuckConfiguration implements Configurable {
   @Nullable
   @Override
   public String getHelpTopic() {
-    return null;
+    return "";
   }
 
   @Nullable
   @Override
   public JComponent createComponent() {
-
     projectNames = getProjectNames(project);
     LOG.info("Loaded Buck Project Names " + projectNames);
     // https://confluence.jetbrains.com/display/IDEADEV/Customizing+the+IDEA+Settings+Dialog
     // create a layout for the project properties
 
     JLabel projectsLabel = new JLabel("Buck Projects");
-    projectsInput = new JTextField(projectNames, 32);
-
-    FlowLayout layout = new FlowLayout(FlowLayout.LEADING, 5, 5);
+    projectsInput = new JTextField(projectNames, INPUT_TEXT_SIZE);
+    FlowLayout layout = new FlowLayout(FlowLayout.LEADING, PADDING, PADDING);
     JPanel outer = new JPanel(layout);
-
     outer.setLayout(layout);
-
     outer.add(projectsLabel);
     outer.add(projectsInput);
-
     // Set up the properties content
     return outer;
   }
@@ -90,10 +90,8 @@ public class BuckConfiguration implements Configurable {
    */
   @Override
   public boolean isModified() {
-    // Get the project properties
-    // Get the current value of the project property for the project to run name
-    // return true if they are different
-    return true;
+    String current = getProjectNames(project);
+    return !current.equals(projectsInput.getText().trim());
   }
 
   @Override
@@ -107,11 +105,11 @@ public class BuckConfiguration implements Configurable {
 
   @Override
   public void reset() {
-    // TODO (dka) Reset the project names
+    projectsInput.setText(DEFAULT_PROJECT_NAMES);
   }
 
   @Override
   public void disposeUIResources() {
-
+    // TODO(dka) 20150115 null components
   }
 }

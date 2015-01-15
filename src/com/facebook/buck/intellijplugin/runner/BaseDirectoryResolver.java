@@ -4,6 +4,7 @@ import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.roots.ProjectRootManager;
 import com.intellij.openapi.vfs.VirtualFile;
+import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
 
@@ -17,21 +18,29 @@ public abstract class BaseDirectoryResolver {
   private static final Logger LOG = Logger.getInstance(BaseDirectoryResolver.class);
   private static final String BUCK_CONFIG_FILE = ".buckconfig";
 
-  private BaseDirectoryResolver() {}
+  private BaseDirectoryResolver() { }
 
   /**
    * Resolve the base directory based on internal state.
    *
-   * @return base directory path
+   * @return base directory path.
+   * @throws java.io.IOException when not able to resolve the base directory.
    */
   public abstract String resolve() throws IOException;
 
-  public static BaseDirectoryResolver fromProject(Project project) {
+  /**
+   * Base directory resolver factory which constructs a base directory resolver
+   * from a project.
+   * @param project context
+   * @return base directory resolver
+   */
+  @NotNull
+  public static BaseDirectoryResolver fromProject(final Project project) {
     return new ProjectBaseDirectoryResolver(project);
   }
 
-  private static class ProjectBaseDirectoryResolver extends BaseDirectoryResolver {
-
+  private static final class ProjectBaseDirectoryResolver
+      extends BaseDirectoryResolver {
 
     private final Project project;
 
@@ -44,9 +53,6 @@ public abstract class BaseDirectoryResolver {
       // TODO// (dka) 20150114 Start at the current file and travel up to base dir
       ProjectRootManager contentRootManager = ProjectRootManager.getInstance(project);
       VirtualFile[] roots = contentRootManager.getContentRoots();
-      if (null == roots) {
-        throw new IOException("No content root set for project");
-      }
       String basePath = null;
       for (VirtualFile candidate : roots) {
         LOG.info("Considering Buck Content Root " + candidate.getPath());

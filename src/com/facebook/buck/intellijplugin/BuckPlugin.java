@@ -11,4 +11,6 @@ public class BuckPlugin {
   public static final String PLUGIN_NAME = "BuckPlugin";
   public static final String CONFIGURATION_NAME = "Buck Configuration";
   public static final String RUNNER_ID = "BuckPlugin.Runner";
+
+  private BuckPlugin() { }
 }
