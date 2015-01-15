@@ -1,0 +1,88 @@
+<!--
+  ~ Copyright 2013-present Facebook, Inc.
+  ~
+  ~ Licensed under the Apache License, Version 2.0 (the "License"); you may
+  ~ not use this file except in compliance with the License. You may obtain
+  ~ a copy of the License at
+  ~
+  ~ http://www.apache.org/licenses/LICENSE-2.0
+  ~
+  ~ Unless required by applicable law or agreed to in writing, software
+  ~ distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+  ~ WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+  ~ License for the specific language governing permissions and limitations
+  ~ under the License.
+  -->
+<idea-plugin version="2">
+  <id>com.facebook.buck.intellijplugin</id>
+  <name>Buck IntelliJ Plugin</name>
+  <version>0.0.1</version>
+  <vendor email="code@damienallison.com" url="http://www.facebook.com/">Facebook</vendor>
+
+  <description><![CDATA[
+      The Facebook IntelliJ IDEA 14 Buck plugin supports basic run functions of
+      the buck platform by integrating with different buck targets.
+    ]]></description>
+
+  <change-notes><![CDATA[
+      0.0.0 : Initial Version.<br>
+    ]]>
+  </change-notes>
+
+  <!-- please see http://confluence.jetbrains.com/display/IDEADEV/Build+Number+Ranges for description -->
+  <idea-version since-build="139.659" until-build="139.*"/>
+
+  <!-- please see http://confluence.jetbrains.com/display/IDEADEV/Plugin+Compatibility+with+IntelliJ+Platform+Products
+       on how to target different products -->
+  <!-- uncomment to enable plugin in all products
+  <depends>com.intellij.modules.lang</depends>
+  -->
+  <depends>com.intellij.modules.java</depends>
+
+  <extensions defaultExtensionNs="com.intellij">
+    <!-- Add your extensions here -->
+    <!-- <programRunner implementation="com.facebook.buck.intellijplugin.components.BuckRunner"/> -->
+    <!-- https://confluence.jetbrains.com/display/IDEADEV/IntelliJ+IDEA+Tool+Windows -->
+    <toolWindow id="Buck Project"  anchor="bottom" secondary="false" factoryClass="com.facebook.buck.intellijplugin.tools.BuckToolWindow" />
+
+    <!-- Set up the project configuration integration to allow setting of the project settings -->
+    <!-- https://confluence.jetbrains.com/display/IDEADEV/Customizing+the+IDEA+Settings+Dialog -->
+    <!-- https://confluence.jetbrains.com/display/IDEADEV/Persisting+State+of+Components -->
+    <!-- <applicationConfigurable id="BuckProject.BuckConfiguration" instance="com.facebook.buck.intellijplugin.components.BuckConfiguration" displayName="Buck Config" /> -->
+    <projectConfigurable id="BuckProject.BuckConfiguration" instance="com.facebook.buck.intellijplugin.components.BuckConfiguration" displayName="Buck Config" />
+
+    <programRunner implementation="com.facebook.buck.intellijplugin.runner.BuckProjectRunner" />
+  </extensions>
+
+  <application-components>
+    <!-- Add your application components here -->
+  </application-components>
+
+  <project-components>
+    <!-- Add your project components here -->
+    <!-- <component>
+      <implementation-class>
+        com.facebook.buck.intellijplugin.components.ExternalBuckProjectConfig
+      </implementation-class>
+    </component>
+    <component>
+      <implementation-class>
+        com.facebook.buck.intellijplugin.components.BuckConfiguration
+      </implementation-class>
+    </component> -->
+  </project-components>
+
+  <actions>
+    <!-- Editor actions http://git.jetbrains.org/?p=idea/community.git;a=blob;f=platform/platform-api/src/com/intellij/openapi/actionSystem/IdeActions.java;hb=HEAD -->
+    <!-- Add your actions here -->
+    <action id="BuckPlugin.BuckProjectAction"
+            class="com.facebook.buck.intellijplugin.components.BuckProjectAction"
+            text="Run Buck Project"
+            description="Run buck project on the current module">
+      <add-to-group group-id="RunMenu" anchor="before"
+                    relative-to-action="RunnerActions"/>
+      <keyboard-shortcut keymap="$default" first-keystroke="shift F10"/>
+    </action>
+  </actions>
+
+</idea-plugin>
