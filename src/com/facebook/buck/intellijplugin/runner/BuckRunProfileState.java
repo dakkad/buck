@@ -21,7 +21,6 @@ public class BuckRunProfileState extends CommandLineState {
   private static Logger log = Logger.getInstance("BuckPlugin.BuckRunProfileState");
   private final BuckRunParameters parameters;
 
-
   public BuckRunProfileState(ExecutionEnvironment executionEnvironment,
       BuckRunParameters parameters) {
     super(executionEnvironment);

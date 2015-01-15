@@ -13,7 +13,8 @@ import javax.swing.*;
 import java.awt.*;
 
 /**
- * Buck configuration management.
+ * Buck configuration management using basic project properties component to
+ * persist the project selection.
  *
  * @author code@damienallison.com
  */
@@ -23,6 +24,7 @@ public class BuckConfiguration implements Configurable {
       ".BuckProjectNames";
   public static final String DEFAULT_PROJECT_NAMES = "";
   private static final Logger LOG = Logger.getInstance(BuckConfiguration.class);
+  private static final String TARGETS = "targets";
 
   private Project project;
 
@@ -31,6 +33,16 @@ public class BuckConfiguration implements Configurable {
 
   public BuckConfiguration(Project project) {
     this.project = project;
+  }
+
+  public static String getProjectNames(Project project) {
+    PropertiesComponent projectProperties = PropertiesComponent.getInstance(project);
+    String result = projectProperties.getValue(BUCK_PROJECT_NAMES,
+        DEFAULT_PROJECT_NAMES);
+    if (DEFAULT_PROJECT_NAMES.equals(result)) {
+      result = TARGETS;
+    }
+    return result;
   }
 
 
@@ -49,8 +61,8 @@ public class BuckConfiguration implements Configurable {
   @Nullable
   @Override
   public JComponent createComponent() {
-    PropertiesComponent projectProperties = PropertiesComponent.getInstance(project);
-    projectNames = projectProperties.getValue(BUCK_PROJECT_NAMES, DEFAULT_PROJECT_NAMES);
+
+    projectNames = getProjectNames(project);
     LOG.info("Loaded Buck Project Names " + projectNames);
     // https://confluence.jetbrains.com/display/IDEADEV/Customizing+the+IDEA+Settings+Dialog
     // create a layout for the project properties

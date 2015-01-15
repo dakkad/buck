@@ -34,8 +34,8 @@ public class BuckProjectRunner extends DefaultProgramRunner {
   @Override
   protected RunContentDescriptor doExecute(@NotNull RunProfileState state,
       @NotNull ExecutionEnvironment env) throws ExecutionException {
-    RunProfile profile = env.getRunProfile();
-    BuckRunProfileState buckProfile = new BuckRunProfileState(env, new BuckRunParameters());
+    BuckRunProfileState buckProfile = new BuckRunProfileState(env,
+        new BuckRunParameters(env.getProject()));
     return super.doExecute(buckProfile, env);
   }
 }

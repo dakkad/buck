@@ -1,5 +1,7 @@
 package com.facebook.buck.intellijplugin.runner;
 
+import com.facebook.buck.intellijplugin.components.BuckConfiguration;
+import com.intellij.openapi.project.Project;
 import com.intellij.util.EnvironmentUtil;
 
 import java.util.Arrays;
@@ -12,8 +14,15 @@ import java.util.List;
  * @author code@damienallison.com
  */
 public class BuckRunParameters {
+
   private static final String DEFAULT_BUCK_COMMAND = "buck";
   private static final String PADDING = " ";
+
+  private final Project project;
+
+  public BuckRunParameters(Project project) {
+    this.project = project;
+  }
 
   public String getFullCommand() {
     StringBuilder builder = new StringBuilder(16);
@@ -27,7 +36,8 @@ public class BuckRunParameters {
   }
 
   public List<String> getArguments() {
-    return Arrays.asList("targets");
+    String projects = BuckConfiguration.getProjectNames(project);
+    return Arrays.asList(projects);
   }
 
   public String getWorkingDirectory() {

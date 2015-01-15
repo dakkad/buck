@@ -55,7 +55,7 @@ public class BuckProjectBackgroundTask extends Task.Backgroundable {
       progressIndicator.setFraction((double)runtime.freeMemory() /
           (double)runtime.maxMemory());
 
-      BuckRunParameters parameters = new BuckRunParameters();
+      BuckRunParameters parameters = new BuckRunParameters(project);
       BaseDirectoryResolver baseResolver = BaseDirectoryResolver.fromProject(getProject());
       LOG.info("Running Buck Command: " + parameters.getFullCommand());
       Process process = runtime.exec(parameters.getFullCommand(),
