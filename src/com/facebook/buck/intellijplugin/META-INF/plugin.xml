@@ -51,7 +51,6 @@
     <!-- <applicationConfigurable id="BuckProject.BuckConfiguration" instance="com.facebook.buck.intellijplugin.components.BuckConfiguration" displayName="Buck Config" /> -->
     <projectConfigurable id="BuckProject.BuckConfiguration" instance="com.facebook.buck.intellijplugin.components.BuckConfiguration" displayName="Buck Config" />
 
-    <programRunner implementation="com.facebook.buck.intellijplugin.runner.BuckProjectRunner" />
   </extensions>
 
   <application-components>

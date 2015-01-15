@@ -45,6 +45,7 @@ public class BuckConfiguration implements Configurable {
   private static final String TARGETS = "targets";
   private static final int INPUT_TEXT_SIZE = 32;
   private static final int PADDING = 5;
+  private static final String PROJECT_PREFIX = "project ";
 
   private final Project project;
 
@@ -57,7 +58,7 @@ public class BuckConfiguration implements Configurable {
 
   public static String getProjectNames(Project project) {
     PropertiesComponent projectProperties = PropertiesComponent.getInstance(project);
-    String result = projectProperties.getValue(BUCK_PROJECT_NAMES,
+    String result = PROJECT_PREFIX + projectProperties.getValue(BUCK_PROJECT_NAMES,
         DEFAULT_PROJECT_NAMES);
     if (DEFAULT_PROJECT_NAMES.equals(result)) {
       result = TARGETS;
