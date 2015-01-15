@@ -22,7 +22,7 @@ package com.facebook.buck.intellijplugin.components;
  *
  * @author code@damienallison.com
  */
-public class ActionNames {
+public final class ActionNames {
 
   private ActionNames() { }
 
