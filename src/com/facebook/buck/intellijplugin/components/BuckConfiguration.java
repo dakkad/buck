@@ -10,6 +10,7 @@ import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
+import java.awt.*;
 
 /**
  * Buck configuration management.
@@ -54,18 +55,15 @@ public class BuckConfiguration implements Configurable {
     // https://confluence.jetbrains.com/display/IDEADEV/Customizing+the+IDEA+Settings+Dialog
     // create a layout for the project properties
     JLabel projectsLabel = new JLabel("Buck Projects");
-    projectsInput = new JTextField(projectNames, 10);
+    projectsInput = new JTextField(projectNames, 20);
 
-    Box outer = new Box(BoxLayout.X_AXIS);
-    GroupLayout layout = new GroupLayout(outer);
-    layout.setAutoCreateGaps(true);
-    layout.setAutoCreateContainerGaps(true);
-    layout.setHorizontalGroup(layout.createSequentialGroup()
-        .addComponent(projectsLabel)
-        .addComponent(projectsInput));
-    layout.setVerticalGroup(layout.createSequentialGroup()
-        .addComponent(projectsLabel)
-        .addComponent(projectsInput));
+    FlowLayout layout = new FlowLayout(FlowLayout.LEADING, 5, 5);
+    JPanel outer = new JPanel(layout);
+
+    outer.setLayout(layout);
+
+    outer.add(projectsLabel);
+    outer.add(projectsInput);
 
     // Set up the properties content
     return outer;

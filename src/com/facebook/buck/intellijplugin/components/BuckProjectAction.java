@@ -10,6 +10,7 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.wm.ToolWindow;
 import com.intellij.openapi.wm.ToolWindowManager;
+import com.intellij.openapi.wm.WindowManager;
 
 /**
  * Basic action to run a buck project
@@ -41,5 +42,8 @@ public class BuckProjectAction extends AnAction {
     Task.Backgroundable task = new BuckProjectBackgroundTask(project);
     ProgressManager progressManager = ProgressManager.getInstance();
     progressManager.run(task);
+
+    WindowManager generalManager = WindowManager.getInstance();
+
   }
 }
