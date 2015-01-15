@@ -1,4 +1,4 @@
-Facebook Buck IntelliJ Plugin
+Buck IntelliJ Plugin
 =============================
 This project provides an IntelliJ plugin to support running buck project and test rules from within
 IntelliJ. It also includes functionality for core developer work patterns related to buck based
