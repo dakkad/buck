@@ -43,7 +43,6 @@ public class AppleBinaryDescription
 
   private static final Set<Flavor> SUPPORTED_FLAVORS = ImmutableSet.of(
       CompilationDatabase.COMPILATION_DATABASE,
-      Flavor.DEFAULT,
       AbstractAppleNativeTargetBuildRuleDescriptions.HEADERS);
 
   private static final Predicate<Flavor> IS_SUPPORTED_FLAVOR = new Predicate<Flavor>() {
@@ -110,7 +109,7 @@ public class AppleBinaryDescription
     delegateArg.yaccSrcs = Optional.of(ImmutableList.<SourcePath>of());
     delegateArg.deps = args.deps;
     delegateArg.headerNamespace = args.headerPathPrefix.or(
-        Optional.of(params.getBuildTarget().getShortNameOnly()));
+        Optional.of(params.getBuildTarget().getShortName()));
 
     return delegate.createBuildRule(params, resolver, delegateArg);
   }
