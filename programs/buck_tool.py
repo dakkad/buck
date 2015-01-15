@@ -90,6 +90,12 @@ class BuckTool(object):
     def _use_buckd(self):
         return not os.environ.get('NO_BUCKD')
 
+    def _environ_for_buck(self):
+        env = os.environ.copy()
+        env['CLASSPATH'] = self._get_bootstrap_classpath()
+        env['BUCK_CLASSPATH'] = self._get_java_classpath()
+        return env
+
     def launch_buck(self, build_id):
         with Tracing('BuckRepo.launch_buck'):
             self.kill_autobuild()
@@ -118,7 +124,7 @@ class BuckTool(object):
                 print("Not using buckd because watchman isn't installed.",
                       file=sys.stderr)
 
-            env = os.environ.copy()
+            env = self._environ_for_buck()
             env['BUCK_BUILD_ID'] = build_id
 
             buck_client_file = self._get_resource(CLIENT)
@@ -144,17 +150,17 @@ class BuckTool(object):
                                   file=sys.stderr)
                         return exit_code
 
-            command = [which("java")]
+            command = ["buck"]
             command.extend(self._get_java_args(buck_version_uid))
             command.append("-Djava.io.tmpdir={0}".format(self._tmp_dir))
-            command.append("-classpath")
-            command.append(self._get_bootstrap_classpath())
             command.append("com.facebook.buck.cli.bootstrapper.ClassLoaderBootstrapper")
-            command.append(self._get_java_classpath())
             command.append("com.facebook.buck.cli.Main")
             command.extend(sys.argv[1:])
 
-            return subprocess.call(command, cwd=self._buck_project.root, env=env)
+            return subprocess.call(command,
+                                   cwd=self._buck_project.root,
+                                   env=env,
+                                   executable=which("java"))
 
     def launch_buckd(self, buck_version_uid=None):
         with Tracing('BuckRepo.launch_buckd'):
@@ -173,7 +179,7 @@ class BuckTool(object):
             disconnection occurs. Specify port 0 to allow Nailgun to find an
             available port, then parse the port number out of the first log entry.
             '''
-            command = [which("java")]
+            command = ["buckd"]
             command.extend(self._get_java_args(buck_version_uid))
             command.append("-Dbuck.buckd_launch_time_nanos={0}".format(monotonic_time_nanos()))
             command.append("-Dbuck.buckd_watcher=Watchman")
@@ -182,10 +188,7 @@ class BuckTool(object):
             command.append("-Djava.io.tmpdir={0}".format(buckd_tmp_dir))
             command.append("-Dcom.martiansoftware.nailgun.NGServer.outputPath={0}".format(
                 ngserver_output_path))
-            command.append("-classpath")
-            command.append(self._get_bootstrap_classpath())
             command.append("com.facebook.buck.cli.bootstrapper.ClassLoaderBootstrapper")
-            command.append(self._get_java_classpath())
             command.append("com.martiansoftware.nailgun.NGServer")
             command.append("localhost:0")
             command.append("{0}".format(BUCKD_CLIENT_TIMEOUT_MILLIS))
@@ -195,21 +198,26 @@ class BuckTool(object):
             script is interrupted, it does not kill buckd.
             '''
             def preexec_func():
-
                 # Close any open file descriptors to further separate buckd from its
                 # invoking context (e.g. otherwise we'd hang when running things like
                 # `ssh localhost buck clean`).
-                os.close(0)
-                os.close(1)
-                os.close(2)
 
+                # N.B. preexec_func is POSIX-only, and any reasonable
+                # POSIX system has a /dev/null
                 os.setpgrp()
+                dev_null_fd = os.open("/dev/null", os.O_RDWR)
+                os.dup2(dev_null_fd, 0)
+                os.dup2(dev_null_fd, 1)
+                os.dup2(dev_null_fd, 2)
+                os.close(dev_null_fd)
 
             process = subprocess.Popen(
                 command,
+                executable=which("java"),
                 cwd=self._buck_project.root,
                 close_fds=True,
-                preexec_fn=preexec_func)
+                preexec_fn=preexec_func,
+                env=self._environ_for_buck())
 
             buckd_port = None
             for i in range(100):
