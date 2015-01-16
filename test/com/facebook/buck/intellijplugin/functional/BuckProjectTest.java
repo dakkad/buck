@@ -21,7 +21,6 @@ import com.intellij.testFramework.UsefulTestCase;
 import com.intellij.testFramework.builders.JavaModuleFixtureBuilder;
 import com.intellij.testFramework.builders.ModuleFixtureBuilder;
 import com.intellij.testFramework.fixtures.IdeaProjectTestFixture;
-import com.intellij.testFramework.fixtures.IdeaTestFixture;
 import com.intellij.testFramework.fixtures.IdeaTestFixtureFactory;
 import com.intellij.testFramework.fixtures.ModuleFixture;
 import com.intellij.testFramework.fixtures.TestFixtureBuilder;
@@ -76,6 +75,7 @@ public class BuckProjectTest extends UsefulTestCase {
 
   @Test
   public void testBuckProjectRun() {
-    ideaFixture.
+    Project project = getProject();
+    fail("Can't test clicking buck build");
   }
 }
