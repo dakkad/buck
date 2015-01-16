@@ -2,6 +2,6 @@ java_library(
   name = 'json',
   srcs = glob(['*.java']),
   deps = [
-    '//third-party/java/jackson:jackson',
+    #'//third-party/java/jackson:jackson',
   ],
 )

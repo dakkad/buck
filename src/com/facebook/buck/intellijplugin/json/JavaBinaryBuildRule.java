@@ -18,7 +18,6 @@ package com.facebook.buck.intellijplugin.json;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonUnwrapped;
 
 /**
  * Java binary build rule representation.
@@ -34,8 +33,7 @@ public class JavaBinaryBuildRule extends BuildRule {
   private String mainClass;
   private String manifestFile;
   private String metaInformationDirectory;
-  @JsonUnwrapped
-  private BuildRuleVisibity[] visability;
+  private String[] visibility;
 
   @JsonProperty("deps")
   public String[] getDependencies() {
@@ -78,5 +76,13 @@ public class JavaBinaryBuildRule extends BuildRule {
   @JsonProperty("meta_inf_directory")
   public void setMetaInformationDirectory(String metaInformationDirectory) {
     this.metaInformationDirectory = metaInformationDirectory;
+  }
+
+  public String[] getVisibility() {
+    return visibility;
+  }
+
+  public void setVisibility(String[] visibility) {
+    this.visibility = visibility;
   }
 }

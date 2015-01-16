@@ -21,7 +21,7 @@ package com.facebook.buck.intellijplugin.json;
  *
  * @author code@damienallison.com
  */
-public class BuildRuleVisibity {
+public class BuildRuleVisibility {
 
   private String[] visibility;
 

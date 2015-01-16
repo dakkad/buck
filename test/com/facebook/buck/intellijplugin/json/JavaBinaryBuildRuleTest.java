@@ -17,13 +17,13 @@
 package com.facebook.buck.intellijplugin.json;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.junit.BeforeClass;
+import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.fail;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Tests for the java binary build rule serialisation.
@@ -34,7 +34,7 @@ public class JavaBinaryBuildRuleTest {
 
   private JavaBinaryBuildRule rule;
 
-  @BeforeClass
+  @Before
   public void setUp() throws IOException {
     ObjectMapper mapper = new ObjectMapper();
     rule = mapper.readValue("{\n" +
@@ -52,12 +52,14 @@ public class JavaBinaryBuildRuleTest {
   }
 
   @Test
-  public void testBlackListEmpty() {
-    fail("Black list not implemented");
+  public void testName() {
+    assertEquals("agent-for-host", rule.getName());
   }
 
   @Test
-  public void testName() {
-    assertEquals("agent-for-host", rule.getName());
+  public void testVisibility() {
+    String[] visibility = rule.getVisibility();
+    assertTrue("Visbility should not be null", null != visibility);
+    assertEquals("There should be 1 visibility rule", 0, visibility.length);
   }
 }

@@ -19,7 +19,6 @@ package com.facebook.buck.intellijplugin.functional;
 import com.intellij.openapi.project.Project;
 import com.intellij.testFramework.UsefulTestCase;
 import com.intellij.testFramework.builders.JavaModuleFixtureBuilder;
-import com.intellij.testFramework.builders.ModuleFixtureBuilder;
 import com.intellij.testFramework.fixtures.IdeaProjectTestFixture;
 import com.intellij.testFramework.fixtures.IdeaTestFixtureFactory;
 import com.intellij.testFramework.fixtures.ModuleFixture;
@@ -36,9 +35,10 @@ public class BuckProjectTest extends UsefulTestCase {
 
   private static final String SOURCE_ROOT = "src/java";
   private static final boolean USE_PLATFORM_SOURCE_ROOT = true;
+  private static final String FIXTURE_NAME = "BuckProjectTest";
 
   private TestFixtureBuilder<IdeaProjectTestFixture> fixtureBuilder;
-  private ModuleFixtureBuilder moduleBuilder;
+  private JavaModuleFixtureBuilder moduleBuilder;
   private IdeaProjectTestFixture ideaFixture;
   private LightTempDirTestFixtureImpl tempDirectory;
   private ModuleFixture ideaModule;
@@ -49,7 +49,7 @@ public class BuckProjectTest extends UsefulTestCase {
     tempDirectory = new LightTempDirTestFixtureImpl(USE_PLATFORM_SOURCE_ROOT);
 
     fixtureBuilder = IdeaTestFixtureFactory.getFixtureFactory()
-        .createLightFixtureBuilder();
+        .createFixtureBuilder(FIXTURE_NAME);
 
     moduleBuilder = fixtureBuilder.addModule(JavaModuleFixtureBuilder.class);
     moduleBuilder.addContentRoot(getTestDirectoryName());

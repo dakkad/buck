@@ -6,6 +6,6 @@ java_test(
   ],
   deps = [
     '//third-party/java/junit:junit',
-    '//third-party/java/jackson:jackson',
+    #'//third-party/java/jackson:jackson',
   ],
 )
