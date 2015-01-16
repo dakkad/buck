@@ -20,7 +20,6 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.wm.ToolWindow;
 import com.intellij.openapi.wm.ToolWindowFactory;
 
-import java.awt.Component;
 import javax.swing.JTextArea;
 
 /**
@@ -32,23 +31,24 @@ import javax.swing.JTextArea;
 public class BuckToolWindow implements ToolWindowFactory {
 
   public static final String ID = "Buck Project";
+  private static JTextArea toolText = new JTextArea();
 
   @Override
   public void createToolWindowContent(Project project, ToolWindow toolWindow) {
     // TODO(dka) 20140113 Create tool window content console
     toolWindow.setTitle("Buck Project");
-    JTextArea toolText = new JTextArea();
     toolText.setEditable(false);
     toolWindow.getComponent()
         .add(toolText);
   }
 
   public static JTextArea resolveTextPane(ToolWindow toolWindow) {
-    for (Component component : toolWindow.getComponent().getComponents()) {
+    /*for (Component component : toolWindow.getComponent().getComponents()) {
       if (component instanceof JTextArea) {
         return (JTextArea) component;
       }
     }
-    throw new IllegalStateException("Can't locate text text area");
+    throw new IllegalStateException("Can't locate text text area");*/
+    return toolText;
   }
 }
