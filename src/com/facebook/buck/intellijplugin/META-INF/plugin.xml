@@ -55,6 +55,7 @@
     <!-- TODO Consider for buck config watcher for JVM selection <buildProcess.parametersProvider implementation="" /> -->
     <!-- TODO Consider for buck compiler integration <compileServer.plugin id="BuckPlugin.BuckCompileServer" -->
     <!-- TODO Consider for compiler checker. <compiler implementation="com.facebook.buck.intellijplugin.buckprocess.BuckCompiler" id="BuckPlugin.Compiler" /> -->
+    <!-- You can override a predefined service with 'override'=true to replace things like the compiler. -->
   </extensions>
 
   <application-components>

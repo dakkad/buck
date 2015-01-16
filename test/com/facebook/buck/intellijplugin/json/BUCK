@@ -1,0 +1,11 @@
+java_test(
+  name = 'json',
+  srcs = glob(['*.java']),
+  source_under_test = [
+    '//src/com/facebook/buck/intellijplugin/json:json'
+  ],
+  deps = [
+    '//third-party/java/junit:junit',
+    '//third-party/java/jackson:jackson',
+  ],
+)
