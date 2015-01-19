@@ -27,8 +27,6 @@ import java.util.List;
 
 /**
  * Buck task manager handles tasks.
- *
- * @author code@damienallison.com
  */
 public class BuckTaskManager extends AbstractExternalSystemTaskManager<BuckExecutionSettings>
     implements ExternalSystemTaskManager<BuckExecutionSettings> {
@@ -38,13 +36,14 @@ public class BuckTaskManager extends AbstractExternalSystemTaskManager<BuckExecu
       List<String> vmOptions, List<String> scriptParameters, String debugSetup,
       ExternalSystemTaskNotificationListener externalSystemTaskNotificationListener)
       throws ExternalSystemException {
-    throw new UnsupportedOperationException("Task running support not implemented");
+    //throw new UnsupportedOperationException("Task running support not implemented");
   }
 
   @Override
   public boolean cancelTask(ExternalSystemTaskId externalSystemTaskId,
       ExternalSystemTaskNotificationListener externalSystemTaskNotificationListener)
       throws ExternalSystemException {
-    throw new UnsupportedOperationException("Task cancellation not implemented");
+    //throw new UnsupportedOperationException("Task cancellation not implemented");
+    return false;
   }
 }

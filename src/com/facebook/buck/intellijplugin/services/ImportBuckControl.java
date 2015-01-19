@@ -30,8 +30,6 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * Import buck control class.
- *
- * @author code@damienallison.com
  */
 public class ImportBuckControl extends
     AbstractImportFromExternalSystemControl<
@@ -44,6 +42,7 @@ public class ImportBuckControl extends
         new BuckSettings(ProjectManager.getInstance()
             .getDefaultProject()), new BuckProjectSettings(
             ProjectManager.getInstance().getDefaultProject()));
+
   }
 
   private BuckProjectSettings getInitialProjectSettings() {
@@ -54,8 +53,8 @@ public class ImportBuckControl extends
   protected void onLinkedProjectPathChange(String projectPath) {
     if (null != projectPath && !projectPath.isEmpty()) {
       try {
-        ((BuckProjectSettingsControl)getProjectSettingsControl())
-            .resetProjectPath(projectPath);
+        //((BuckProjectSettingsControl)getProjectSettingsControl())
+        //    .(projectPath);
       } catch (ConfigurationException e) {
         // TODO(dka) Alert user
       }
@@ -74,6 +73,6 @@ public class ImportBuckControl extends
   @Override
   protected ExternalSystemSettingsControl<BuckSettings> createSystemSettingsControl(
       @NotNull BuckSettings systemSettings) {
-    return null;
+    return
   }
 }

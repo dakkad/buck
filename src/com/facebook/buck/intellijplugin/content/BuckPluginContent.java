@@ -22,7 +22,11 @@ package com.facebook.buck.intellijplugin.content;
  * @author code@damienallison.com
  */
 public class BuckPluginContent {
-  public static final String PROJECT_NAMES_LABEL = "Buck Projects";
+  public static final String PROJECT_NAMES_LABEL = "Buck Targets";
   public static final String SETTINGS_LABEL = "Buck Settings";
   public static final String PLUGIN_NAME = "Buck";
+  public static final String CONFIGURATION_NAME = "Buck Configuration";
+  public static final String NO_TARGETS_WARNING = "No Project Names Specified. " +
+      "Please check your buck settings";
+  public static final String NO_TARGETS_TITLE = "Buck Projects";
 }

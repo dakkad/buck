@@ -28,8 +28,6 @@ import javax.swing.JTextField;
 
 /**
  * Buck compiler form provides settings and configuration for the buck compiler.
- *
- * @author code@damienallison.com
  */
 public class BuckCompilerForm {
 
@@ -45,8 +43,9 @@ public class BuckCompilerForm {
     form.outer = new JPanel(layout);
     JLabel label = new JLabel(BuckPluginContent.PROJECT_NAMES_LABEL);
     form.outer.add(label);
-    String projects = BuckConfiguration.getProjectNames(ProjectManager.getInstance()
-        .getDefaultProject());
+    String projects = BuckConfiguration.getTargetNames(
+        ProjectManager.getInstance()
+            .getDefaultProject());
     form.field = new JTextField(projects, 36);
     form.field.setEnabled(false);
     form.outer.add(form.field);
@@ -55,5 +54,16 @@ public class BuckCompilerForm {
 
   public JComponent getComponent() {
     return outer;
+  }
+
+  public void setText(String targetNames) {
+    if (null == targetNames) {
+      targetNames = "";
+    }
+    field.setText(targetNames);
+  }
+
+  public String getText() {
+    return field.getText();
   }
 }

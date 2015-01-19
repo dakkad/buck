@@ -22,8 +22,6 @@ import com.intellij.openapi.project.Project;
 
 /**
  * Global buck settings manager.
- *
- * @author code@damienallison.com
  */
 // TODO(dka) Move to services
 public class BuckSettings extends AbstractExternalSystemSettings<BuckSettings, BuckProjectSettings, BuckSettingsListener> {

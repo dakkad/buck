@@ -31,8 +31,6 @@ import java.io.IOException;
 
 /**
  * Background buck task to run buck project.
- *
- * @author code@damienallison.com
  */
 public class BuckProjectBackgroundTask extends Task.Backgroundable {
 

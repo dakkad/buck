@@ -22,8 +22,6 @@ import com.intellij.util.messages.Topic;
 
 /**
  * Buck settings listener.
- *
- * @author code@damienallison.com
  */
 public interface BuckSettingsListener extends ExternalSystemSettingsListener<BuckProjectSettings> {
   public static final Topic<BuckSettingsListener> TOPIC =

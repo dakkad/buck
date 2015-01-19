@@ -26,8 +26,6 @@ import java.util.List;
 /**
  * Buck run parameters capture the required project names and other buck
  * parameters passed to buck.
- *
- * @author code@damienallison.com
  */
 public class BuckRunParameters {
 
@@ -52,7 +50,7 @@ public class BuckRunParameters {
   }
 
   public List<String> getArguments() {
-    String projects = BuckConfiguration.getProjectNames(project);
+    String projects = BuckConfiguration.getTargetNames(project);
     return Arrays.asList(projects);
   }
 

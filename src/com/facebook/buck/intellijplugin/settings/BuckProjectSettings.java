@@ -22,8 +22,6 @@ import org.jetbrains.annotations.NotNull;
 
 /**
  * Buck project settings which provides an adaptor to the components settings.
- *
- * @author code@damienallison.com
  */
 public class BuckProjectSettings extends ExternalProjectSettings {
 
@@ -31,6 +29,7 @@ public class BuckProjectSettings extends ExternalProjectSettings {
 
   public BuckProjectSettings(Project project) {
     this.project = project;
+    setExternalProjectPath(project.getProjectFilePath());
   }
 
   public BuckProjectSettings(BuckProjectSettings buckProjectSettings) {

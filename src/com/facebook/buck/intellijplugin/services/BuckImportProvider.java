@@ -28,8 +28,6 @@ import com.intellij.util.ArrayUtil;
 /**
  * Project import provider which takes the buck project config and pushes it
  * through the terminal 'buck project' invocation.
- *
- * @author code@damienallison.com
  */
 public class BuckImportProvider extends AbstractExternalProjectImportProvider {
 

@@ -51,8 +51,6 @@ import javax.swing.Icon;
 
 /**
  * Buck manager helper.
- *
- * @author code@damienallison.com
  */
 public class BuckManager implements
     ExternalSystemConfigurableAware,
@@ -192,12 +190,12 @@ public class BuckManager implements
   @Nullable
   @Override
   public Icon getProjectIcon() {
-    return null;
+    return BuckPlugin.ICON;
   }
 
   @Nullable
   @Override
   public Icon getTaskIcon() {
-    return null;
+    return BuckPlugin.FAVICON;
   }
 }

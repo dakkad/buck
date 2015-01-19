@@ -25,8 +25,6 @@ import javax.swing.JTextArea;
 /**
  * Buck tool window is used to capture and interact with the buck project and
  * test output.
- *
- * @author code@damienallison.com
  */
 public class BuckToolWindow implements ToolWindowFactory {
 

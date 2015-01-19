@@ -16,22 +16,25 @@
 package com.facebook.buck.intellijplugin;
 
 import com.intellij.openapi.externalSystem.model.ProjectSystemId;
+import com.intellij.openapi.util.IconLoader;
+
+import javax.swing.Icon;
 
 /**
  * Buck Plugin provides some name space for different attributes of the buck
  * IntelliJ Plugin.
- *
- * @author code@damienallison.com
  */
 public class BuckPlugin {
 
   public static final String PLUGIN_NAME = "BuckPlugin";
-  public static final String CONFIGURATION_NAME = "Buck Configuration";
   public static final String BUCK_PROJECT_NAME = "Buck Plugin";
   public static final String BUCK_PLUGIN_ID = "BuckPlugin";
   public static final ProjectSystemId PROJECT_SYSTEM_ID = new ProjectSystemId(
       BUCK_PLUGIN_ID);
   public static final String BUCK_PROJECT_LABEL = "Buck";
+
+  public static final Icon ICON = IconLoader.getIcon("/com/facebook/buck/intellijplugin/resources/og.png");
+  public static final Icon FAVICON = IconLoader.getIcon("/com/facebook/buck/intellijplugin/resources/favicon.png");
 
   private BuckPlugin() { }
 

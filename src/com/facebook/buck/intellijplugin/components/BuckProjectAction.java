@@ -16,6 +16,7 @@
 
 package com.facebook.buck.intellijplugin.components;
 
+import com.facebook.buck.intellijplugin.content.BuckPluginContent;
 import com.facebook.buck.intellijplugin.runner.BuckProjectBackgroundTask;
 import com.facebook.buck.intellijplugin.tools.BuckToolWindow;
 import com.intellij.openapi.actionSystem.AnAction;
@@ -42,10 +43,10 @@ public class BuckProjectAction extends AnAction {
   public void actionPerformed(AnActionEvent actionEvent) {
     Project project = actionEvent.getProject();
     // Get the project name to run
-    String projectNames = BuckConfiguration.getProjectNames(project);
+    String projectNames = BuckConfiguration.getTargetNames(project);
     if (BuckConfiguration.DEFAULT_PROJECT_NAMES.equals(projectNames.trim())) {
-      Messages.showErrorDialog(project, "No Project Names Specified. " +
-          "Please check your buck settings", "Buck Projects");
+      Messages.showErrorDialog(project, BuckPluginContent.NO_TARGETS_WARNING,
+          BuckPluginContent.NO_TARGETS_TITLE);
       return;
     }
 
@@ -61,7 +62,6 @@ public class BuckProjectAction extends AnAction {
   }
 
   private static class NullAction implements Runnable {
-
 
     public static NullAction newInstance() {
       return new NullAction();

@@ -17,23 +17,17 @@
 package com.facebook.buck.intellijplugin.services;
 
 import com.facebook.buck.intellijplugin.components.BuckConfiguration;
-import com.facebook.buck.intellijplugin.content.BuckPluginContent;
+import com.facebook.buck.intellijplugin.settings.BuckCompilerForm;
 import com.intellij.ide.util.projectWizard.ModuleWizardStep;
 import com.intellij.ide.util.projectWizard.WizardContext;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.ProjectManager;
 
-import java.awt.FlowLayout;
 import javax.swing.JComponent;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
-import javax.swing.JTextField;
 
 /**
  * The buck project step adds configuration options for a buck project
  * configuration setup.
- *
- * @author code@damienallison.com
  */
 public class BuckProjectImportStep extends ModuleWizardStep {
 
@@ -42,7 +36,7 @@ public class BuckProjectImportStep extends ModuleWizardStep {
   private static final int PADDING = 6;
 
   private final WizardContext context;
-  private JTextField projectInput;
+  private BuckCompilerForm form = BuckCompilerForm.newInstance();
 
   public BuckProjectImportStep(WizardContext context) {
     this.context = context;
@@ -51,19 +45,13 @@ public class BuckProjectImportStep extends ModuleWizardStep {
   @Override
   public JComponent getComponent() {
     LOG.info("Creating Buck Import Display Components");
-    JLabel projectLabel = new JLabel(BuckPluginContent.PROJECT_NAMES_LABEL);
-    projectInput = new JTextField(BuckConfiguration.getProjectNames(
-        ProjectManager.getInstance().getDefaultProject()), INPUT_TEXT_SIZE);
-    FlowLayout layout = new FlowLayout(FlowLayout.LEADING, PADDING, PADDING);
-    JPanel outer = new JPanel(layout);
-    outer.setLayout(layout);
-    outer.add(projectLabel);
-    outer.add(projectInput);
-    return outer;
+    form.setText(BuckConfiguration.getTargetNames(
+        ProjectManager.getInstance().getDefaultProject()));
+    return form.getComponent();
   }
 
   @Override
   public void updateDataModel() {
-    BuckConfiguration.setProjectNames(context.getProject(), projectInput.getText());
+    BuckConfiguration.setProjectNames(context.getProject(), form.getText());
   }
 }

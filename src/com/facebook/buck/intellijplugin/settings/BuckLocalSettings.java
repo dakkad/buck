@@ -23,8 +23,6 @@ import com.intellij.openapi.project.Project;
 
 /**
  * Local settings manager.
- *
- * @author code@damienallison.com
  */
 // TODO(dka) Move to services
 public class BuckLocalSettings extends AbstractExternalSystemLocalSettings {

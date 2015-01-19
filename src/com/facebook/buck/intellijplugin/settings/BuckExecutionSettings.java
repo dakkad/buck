@@ -21,8 +21,6 @@ import com.intellij.openapi.project.Project;
 
 /**
  * Buck execution settings provider.
- *
- * @author code@damienallison.com
  */
 public class BuckExecutionSettings extends ExternalSystemExecutionSettings {
 

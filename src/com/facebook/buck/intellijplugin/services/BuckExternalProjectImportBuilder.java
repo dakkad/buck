@@ -30,8 +30,6 @@ import javax.swing.Icon;
 
 /**
  * Buck project import builder.
- *
- * @author code@damienallison.com
  */
 public class BuckExternalProjectImportBuilder extends AbstractExternalProjectImportBuilder<ImportBuckControl> {
 
@@ -71,6 +69,6 @@ public class BuckExternalProjectImportBuilder extends AbstractExternalProjectImp
 
   @Override
   public Icon getIcon() {
-    return null;
+    return BuckPlugin.ICON;
   }
 }

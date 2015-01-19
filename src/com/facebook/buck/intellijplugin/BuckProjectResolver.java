@@ -27,8 +27,6 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * Buck project resolver which identifies projects.
- *
- * @author code@damienallison.com
  */
 public class BuckProjectResolver implements ExternalSystemProjectResolver<BuckExecutionSettings> {
   @Nullable

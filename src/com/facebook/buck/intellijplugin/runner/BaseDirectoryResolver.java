@@ -26,8 +26,6 @@ import java.io.IOException;
 
 /**
  * Base directory resolution methods.
- *
- * @author code@damienallison.com
  */
 public abstract class BaseDirectoryResolver {
 

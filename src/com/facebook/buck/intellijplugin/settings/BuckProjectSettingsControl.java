@@ -16,45 +16,41 @@
 
 package com.facebook.buck.intellijplugin.settings;
 
-import com.intellij.openapi.externalSystem.util.ExternalSystemSettingsControl;
+import com.intellij.openapi.externalSystem.service.settings.AbstractExternalProjectSettingsControl;
 import com.intellij.openapi.externalSystem.util.PaintAwarePanel;
 import com.intellij.openapi.options.ConfigurationException;
-import com.intellij.openapi.project.ProjectManager;
-import com.intellij.openapi.util.InvalidDataException;
-import org.jdom.JDOMException;
-
-import java.io.IOException;
-import javax.swing.JLabel;
 
 /**
  * Buck project settings controls
  */
-public class BuckProjectSettingsControl implements ExternalSystemSettingsControl<BuckProjectSettings> {
+public class BuckProjectSettingsControl extends AbstractExternalProjectSettingsControl<BuckProjectSettings> {
 
   private BuckProjectSettings settings;
+  private BuckCompilerForm form = BuckCompilerForm.newInstance();
 
   public BuckProjectSettingsControl(BuckProjectSettings settings) {
+    super(settings);
     this.settings = settings;
   }
 
   @Override
-  public void fillUi(PaintAwarePanel paintAwarePanel, int i) {
-    paintAwarePanel.add(new JLabel("PantsProjectSettingsControl"));
+  protected void fillExtraControls(PaintAwarePanel paintAwarePanel, int i) {
+    paintAwarePanel.add(form.getComponent());
   }
 
   @Override
-  public void reset() {
-
-  }
-
-  @Override
-  public boolean isModified() {
+  protected boolean isExtraSettingModified() {
     return false;
   }
 
   @Override
-  public void apply(BuckProjectSettings buckProjectSettings) {
-    // TODO(dka) Implement the settings listener to store config
+  protected void resetExtraSettings(boolean b) {
+
+  }
+
+  @Override
+  protected void applyExtraSettings(BuckProjectSettings buckProjectSettings) {
+
   }
 
   @Override
@@ -63,23 +59,5 @@ public class BuckProjectSettingsControl implements ExternalSystemSettingsControl
     return false;
   }
 
-  @Override
-  public void disposeUIResources() {
 
-  }
-
-  @Override
-  public void showUi(boolean b) {
-
-  }
-
-  public void resetProjectPath(String projectPath)
-      throws ConfigurationException {
-    try {
-      settings = new BuckProjectSettings(ProjectManager.getInstance()
-      .loadAndOpenProject(projectPath));
-    } catch (IOException | JDOMException | InvalidDataException e) {
-      throw new ConfigurationException("Failed to load project: " + e.getMessage());
-    }
-  }
 }
