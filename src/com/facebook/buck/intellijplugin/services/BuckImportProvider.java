@@ -35,6 +35,7 @@ public class BuckImportProvider extends AbstractExternalProjectImportProvider {
 
   private final ProjectImportBuilder builder;
 
+
   public BuckImportProvider(BuckExternalProjectImportBuilder builder) {
     super(builder, BuckPlugin.PROJECT_SYSTEM_ID);
     this.builder = builder;

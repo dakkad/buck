@@ -14,15 +14,18 @@
  * under the License.
  */
 
-package com.facebook.buck.intellijplugin.content;
+package com.facebook.buck.intellijplugin.settings;
+
+import com.facebook.buck.intellijplugin.content.BuckPluginContent;
+import com.intellij.openapi.externalSystem.settings.ExternalSystemSettingsListener;
+import com.intellij.util.messages.Topic;
 
 /**
- * Simple content provider.
+ * Buck settings listener.
  *
  * @author code@damienallison.com
  */
-public class BuckPluginContent {
-  public static final String PROJECT_NAMES_LABEL = "Buck Projects";
-  public static final String SETTINGS_LABEL = "Buck Settings";
-  public static final String PLUGIN_NAME = "Buck";
+public interface BuckSettingsListener extends ExternalSystemSettingsListener<BuckProjectSettings> {
+  public static final Topic<BuckSettingsListener> TOPIC =
+      Topic.create(BuckPluginContent.SETTINGS_LABEL, BuckSettingsListener.class);
 }

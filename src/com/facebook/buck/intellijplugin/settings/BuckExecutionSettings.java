@@ -14,15 +14,24 @@
  * under the License.
  */
 
-package com.facebook.buck.intellijplugin.content;
+package com.facebook.buck.intellijplugin.settings;
+
+import com.intellij.openapi.externalSystem.model.settings.ExternalSystemExecutionSettings;
+import com.intellij.openapi.project.Project;
 
 /**
- * Simple content provider.
+ * Buck execution settings provider.
  *
  * @author code@damienallison.com
  */
-public class BuckPluginContent {
-  public static final String PROJECT_NAMES_LABEL = "Buck Projects";
-  public static final String SETTINGS_LABEL = "Buck Settings";
-  public static final String PLUGIN_NAME = "Buck";
+public class BuckExecutionSettings extends ExternalSystemExecutionSettings {
+
+  private final Project project;
+  private final String path;
+
+  public BuckExecutionSettings(Project project, String path) {
+    super();
+    this.project = project;
+    this.path = path;
+  }
 }

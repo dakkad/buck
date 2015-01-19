@@ -14,7 +14,7 @@
   ~ under the License.
   -->
 <idea-plugin version="2">
-  <id>com.facebook.buck.intellijplugin</id>
+  <id>com.facebook.buck.intellijplugin.BuckPlugin</id>
   <name>Buck IntelliJ Plugin</name>
   <version>0.0.1</version>
   <vendor email="code@damienallison.com" url="http://www.facebook.com/">Facebook</vendor>
@@ -49,13 +49,24 @@
     <!-- https://confluence.jetbrains.com/display/IDEADEV/Customizing+the+IDEA+Settings+Dialog -->
     <!-- https://confluence.jetbrains.com/display/IDEADEV/Persisting+State+of+Components -->
     <!-- <applicationConfigurable id="BuckProject.BuckConfiguration" instance="com.facebook.buck.intellijplugin.components.BuckConfiguration" displayName="Buck Config" /> -->
-    <projectConfigurable id="BuckPlugin.BuckConfiguration" instance="com.facebook.buck.intellijplugin.components.BuckConfiguration" displayName="Buck Config" />
+    <projectConfigurable id="BuckPlugin.BuckConfiguration"
+                         instance="com.facebook.buck.intellijplugin.components.BuckConfiguration"
+                         displayName="Buck Config"
+            parentId="project.propCompiler"/>
     <!-- TODO Consider for targets command integraion <bundledQuickListsProvider implementation="" /> -->
     <!-- TODO Consider for target scope calculation <compiler.buildTargetScopeProvider implementation="" /> -->
     <!-- TODO Consider for buck config watcher for JVM selection <buildProcess.parametersProvider implementation="" /> -->
     <!-- TODO Consider for buck compiler integration <compileServer.plugin id="BuckPlugin.BuckCompileServer" -->
     <!-- TODO Consider for compiler checker. <compiler implementation="com.facebook.buck.intellijplugin.buckprocess.BuckCompiler" id="BuckPlugin.Compiler" /> -->
     <!-- You can override a predefined service with 'override'=true to replace things like the compiler. -->
+
+    <externalSystemManager
+            implementation="com.facebook.buck.intellijplugin.BuckManager" />
+
+    <!-- External service providers must be registered in order for the service
+        manager to allow resolution of them at run time (unique instance) -->
+    <projectService serviceImplementation="com.facebook.buck.intellijplugin.settings.BuckSettings"/>
+    <projectService serviceImplementation="com.facebook.buck.intellijplugin.settings.BuckLocalSettings"/>
 
     <!-- Extension for the project import modal. -->
     <projectImportProvider

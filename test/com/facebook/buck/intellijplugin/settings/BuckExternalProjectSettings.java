@@ -14,15 +14,28 @@
  * under the License.
  */
 
-package com.facebook.buck.intellijplugin.content;
+package com.facebook.buck.intellijplugin.settings;
+
+import com.intellij.openapi.externalSystem.settings.ExternalProjectSettings;
+import org.jetbrains.annotations.NotNull;
 
 /**
- * Simple content provider.
+* External project settings adaptor.
  *
  * @author code@damienallison.com
- */
-public class BuckPluginContent {
-  public static final String PROJECT_NAMES_LABEL = "Buck Projects";
-  public static final String SETTINGS_LABEL = "Buck Settings";
-  public static final String PLUGIN_NAME = "Buck";
+*/
+public class BuckExternalProjectSettings extends ExternalProjectSettings {
+
+  public BuckExternalProjectSettings() {
+    super();
+  }
+
+  public BuckExternalProjectSettings(BuckExternalProjectSettings buckExternalProjectSettings) {
+  }
+
+  @NotNull
+  @Override
+  public ExternalProjectSettings clone() {
+    return new BuckExternalProjectSettings(this);
+  }
 }

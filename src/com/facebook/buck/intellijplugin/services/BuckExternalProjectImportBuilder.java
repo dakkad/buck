@@ -19,7 +19,6 @@ package com.facebook.buck.intellijplugin.services;
 import com.facebook.buck.intellijplugin.BuckPlugin;
 import com.intellij.ide.util.projectWizard.WizardContext;
 import com.intellij.openapi.externalSystem.model.DataNode;
-import com.intellij.openapi.externalSystem.model.ProjectSystemId;
 import com.intellij.openapi.externalSystem.model.project.ProjectData;
 import com.intellij.openapi.externalSystem.service.project.manage.ProjectDataManager;
 import com.intellij.openapi.externalSystem.service.project.wizard.AbstractExternalProjectImportBuilder;
@@ -38,17 +37,10 @@ public class BuckExternalProjectImportBuilder extends AbstractExternalProjectImp
 
 
   private final ProjectDataManager projectDataManager;
-  private final ImportBuckControl ImportBuckControl;
-  private final ProjectSystemId externalSystemId;
 
-  public BuckExternalProjectImportBuilder(
-      @NotNull ProjectDataManager projectDataManager,
-      @NotNull ImportBuckControl control,
-      @NotNull ProjectSystemId externalSystemId) {
-    super(projectDataManager, control, externalSystemId);
+  public BuckExternalProjectImportBuilder(@NotNull ProjectDataManager projectDataManager) {
+    super(projectDataManager, new ImportBuckControl(), BuckPlugin.PROJECT_SYSTEM_ID);
     this.projectDataManager = projectDataManager;
-    this.ImportBuckControl = control;
-    this.externalSystemId = externalSystemId;
   }
 
   @Override
@@ -70,7 +62,6 @@ public class BuckExternalProjectImportBuilder extends AbstractExternalProjectImp
 
   @Override
   protected void applyExtraSettings(@NotNull WizardContext wizardContext) {
-
   }
 
   @NotNull

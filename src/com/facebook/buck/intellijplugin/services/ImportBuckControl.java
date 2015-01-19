@@ -17,12 +17,14 @@
 package com.facebook.buck.intellijplugin.services;
 
 import com.facebook.buck.intellijplugin.BuckPlugin;
-import com.intellij.openapi.externalSystem.model.ProjectSystemId;
-import com.intellij.openapi.externalSystem.service.project.manage.ProjectDataManager;
+import com.facebook.buck.intellijplugin.settings.BuckProjectSettings;
+import com.facebook.buck.intellijplugin.settings.BuckProjectSettingsControl;
+import com.facebook.buck.intellijplugin.settings.BuckSettings;
+import com.facebook.buck.intellijplugin.settings.BuckSettingsListener;
 import com.intellij.openapi.externalSystem.service.settings.AbstractImportFromExternalSystemControl;
-import com.intellij.openapi.externalSystem.settings.AbstractExternalSystemSettings;
-import com.intellij.openapi.externalSystem.settings.ExternalProjectSettings;
 import com.intellij.openapi.externalSystem.util.ExternalSystemSettingsControl;
+import com.intellij.openapi.options.ConfigurationException;
+import com.intellij.openapi.project.ProjectManager;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -31,29 +33,47 @@ import org.jetbrains.annotations.Nullable;
  *
  * @author code@damienallison.com
  */
-public class ImportBuckControl extends AbstractImportFromExternalSystemControl {
+public class ImportBuckControl extends
+    AbstractImportFromExternalSystemControl<
+        BuckProjectSettings,
+        BuckSettingsListener,
+        BuckSettings> {
 
-  public ImportBuckControl(ProjectDataManager dataManager) {
-    ImportBuckControl control = new ImportBuckControl(dataManager);
-    super(BuckPlugin.PROJECT_SYSTEM_ID, dataManager., BuckPlugin.SYSTEM_ID);
+  public ImportBuckControl() {
+    super(BuckPlugin.PROJECT_SYSTEM_ID,
+        new BuckSettings(ProjectManager.getInstance()
+            .getDefaultProject()), new BuckProjectSettings(
+            ProjectManager.getInstance().getDefaultProject()));
+  }
+
+  private BuckProjectSettings getInitialProjectSettings() {
+    return new BuckProjectSettings(ProjectManager.getInstance().getDefaultProject());
   }
 
   @Override
   protected void onLinkedProjectPathChange(String projectPath) {
-
+    if (null != projectPath && !projectPath.isEmpty()) {
+      try {
+        ((BuckProjectSettingsControl)getProjectSettingsControl())
+            .resetProjectPath(projectPath);
+      } catch (ConfigurationException e) {
+        // TODO(dka) Alert user
+      }
+      // TODO(dka) handle project path change events (and load settings)
+    }
   }
 
-  @NotNull
+
   @Override
-  protected ExternalSystemSettingsControl createProjectSettingsControl(
-      ExternalProjectSettings projectSettings) {
-    return null;
+  protected ExternalSystemSettingsControl<BuckProjectSettings> createProjectSettingsControl(
+      BuckProjectSettings settings) {
+    return new BuckProjectSettingsControl(settings);
   }
 
   @Nullable
   @Override
-  protected ExternalSystemSettingsControl createSystemSettingsControl(
-      @NotNull AbstractExternalSystemSettings systemSettings) {
+  protected ExternalSystemSettingsControl<BuckSettings> createSystemSettingsControl(
+      @NotNull BuckSettings systemSettings) {
     return null;
   }
 }

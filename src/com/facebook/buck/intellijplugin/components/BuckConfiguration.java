@@ -19,8 +19,9 @@ import com.facebook.buck.intellijplugin.BuckPlugin;
 import com.facebook.buck.intellijplugin.content.BuckPluginContent;
 import com.intellij.ide.util.PropertiesComponent;
 import com.intellij.openapi.diagnostic.Logger;
-import com.intellij.openapi.options.Configurable;
+import com.intellij.openapi.options.BaseConfigurable;
 import com.intellij.openapi.options.ConfigurationException;
+import com.intellij.openapi.options.SearchableConfigurable;
 import com.intellij.openapi.project.Project;
 import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.Nullable;
@@ -37,7 +38,7 @@ import javax.swing.JTextField;
  *
  * @author code@damienallison.com
  */
-public class BuckConfiguration implements Configurable {
+public class BuckConfiguration extends BaseConfigurable implements SearchableConfigurable {
 
   private static final Logger LOG = Logger.getInstance(BuckConfiguration.class);
   public static final String BUCK_PROJECT_NAMES = BuckPlugin.PLUGIN_NAME +
@@ -50,6 +51,7 @@ public class BuckConfiguration implements Configurable {
 
   private final Project project;
 
+  // TODO(dka) Move to buck compiler form
   private String projectNames = DEFAULT_PROJECT_NAMES;
   private JTextField projectsInput;
 
@@ -70,6 +72,17 @@ public class BuckConfiguration implements Configurable {
   public static void setProjectNames(Project project, String projectNames) {
     PropertiesComponent projectProperties = PropertiesComponent.getInstance(project);
     projectProperties.setValue(BUCK_PROJECT_NAMES, projectNames);
+  }
+
+  @Override
+  public String getId() {
+    return BuckPlugin.BUCK_PLUGIN_ID;
+  }
+
+  @Nullable
+  @Override
+  public Runnable enableSearch(String s) {
+    return null;
   }
 
 
