@@ -56,6 +56,12 @@
     <!-- TODO Consider for buck compiler integration <compileServer.plugin id="BuckPlugin.BuckCompileServer" -->
     <!-- TODO Consider for compiler checker. <compiler implementation="com.facebook.buck.intellijplugin.buckprocess.BuckCompiler" id="BuckPlugin.Compiler" /> -->
     <!-- You can override a predefined service with 'override'=true to replace things like the compiler. -->
+
+    <!-- Extension for the project import modal. -->
+    <projectImportProvider
+            implementation="com.facebook.buck.intellijplugin.services.BuckImportProvider"/>
+    <projectImportBuilder
+            implementation="com.facebook.buck.intellijplugin.services.BuckExternalProjectImportBuilder"/>
   </extensions>
 
   <application-components>

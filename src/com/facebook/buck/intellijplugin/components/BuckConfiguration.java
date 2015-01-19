@@ -16,6 +16,7 @@
 package com.facebook.buck.intellijplugin.components;
 
 import com.facebook.buck.intellijplugin.BuckPlugin;
+import com.facebook.buck.intellijplugin.content.BuckPluginContent;
 import com.intellij.ide.util.PropertiesComponent;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.options.Configurable;
@@ -66,6 +67,11 @@ public class BuckConfiguration implements Configurable {
     return result;
   }
 
+  public static void setProjectNames(Project project, String projectNames) {
+    PropertiesComponent projectProperties = PropertiesComponent.getInstance(project);
+    projectProperties.setValue(BUCK_PROJECT_NAMES, projectNames);
+  }
+
 
   @Nls
   @Override
@@ -87,7 +93,7 @@ public class BuckConfiguration implements Configurable {
     // https://confluence.jetbrains.com/display/IDEADEV/Customizing+the+IDEA+Settings+Dialog
     // create a layout for the project properties
 
-    JLabel projectsLabel = new JLabel("Buck Projects");
+    JLabel projectsLabel = new JLabel(BuckPluginContent.PROJECT_NAMES_LABEL);
     projectsInput = new JTextField(projectNames, INPUT_TEXT_SIZE);
     FlowLayout layout = new FlowLayout(FlowLayout.LEADING, PADDING, PADDING);
     JPanel outer = new JPanel(layout);
@@ -114,9 +120,9 @@ public class BuckConfiguration implements Configurable {
   public void apply() throws ConfigurationException {
     // Get the basic project properties
     // Write the contents of the form into the project properties
-    PropertiesComponent projectProperties = PropertiesComponent.getInstance(project);
+
     String text = projectsInput.getText();
-    projectProperties.setValue(BUCK_PROJECT_NAMES, text);
+    setProjectNames(project, text);
   }
 
   @Override

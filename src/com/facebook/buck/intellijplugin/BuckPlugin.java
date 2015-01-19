@@ -15,6 +15,10 @@
  */
 package com.facebook.buck.intellijplugin;
 
+import com.intellij.openapi.externalSystem.model.ProjectSystemId;
+import com.intellij.openapi.externalSystem.settings.ExternalProjectSettings;
+import org.jetbrains.annotations.NotNull;
+
 /**
  * Buck Plugin provides some name space for different attributes of the buck
  * IntelliJ Plugin.
@@ -26,6 +30,28 @@ public class BuckPlugin {
   public static final String PLUGIN_NAME = "BuckPlugin";
   public static final String CONFIGURATION_NAME = "Buck Configuration";
   public static final String RUNNER_ID = "BuckPlugin.Runner";
+  public static final String BUCK_PROJECT_NAME = "Buck Plugin";
+  public static final ExternalProjectSettings SYSTEM_ID =
+      new BuckExternalProjectSettings();
+  private static final String BUCK_PLUGIN_ID = "BuckPlugin.id";
+  public static final ProjectSystemId PROJECT_SYSTEM_ID = new ProjectSystemId(
+      BUCK_PLUGIN_ID);
 
   private BuckPlugin() { }
+
+  public static class BuckExternalProjectSettings extends ExternalProjectSettings {
+
+    public BuckExternalProjectSettings() { }
+
+    public BuckExternalProjectSettings(
+        BuckExternalProjectSettings buckExternalProjectSettings) {
+
+    }
+
+    @NotNull
+    @Override
+    public ExternalProjectSettings clone() {
+      return new BuckExternalProjectSettings(this);
+    }
+  }
 }

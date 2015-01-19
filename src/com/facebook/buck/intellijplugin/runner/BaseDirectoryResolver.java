@@ -55,6 +55,22 @@ public abstract class BaseDirectoryResolver {
     return new ProjectBaseDirectoryResolver(project);
   }
 
+  public static boolean isBuckConfig(VirtualFile file) {
+    if (file.isDirectory()) {
+      if (null == file.getChildren() || 0 == file.getChildren().length) {
+        return false;
+      }
+      for (VirtualFile child : file.getChildren()) {
+        if (isBuckConfig(child)) {
+          return true;
+        }
+      }
+    } else {
+      return BUCK_CONFIG_FILE.equals(file.getName());
+    }
+    return false;
+  }
+
   private static final class ProjectBaseDirectoryResolver
       extends BaseDirectoryResolver {
 
