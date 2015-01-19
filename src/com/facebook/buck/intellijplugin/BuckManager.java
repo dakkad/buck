@@ -50,20 +50,20 @@ import java.util.List;
 import javax.swing.Icon;
 
 /**
- * Created by dak on 19/01/15.
+ * Buck manager helper.
+ *
+ * @author code@damienallison.com
  */
 public class BuckManager implements
     ExternalSystemConfigurableAware,
     ExternalSystemAutoImportAware,
     ExternalSystemUiAware,
     StartupActivity,
-    ExternalSystemManager<
-            BuckProjectSettings,
+    ExternalSystemManager<BuckProjectSettings,
             BuckSettingsListener,
             BuckSettings,
             BuckLocalSettings,
-            BuckExecutionSettings
-            > {
+            BuckExecutionSettings> {
 
   private static final FileChooserDescriptor BUILD_FILE_CHOOSER_DESCRIPTOR =
       new OpenProjectFileChooserDescriptor(true) {
@@ -140,12 +140,13 @@ public class BuckManager implements
 
   @NotNull
   @Override
-  public Class<? extends ExternalSystemProjectResolver> getProjectResolverClass() {
+  public Class<? extends ExternalSystemProjectResolver<BuckExecutionSettings>> getProjectResolverClass() {
     return BuckProjectResolver.class;
   }
 
   @Override
-  public Class<? extends ExternalSystemTaskManager> getTaskManagerClass() {
+  public Class<? extends ExternalSystemTaskManager<BuckExecutionSettings>>
+      getTaskManagerClass() {
     return BuckTaskManager.class;
   }
 
