@@ -31,6 +31,7 @@ public class BuckPlugin {
   public static final String BUCK_PLUGIN_ID = "BuckPlugin";
   public static final ProjectSystemId PROJECT_SYSTEM_ID = new ProjectSystemId(
       BUCK_PLUGIN_ID);
+  public static final String BUCK_PROJECT_LABEL = "Buck";
 
   private BuckPlugin() { }
 

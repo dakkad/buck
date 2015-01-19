@@ -25,7 +25,8 @@
     ]]></description>
 
   <change-notes><![CDATA[
-      0.0.0 : Initial Version.<br>
+      0.0.1 : 20150119 Basic setup with reference to external compiler.<br>
+      0.0.0 : 20150112 Initial Version.<br>
     ]]>
   </change-notes>
 
@@ -70,9 +71,9 @@
 
     <!-- Extension for the project import modal. -->
     <projectImportProvider
-            implementation="com.facebook.buck.intellijplugin.services.BuckImportProvider"/>
+            implementation="com.facebook.buck.intellijplugin.services.BuckImportProvider" />
     <projectImportBuilder
-            implementation="com.facebook.buck.intellijplugin.services.BuckExternalProjectImportBuilder"/>
+            implementation="com.facebook.buck.intellijplugin.services.BuckExternalProjectImportBuilder" />
   </extensions>
 
   <application-components>

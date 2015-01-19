@@ -35,7 +35,6 @@ import javax.swing.Icon;
  */
 public class BuckExternalProjectImportBuilder extends AbstractExternalProjectImportBuilder<ImportBuckControl> {
 
-
   private final ProjectDataManager projectDataManager;
 
   public BuckExternalProjectImportBuilder(@NotNull ProjectDataManager projectDataManager) {
@@ -67,7 +66,7 @@ public class BuckExternalProjectImportBuilder extends AbstractExternalProjectImp
   @NotNull
   @Override
   public String getName() {
-    return BuckPlugin.BUCK_PROJECT_NAME;
+    return BuckPlugin.BUCK_PROJECT_LABEL;
   }
 
   @Override

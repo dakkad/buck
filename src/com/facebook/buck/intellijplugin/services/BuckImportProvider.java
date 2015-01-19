@@ -48,7 +48,7 @@ public class BuckImportProvider extends AbstractExternalProjectImportProvider {
 
   @Override
   public String getFileSample() {
-    return "";
+    return "<b>Buck</b> config file (.buckconfig)";
   }
 
   @Override

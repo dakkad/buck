@@ -21,6 +21,7 @@ import com.facebook.buck.intellijplugin.content.BuckPluginContent;
 import com.intellij.ide.util.projectWizard.ModuleWizardStep;
 import com.intellij.ide.util.projectWizard.WizardContext;
 import com.intellij.openapi.diagnostic.Logger;
+import com.intellij.openapi.project.ProjectManager;
 
 import java.awt.FlowLayout;
 import javax.swing.JComponent;
@@ -51,7 +52,8 @@ public class BuckProjectImportStep extends ModuleWizardStep {
   public JComponent getComponent() {
     LOG.info("Creating Buck Import Display Components");
     JLabel projectLabel = new JLabel(BuckPluginContent.PROJECT_NAMES_LABEL);
-    projectInput = new JTextField(INPUT_TEXT_SIZE);
+    projectInput = new JTextField(BuckConfiguration.getProjectNames(
+        ProjectManager.getInstance().getDefaultProject()), INPUT_TEXT_SIZE);
     FlowLayout layout = new FlowLayout(FlowLayout.LEADING, PADDING, PADDING);
     JPanel outer = new JPanel(layout);
     outer.setLayout(layout);

@@ -61,7 +61,7 @@ public abstract class BaseDirectoryResolver {
         return false;
       }
       for (VirtualFile child : file.getChildren()) {
-        if (isBuckConfig(child)) {
+        if (BUCK_CONFIG_FILE.equals(child.getName())) {
           return true;
         }
       }
