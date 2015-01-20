@@ -61,7 +61,7 @@ public class BuckConfigurationComponent extends BaseConfigurable implements Sear
     return result;
   }
 
-  public static void setProjectNames(Project project, String projectNames) {
+  public static void setTargetNames(Project project, String projectNames) {
     PropertiesComponent projectProperties = PropertiesComponent.getInstance(project);
     projectProperties.setValue(BUCK_PROJECT_NAMES, projectNames);
   }
@@ -119,7 +119,7 @@ public class BuckConfigurationComponent extends BaseConfigurable implements Sear
     // Get the basic project properties
     // Write the contents of the form into the project properties
     String text = form.getText();
-    setProjectNames(project, text);
+    setTargetNames(project, text);
   }
 
   @Override

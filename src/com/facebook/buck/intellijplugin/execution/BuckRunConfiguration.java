@@ -16,12 +16,17 @@
 
 package com.facebook.buck.intellijplugin.execution;
 
+import com.facebook.buck.intellijplugin.components.BuckConfigurationComponent;
 import com.facebook.buck.intellijplugin.runner.BuckRunParameters;
+import com.intellij.execution.ExecutionException;
 import com.intellij.execution.Executor;
 import com.intellij.execution.configurations.ConfigurationFactory;
 import com.intellij.execution.configurations.LocatableConfigurationBase;
+import com.intellij.execution.configurations.RunConfiguration;
 import com.intellij.execution.configurations.RunProfileState;
+import com.intellij.execution.configurations.RuntimeConfigurationException;
 import com.intellij.execution.runners.ExecutionEnvironment;
+import com.intellij.openapi.options.SettingsEditor;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.InvalidDataException;
 import com.intellij.openapi.util.WriteExternalException;
@@ -47,7 +52,7 @@ public class BuckRunConfiguration extends LocatableConfigurationBase {
 
   @Override
   public void writeExternal(final Element element) throws WriteExternalException {
-    super.writeExternal(element);
+      super.writeExternal(element);
     XmlSerializer.serializeInto(parameters, element);
   }
 
@@ -58,9 +63,51 @@ public class BuckRunConfiguration extends LocatableConfigurationBase {
   }
 
   @Override
-  public RunProfileState getState(Executor executor, ExecutionEnvironment environment) {
-    // TODO(dka) Implement checks for directory / executable being found
+  public RunProfileState getState(Executor executor, ExecutionEnvironment environment)
+      throws ExecutionException {
+    try {
+      checkState();
+    } catch (IllegalStateException e) {
+      throw new ExecutionException(e.getMessage());
+    }
     return new BuckRunningState(environment, parameters);
   }
 
+  @Override
+  public void checkConfiguration() throws RuntimeConfigurationException {
+    try {
+      checkState();
+    } catch (IllegalStateException e) {
+      throw new RuntimeConfigurationException(e.getMessage());
+    }
+  }
+
+  @Override
+  public SettingsEditor<? extends RunConfiguration> getConfigurationEditor() {
+    return new BuckRunConfigurable(getProject());
+  }
+
+  private void checkState() throws IllegalStateException {
+    if (null == parameters.getCommand()) {
+      throw new IllegalStateException("Run configuration command is null");
+    }
+    if (null == parameters.getWorkingDirectory()) {
+      throw new IllegalStateException("Run working directory is null");
+    }
+    // TODO(dka) Implement checks for directory / executable being found
+  }
+
+
+  public String getTarget() {
+    return BuckConfigurationComponent.getTargetNames(getProject());
+  }
+
+  public void setTarget(String target) {
+    BuckConfigurationComponent.setTargetNames(getProject(), target);
+  }
+
+  @Override
+  public RunConfiguration clone() {
+    return new BuckRunConfiguration(getProject(), getFactory(), getName());
+  }
 }

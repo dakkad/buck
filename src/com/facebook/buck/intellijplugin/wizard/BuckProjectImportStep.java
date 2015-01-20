@@ -56,7 +56,7 @@ public class BuckProjectImportStep extends ModuleWizardStep {
 
   @Override
   public void updateDataModel() {
-    BuckConfigurationComponent.setProjectNames(context.getProject(),
+    BuckConfigurationComponent.setTargetNames(context.getProject(),
         form.getText());
   }
 

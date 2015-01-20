@@ -32,6 +32,7 @@ import com.intellij.execution.runners.ExecutionEnvironment;
  */
 public class BuckRunningState extends CommandLineState implements RunProfileState {
 
+  private static final boolean PASS_ENVIRONMENT = true;
   private final BuckRunParameters parameters;
 
   public BuckRunningState(ExecutionEnvironment environment,
@@ -48,12 +49,23 @@ public class BuckRunningState extends CommandLineState implements RunProfileStat
   @Override
   protected ProcessHandler startProcess() throws ExecutionException {
     GeneralCommandLine commandLine = getCommandLine();
-    OSProcessHandler processHandler = new ColoredProcessHandler(commandLine.createProcess());
+    OSProcessHandler processHandler = new ColoredProcessHandler(commandLine.createProcess(),
+        commandLine.getCommandLineString());
     ProcessTerminatedListener.attach(processHandler, getEnvironment().getProject());
     return processHandler;
   }
 
-  public GeneralCommandLine getCommandLine() {
-
+  public GeneralCommandLine getCommandLine() throws ExecutionException {
+    GeneralCommandLine result = new GeneralCommandLine();
+    String command = parameters.getCommand();
+    if (null == command) {
+      throw new ExecutionException("Invalid execution command: " + command);
+    }
+    result.setExePath(command);
+    result.setPassParentEnvironment(PASS_ENVIRONMENT);
+    for (String argument : parameters.getArgumentList()) {
+      result.addParameter(argument);
+    }
+    return result.withWorkDirectory(parameters.getWorkingDirectory());
   }
 }

@@ -18,6 +18,9 @@ package com.facebook.buck.intellijplugin.runner;
 
 import com.intellij.openapi.project.Project;
 import com.intellij.util.EnvironmentUtil;
+import org.apache.commons.lang.StringUtils;
+
+import java.util.List;
 
 /**
  * Buck run parameters capture the required project names and other buck
@@ -29,7 +32,7 @@ public class BuckRunParameters implements Cloneable {
   private static final String PADDING = " ";
 
   private String workingDirectory;
-  private String arguments;
+  private List<String> argumentList;
 
   public BuckRunParameters(Project project) {
     this.workingDirectory = project.getBasePath();
@@ -40,14 +43,13 @@ public class BuckRunParameters implements Cloneable {
   public String getFullCommand() {
     StringBuilder builder = new StringBuilder(16);
     builder.append(DEFAULT_BUCK_COMMAND)
-        .append(PADDING)
-        .append(arguments)
         .append(PADDING);
+    builder.append(StringUtils.join(argumentList, PADDING));
     return builder.toString();
   }
 
-  public String getArguments() {
-    return arguments;
+  public List<String> getArgumentList() {
+    return argumentList;
   }
 
   public String getWorkingDirectory() {
@@ -62,7 +64,7 @@ public class BuckRunParameters implements Cloneable {
   protected Object clone() {
     BuckRunParameters result = new BuckRunParameters();
     result.setWorkingDirectory(getWorkingDirectory());
-    result.setArguments(getArguments());
+    result.setArgumentList(getArgumentList());
     return result;
   }
 
@@ -70,7 +72,11 @@ public class BuckRunParameters implements Cloneable {
     this.workingDirectory = workingDirectory;
   }
 
-  public void setArguments(String arguments) {
-    this.arguments = arguments;
+  public void setArgumentList(List<String> argumentList) {
+    this.argumentList = argumentList;
+  }
+
+  public String getCommand() {
+    return DEFAULT_BUCK_COMMAND;
   }
 }
