@@ -1,5 +1,5 @@
 /*
- * Copyright 2013-present Facebook, Inc.
+ * Copyright 2015-present Facebook, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may
  * not use this file except in compliance with the License. You may obtain
@@ -23,7 +23,6 @@ import com.facebook.buck.intellijplugin.settings.BuckSettings;
 import com.facebook.buck.intellijplugin.settings.BuckSettingsListener;
 import com.intellij.openapi.externalSystem.service.settings.AbstractImportFromExternalSystemControl;
 import com.intellij.openapi.externalSystem.util.ExternalSystemSettingsControl;
-import com.intellij.openapi.options.ConfigurationException;
 import com.intellij.openapi.project.ProjectManager;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -41,7 +40,8 @@ public class ImportBuckControl extends
     super(BuckPlugin.PROJECT_SYSTEM_ID,
         new BuckSettings(ProjectManager.getInstance()
             .getDefaultProject()), new BuckProjectSettings(
-            ProjectManager.getInstance().getDefaultProject()));
+            ProjectManager.getInstance().getDefaultProject()),
+            true);
 
   }
 
@@ -51,15 +51,12 @@ public class ImportBuckControl extends
 
   @Override
   protected void onLinkedProjectPathChange(String projectPath) {
-    if (null != projectPath && !projectPath.isEmpty()) {
-      try {
-        //((BuckProjectSettingsControl)getProjectSettingsControl())
-        //    .(projectPath);
-      } catch (ConfigurationException e) {
-        // TODO(dka) Alert user
-      }
-      // TODO(dka) handle project path change events (and load settings)
-    }
+//    if (null != projectPath && !projectPath.isEmpty()) {
+//        ((BuckProjectSettingsControl)getProjectSettingsControl())
+//            .onProjectPathChanged(projectPath);
+//
+//      // TODO(dka) handle project path change events (and load settings)
+//    }
   }
 
 
@@ -73,6 +70,6 @@ public class ImportBuckControl extends
   @Override
   protected ExternalSystemSettingsControl<BuckSettings> createSystemSettingsControl(
       @NotNull BuckSettings systemSettings) {
-    return
+    return null;
   }
 }

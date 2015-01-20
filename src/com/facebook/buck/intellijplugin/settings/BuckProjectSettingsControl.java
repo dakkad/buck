@@ -1,5 +1,5 @@
 /*
- * Copyright 2013-present Facebook, Inc.
+ * Copyright 2015-present Facebook, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may
  * not use this file except in compliance with the License. You may obtain
@@ -16,14 +16,24 @@
 
 package com.facebook.buck.intellijplugin.settings;
 
+import com.facebook.buck.intellijplugin.components.BuckConfiguration;
+import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.externalSystem.service.settings.AbstractExternalProjectSettingsControl;
 import com.intellij.openapi.externalSystem.util.PaintAwarePanel;
 import com.intellij.openapi.options.ConfigurationException;
+import com.intellij.openapi.project.Project;
+import com.intellij.openapi.project.ProjectManager;
+import com.intellij.openapi.util.InvalidDataException;
+import org.jdom.JDOMException;
+
+import java.io.IOException;
 
 /**
  * Buck project settings controls
  */
 public class BuckProjectSettingsControl extends AbstractExternalProjectSettingsControl<BuckProjectSettings> {
+
+  private static final Logger LOG = Logger.getInstance(BuckProjectSettingsControl.class);
 
   private BuckProjectSettings settings;
   private BuckCompilerForm form = BuckCompilerForm.newInstance();
@@ -40,17 +50,26 @@ public class BuckProjectSettingsControl extends AbstractExternalProjectSettingsC
 
   @Override
   protected boolean isExtraSettingModified() {
-    return false;
+    String externalProject = getInitialSettings().getExternalProjectPath();
+    String targetNames = "";
+    try {
+      Project project = ProjectManager.getInstance()
+          .loadAndOpenProject(externalProject);
+      targetNames = BuckConfiguration.getTargetNames(project);
+    } catch (IOException | JDOMException | InvalidDataException e) {
+      LOG.error("Error getting project for external path: " + externalProject);
+    }
+    return form.isModified(targetNames);
   }
 
   @Override
   protected void resetExtraSettings(boolean b) {
-
+    form.reset();
   }
 
   @Override
   protected void applyExtraSettings(BuckProjectSettings buckProjectSettings) {
-
+    // TODO(dka) Implement save cycle
   }
 
   @Override

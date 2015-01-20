@@ -1,5 +1,5 @@
 /*
- * Copyright 2013-present Facebook, Inc.
+ * Copyright 2015-present Facebook, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may
  * not use this file except in compliance with the License. You may obtain
@@ -18,7 +18,7 @@ package com.facebook.buck.intellijplugin.settings;
 
 import com.facebook.buck.intellijplugin.components.BuckConfiguration;
 import com.facebook.buck.intellijplugin.content.BuckPluginContent;
-import com.intellij.openapi.project.ProjectManager;
+import com.intellij.openapi.project.Project;
 
 import java.awt.FlowLayout;
 import javax.swing.JComponent;
@@ -32,6 +32,7 @@ import javax.swing.JTextField;
 public class BuckCompilerForm {
 
   private static final int PADDING = 6;
+  private static final String EMPTY_TARGET_LIST = "";
   private JPanel outer;
   private JTextField field;
 
@@ -43,13 +44,28 @@ public class BuckCompilerForm {
     form.outer = new JPanel(layout);
     JLabel label = new JLabel(BuckPluginContent.PROJECT_NAMES_LABEL);
     form.outer.add(label);
-    String projects = BuckConfiguration.getTargetNames(
-        ProjectManager.getInstance()
-            .getDefaultProject());
+    String projects = EMPTY_TARGET_LIST;
     form.field = new JTextField(projects, 36);
     form.field.setEnabled(false);
     form.outer.add(form.field);
     return form;
+  }
+
+  public static BuckCompilerForm newInstance(String targets) {
+    BuckCompilerForm form = new BuckCompilerForm();
+    FlowLayout layout = new FlowLayout(FlowLayout.LEADING, PADDING, PADDING);
+    form.outer = new JPanel(layout);
+    JLabel label = new JLabel(BuckPluginContent.PROJECT_NAMES_LABEL);
+    form.outer.add(label);
+    form.field = new JTextField(targets, 36);
+    form.field.setEnabled(false);
+    form.outer.add(form.field);
+    return form;
+  }
+
+  public static BuckCompilerForm newInstance(Project project) {
+    String targets = BuckConfiguration.getTargetNames(project);
+    return newInstance(targets);
   }
 
   public JComponent getComponent() {
@@ -58,12 +74,20 @@ public class BuckCompilerForm {
 
   public void setText(String targetNames) {
     if (null == targetNames) {
-      targetNames = "";
+      targetNames = EMPTY_TARGET_LIST;
     }
     field.setText(targetNames);
   }
 
   public String getText() {
     return field.getText();
+  }
+
+  public boolean isModified(String targetNames) {
+    return !getText().equals(targetNames);
+  }
+
+  public void reset() {
+    field.setText(EMPTY_TARGET_LIST);
   }
 }
