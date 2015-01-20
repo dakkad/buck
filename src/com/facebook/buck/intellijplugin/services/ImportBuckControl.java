@@ -39,14 +39,8 @@ public class ImportBuckControl extends
   public ImportBuckControl() {
     super(BuckPlugin.PROJECT_SYSTEM_ID,
         new BuckSettings(ProjectManager.getInstance()
-            .getDefaultProject()), new BuckProjectSettings(
-            ProjectManager.getInstance().getDefaultProject()),
-            true);
+            .getDefaultProject()), new BuckProjectSettings(), true);
 
-  }
-
-  private BuckProjectSettings getInitialProjectSettings() {
-    return new BuckProjectSettings(ProjectManager.getInstance().getDefaultProject());
   }
 
   @Override

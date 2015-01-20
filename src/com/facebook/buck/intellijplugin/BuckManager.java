@@ -54,9 +54,9 @@ import javax.swing.Icon;
  */
 public class BuckManager implements
     ExternalSystemConfigurableAware,
-    ExternalSystemAutoImportAware,
-    ExternalSystemUiAware,
-    StartupActivity,
+    // ExternalSystemAutoImportAware,
+    // ExternalSystemUiAware,
+    // StartupActivity,
     ExternalSystemManager<BuckProjectSettings,
             BuckSettingsListener,
             BuckSettings,

@@ -17,28 +17,40 @@
 package com.facebook.buck.intellijplugin.settings;
 
 import com.intellij.openapi.externalSystem.settings.ExternalProjectSettings;
-import com.intellij.openapi.project.Project;
+import com.intellij.util.containers.ContainerUtilRt;
 import org.jetbrains.annotations.NotNull;
+
+import java.util.List;
 
 /**
  * Buck project settings which provides an adaptor to the components settings.
  */
 public class BuckProjectSettings extends ExternalProjectSettings {
 
-  private final Project project;
-
-  public BuckProjectSettings(Project project) {
-    this.project = project;
-    setExternalProjectPath(project.getProjectFilePath());
-  }
-
-  public BuckProjectSettings(BuckProjectSettings buckProjectSettings) {
-    this.project = buckProjectSettings.project;
-  }
+  private List<String> target = ContainerUtilRt.emptyList();
 
   @NotNull
   @Override
-  public ExternalProjectSettings clone() {
-    return new BuckProjectSettings(this);
+  public BuckProjectSettings clone() {
+    BuckProjectSettings clone = new BuckProjectSettings();
+    copyTo(clone);
+    return clone;
+  }
+
+  @Override
+  public void copyTo(ExternalProjectSettings receiver) {
+    super.copyTo(receiver);
+    if (receiver instanceof BuckProjectSettings) {
+      BuckProjectSettings buckReceiver = (BuckProjectSettings) receiver;
+      buckReceiver.setTarget(getTarget());
+    }
+  }
+
+  public List<String> getTarget() {
+    return target;
+  }
+
+  public void setTarget(List<String> target) {
+    this.target = target;
   }
 }
