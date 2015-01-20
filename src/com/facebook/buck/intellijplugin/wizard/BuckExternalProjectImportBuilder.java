@@ -52,7 +52,8 @@ public class BuckExternalProjectImportBuilder extends AbstractExternalProjectImp
 
   @Override
   protected void beforeCommit(DataNode<ProjectData> dataNode, Project project) {
-    LOG.info("Going to run commit")
+    LOG.info("Going to run commit");
+    // TODO(dka) Consider emitting the project information to buck
   }
 
   @NotNull

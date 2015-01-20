@@ -69,6 +69,11 @@ public abstract class BaseDirectoryResolver {
     return false;
   }
 
+  public static boolean hasIntellijProject(VirtualFile root) {
+    // return true if is an intellij directory
+    return true;
+  }
+
   private static final class ProjectBaseDirectoryResolver
       extends BaseDirectoryResolver {
 

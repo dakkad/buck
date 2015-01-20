@@ -32,4 +32,12 @@ public class BuckExecutionSettings extends ExternalSystemExecutionSettings {
     this.project = project;
     this.path = path;
   }
+
+  public Project getProject() {
+    return project;
+  }
+
+  public String getPath() {
+    return path;
+  }
 }

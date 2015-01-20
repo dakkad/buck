@@ -20,7 +20,12 @@ import com.facebook.buck.intellijplugin.BuckPlugin;
 import com.intellij.execution.configurations.ConfigurationFactory;
 import com.intellij.execution.configurations.ConfigurationType;
 import com.intellij.execution.configurations.RunConfiguration;
+import com.intellij.openapi.extensions.Extensions;
 import com.intellij.openapi.project.Project;
+import com.intellij.util.containers.ContainerUtil;
+import org.jetbrains.annotations.NotNull;
+
+import javax.swing.Icon;
 
 /**
  * Buck configuration types which hooks in the buck configuration. This class
@@ -36,6 +41,41 @@ public class BuckConfigurationType implements ConfigurationType {
         return new BuckRunConfiguration(project, this,
             BuckPlugin.BUCK_PROJECT_LABEL);
       }
-    }
+    };
+  }
+
+  @Override
+  public String getDisplayName() {
+    return "Buck";
+  }
+
+  @Override
+  public String getConfigurationTypeDescription() {
+    return "Build with buck";
+  }
+
+  @Override
+  public Icon getIcon() {
+    return BuckPlugin.ICON;
+  }
+
+  @NotNull
+  @Override
+  public String getId() {
+    return BuckPlugin.BUCK_PLUGIN_ID;
+  }
+
+  @Override
+  public ConfigurationFactory[] getConfigurationFactories() {
+    return new ConfigurationFactory[]{ getFactory() };
+  }
+
+  private ConfigurationFactory getFactory() {
+    return factory;
+  }
+
+  public static BuckConfigurationType getInstance() {
+    return ContainerUtil.findInstance(Extensions.getExtensions(CONFIGURATION_TYPE_EP),
+        BuckConfigurationType.class);
   }
 }
