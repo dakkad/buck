@@ -29,12 +29,13 @@ import com.intellij.util.ArrayUtil;
  * Project import provider which takes the buck project config and pushes it
  * through the terminal 'buck project' invocation.
  */
-public class BuckImportProvider extends AbstractExternalProjectImportProvider {
+public class BuckExternalProjectImportProvider extends AbstractExternalProjectImportProvider {
 
   private final ProjectImportBuilder builder;
 
 
-  public BuckImportProvider(BuckExternalProjectImportBuilder builder) {
+  public BuckExternalProjectImportProvider(
+      BuckExternalProjectImportBuilder builder) {
     super(builder, BuckPlugin.PROJECT_SYSTEM_ID);
     this.builder = builder;
   }

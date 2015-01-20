@@ -71,7 +71,7 @@
 
     <!-- Extension for the project import modal. -->
     <projectImportProvider
-            implementation="com.facebook.buck.intellijplugin.services.BuckImportProvider" />
+            implementation="com.facebook.buck.intellijplugin.services.BuckExternalProjectImportProvider" />
     <projectImportBuilder
             implementation="com.facebook.buck.intellijplugin.services.BuckExternalProjectImportBuilder" />
   </extensions>

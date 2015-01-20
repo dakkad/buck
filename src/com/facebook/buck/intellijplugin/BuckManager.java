@@ -16,8 +16,9 @@
 
 package com.facebook.buck.intellijplugin;
 
-import com.facebook.buck.intellijplugin.components.BuckConfiguration;
+import com.facebook.buck.intellijplugin.runner.BaseDirectoryResolver;
 import com.facebook.buck.intellijplugin.services.BuckTaskManager;
+import com.facebook.buck.intellijplugin.settings.BuckConfigurable;
 import com.facebook.buck.intellijplugin.settings.BuckExecutionSettings;
 import com.facebook.buck.intellijplugin.settings.BuckLocalSettings;
 import com.facebook.buck.intellijplugin.settings.BuckProjectSettings;
@@ -26,28 +27,22 @@ import com.facebook.buck.intellijplugin.settings.BuckSettingsListener;
 import com.intellij.execution.ExecutionException;
 import com.intellij.execution.configurations.SimpleJavaParameters;
 import com.intellij.ide.actions.OpenProjectFileChooserDescriptor;
-import com.intellij.openapi.externalSystem.ExternalSystemAutoImportAware;
 import com.intellij.openapi.externalSystem.ExternalSystemConfigurableAware;
 import com.intellij.openapi.externalSystem.ExternalSystemManager;
-import com.intellij.openapi.externalSystem.ExternalSystemUiAware;
 import com.intellij.openapi.externalSystem.model.ProjectSystemId;
 import com.intellij.openapi.externalSystem.service.project.ExternalSystemProjectResolver;
 import com.intellij.openapi.externalSystem.task.ExternalSystemTaskManager;
-import com.intellij.openapi.externalSystem.util.ExternalSystemApiUtil;
 import com.intellij.openapi.externalSystem.util.ExternalSystemConstants;
 import com.intellij.openapi.fileChooser.FileChooserDescriptor;
 import com.intellij.openapi.options.Configurable;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.startup.StartupActivity;
 import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.util.Function;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.net.URL;
 import java.util.List;
-import javax.swing.Icon;
 
 /**
  * Buck manager helper.
@@ -68,28 +63,26 @@ public class BuckManager implements
 
         @Override
         public boolean isFileSelectable(VirtualFile file) {
-          // TODO(dka) Check to see if this is a project file
-          return true;
+          return BaseDirectoryResolver.isBuckConfig(file);
         }
 
         @Override
         public boolean isFileVisible(VirtualFile file, boolean showHiddenFiles) {
-          // TODO(dka) Conditionally return visible based on filters
-          return true;
+          return super.isFileVisible(file, showHiddenFiles);
         }
       };
 
-  @Nullable
+  /*@Nullable
   @Override
   public String getAffectedExternalProjectPath(String changedPath, Project project) {
     VirtualFile file = project.getBaseDir().findFileByRelativePath(changedPath);
     return null == file? null : file.getCanonicalPath();
-  }
+  }*/
 
   @NotNull
   @Override
   public Configurable getConfigurable(Project project) {
-    return new BuckConfiguration(project);
+    return new BuckConfigurable(project);
   }
 
   @NotNull
@@ -168,7 +161,7 @@ public class BuckManager implements
 
   }
 
-  @Override
+  /*@Override
   public void runActivity(@NotNull Project project) {
 
   }
@@ -197,5 +190,5 @@ public class BuckManager implements
   @Override
   public Icon getTaskIcon() {
     return BuckPlugin.FAVICON;
-  }
+  } */
 }

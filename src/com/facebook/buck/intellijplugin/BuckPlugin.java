@@ -35,6 +35,7 @@ public class BuckPlugin {
 
   public static final Icon ICON = IconLoader.getIcon("/com/facebook/buck/intellijplugin/resources/og.png");
   public static final Icon FAVICON = IconLoader.getIcon("/com/facebook/buck/intellijplugin/resources/favicon.png");
+  public static final String BUCK_PROJECT_SETTINGS_ID = "reference.settingsdialog.project.buck";
 
   private BuckPlugin() { }
 

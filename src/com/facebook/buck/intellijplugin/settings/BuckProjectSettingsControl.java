@@ -16,17 +16,11 @@
 
 package com.facebook.buck.intellijplugin.settings;
 
-import com.facebook.buck.intellijplugin.components.BuckConfiguration;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.externalSystem.service.settings.AbstractExternalProjectSettingsControl;
+import com.intellij.openapi.externalSystem.util.ExternalSystemUiUtil;
 import com.intellij.openapi.externalSystem.util.PaintAwarePanel;
 import com.intellij.openapi.options.ConfigurationException;
-import com.intellij.openapi.project.Project;
-import com.intellij.openapi.project.ProjectManager;
-import com.intellij.openapi.util.InvalidDataException;
-import org.jdom.JDOMException;
-
-import java.io.IOException;
 
 /**
  * Buck project settings controls
@@ -45,37 +39,34 @@ public class BuckProjectSettingsControl extends AbstractExternalProjectSettingsC
 
   @Override
   protected void fillExtraControls(PaintAwarePanel paintAwarePanel, int i) {
-    paintAwarePanel.add(form.getComponent());
+    paintAwarePanel.add(form.getComponent(), ExternalSystemUiUtil.getFillLineConstraints(0));
   }
 
   @Override
   protected boolean isExtraSettingModified() {
-    String externalProject = getInitialSettings().getExternalProjectPath();
-    String targetNames = "";
-    try {
-      Project project = ProjectManager.getInstance()
-          .loadAndOpenProject(externalProject);
-      targetNames = BuckConfiguration.getTargetNames(project);
-    } catch (IOException | JDOMException | InvalidDataException e) {
-      LOG.error("Error getting project for external path: " + externalProject);
-    }
-    return form.isModified(targetNames);
+    return form.isModified(settings.getTarget());
   }
 
   @Override
-  protected void resetExtraSettings(boolean b) {
+  protected void resetExtraSettings(boolean isCreatingDefault) {
     form.reset();
   }
 
   @Override
   protected void applyExtraSettings(BuckProjectSettings buckProjectSettings) {
     // TODO(dka) Implement save cycle
+    buckProjectSettings.copyTo(settings);
   }
 
   @Override
   public boolean validate(BuckProjectSettings buckProjectSettings)
       throws ConfigurationException {
-    return false;
+    // TODO(dka) Validate and throw configuration exception if false.
+    // Not sure when to return false as throw exception when not possible.
+
+    // TODO(dka) Throw a configuration exception to warn the user that no
+    // option is selected
+    return true;
   }
 
 

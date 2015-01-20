@@ -32,13 +32,12 @@ import javax.swing.JComponent;
 public class BuckProjectImportStep extends ModuleWizardStep {
 
   private static final Logger LOG = Logger.getInstance(BuckProjectImportStep.class);
-  private static final int INPUT_TEXT_SIZE = 32;
-  private static final int PADDING = 6;
 
   private final WizardContext context;
   private BuckCompilerForm form = BuckCompilerForm.newInstance();
 
   public BuckProjectImportStep(WizardContext context) {
+    super();
     this.context = context;
   }
 
@@ -51,7 +50,27 @@ public class BuckProjectImportStep extends ModuleWizardStep {
   }
 
   @Override
+  public JComponent getPreferredFocusedComponent() {
+    return form.getComponent();
+  }
+
+  @Override
   public void updateDataModel() {
     BuckConfiguration.setProjectNames(context.getProject(), form.getText());
+  }
+
+  @Override
+  public void onStepLeaving() {
+    LOG.info("Completing wizard step");
+  }
+
+  @Override
+  public boolean isStepVisible() {
+    return true;
+  }
+
+  @Override
+  public boolean validate() {
+    return true;
   }
 }

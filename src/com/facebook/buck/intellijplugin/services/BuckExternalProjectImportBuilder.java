@@ -18,6 +18,7 @@ package com.facebook.buck.intellijplugin.services;
 
 import com.facebook.buck.intellijplugin.BuckPlugin;
 import com.intellij.ide.util.projectWizard.WizardContext;
+import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.externalSystem.model.DataNode;
 import com.intellij.openapi.externalSystem.model.project.ProjectData;
 import com.intellij.openapi.externalSystem.service.project.manage.ProjectDataManager;
@@ -32,6 +33,8 @@ import javax.swing.Icon;
  * Buck project import builder.
  */
 public class BuckExternalProjectImportBuilder extends AbstractExternalProjectImportBuilder<ImportBuckControl> {
+
+  private static final Logger LOG = Logger.getInstance(BuckExternalProjectImportBuilder.class);
 
   private final ProjectDataManager projectDataManager;
 
@@ -48,7 +51,7 @@ public class BuckExternalProjectImportBuilder extends AbstractExternalProjectImp
 
   @Override
   protected void beforeCommit(DataNode<ProjectData> dataNode, Project project) {
-
+    LOG.info("Going to run commit");
   }
 
   @NotNull
@@ -59,6 +62,7 @@ public class BuckExternalProjectImportBuilder extends AbstractExternalProjectImp
 
   @Override
   protected void applyExtraSettings(@NotNull WizardContext wizardContext) {
+    LOG.info("Would apply extra settings.");
   }
 
   @NotNull

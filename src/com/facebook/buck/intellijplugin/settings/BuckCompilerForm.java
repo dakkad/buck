@@ -25,6 +25,7 @@ import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
+import javax.swing.border.TitledBorder;
 
 /**
  * Buck compiler form provides settings and configuration for the buck compiler.
@@ -46,7 +47,6 @@ public class BuckCompilerForm {
     form.outer.add(label);
     String projects = EMPTY_TARGET_LIST;
     form.field = new JTextField(projects, 36);
-    form.field.setEnabled(false);
     form.outer.add(form.field);
     return form;
   }
@@ -55,10 +55,11 @@ public class BuckCompilerForm {
     BuckCompilerForm form = new BuckCompilerForm();
     FlowLayout layout = new FlowLayout(FlowLayout.LEADING, PADDING, PADDING);
     form.outer = new JPanel(layout);
+    form.outer.setBorder(new TitledBorder(BuckPluginContent.ARGUMENTS_TITLE));
     JLabel label = new JLabel(BuckPluginContent.PROJECT_NAMES_LABEL);
     form.outer.add(label);
     form.field = new JTextField(targets, 36);
-    form.field.setEnabled(false);
+
     form.outer.add(form.field);
     return form;
   }
@@ -72,11 +73,12 @@ public class BuckCompilerForm {
     return outer;
   }
 
-  public void setText(String targetNames) {
+  public BuckCompilerForm setText(String targetNames) {
     if (null == targetNames) {
       targetNames = EMPTY_TARGET_LIST;
     }
     field.setText(targetNames);
+    return this;
   }
 
   public String getText() {
@@ -87,7 +89,13 @@ public class BuckCompilerForm {
     return !getText().equals(targetNames);
   }
 
-  public void reset() {
+  public BuckCompilerForm reset() {
     field.setText(EMPTY_TARGET_LIST);
+    return this;
+  }
+
+  public BuckCompilerForm setEnable(boolean enabled) {
+    field.setEnabled(enabled);
+    return this;
   }
 }

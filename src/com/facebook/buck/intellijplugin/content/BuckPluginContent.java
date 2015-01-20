@@ -29,4 +29,6 @@ public class BuckPluginContent {
   public static final String NO_TARGETS_WARNING = "No Project Names Specified. " +
       "Please check your buck settings";
   public static final String NO_TARGETS_TITLE = "Buck Projects";
+
+  public static String ARGUMENTS_TITLE = "Buck Configuration / Targets";
 }

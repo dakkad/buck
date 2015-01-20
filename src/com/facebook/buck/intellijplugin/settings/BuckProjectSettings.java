@@ -17,17 +17,14 @@
 package com.facebook.buck.intellijplugin.settings;
 
 import com.intellij.openapi.externalSystem.settings.ExternalProjectSettings;
-import com.intellij.util.containers.ContainerUtilRt;
 import org.jetbrains.annotations.NotNull;
-
-import java.util.List;
 
 /**
  * Buck project settings which provides an adaptor to the components settings.
  */
 public class BuckProjectSettings extends ExternalProjectSettings {
 
-  private List<String> target = ContainerUtilRt.emptyList();
+  private String target = "";
 
   @NotNull
   @Override
@@ -46,11 +43,11 @@ public class BuckProjectSettings extends ExternalProjectSettings {
     }
   }
 
-  public List<String> getTarget() {
+  public String getTarget() {
     return target;
   }
 
-  public void setTarget(List<String> target) {
+  public void setTarget(String target) {
     this.target = target;
   }
 }
