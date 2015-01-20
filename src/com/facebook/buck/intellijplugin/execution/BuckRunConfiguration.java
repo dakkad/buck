@@ -17,9 +17,16 @@
 package com.facebook.buck.intellijplugin.execution;
 
 import com.facebook.buck.intellijplugin.runner.BuckRunParameters;
+import com.intellij.execution.Executor;
 import com.intellij.execution.configurations.ConfigurationFactory;
 import com.intellij.execution.configurations.LocatableConfigurationBase;
+import com.intellij.execution.configurations.RunProfileState;
+import com.intellij.execution.runners.ExecutionEnvironment;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.InvalidDataException;
+import com.intellij.openapi.util.WriteExternalException;
+import com.intellij.util.xmlb.XmlSerializer;
+import org.jdom.Element;
 
 /**
  * Buck run configuration implementation.
@@ -38,5 +45,22 @@ public class BuckRunConfiguration extends LocatableConfigurationBase {
     return parameters;
   }
 
+  @Override
+  public void writeExternal(final Element element) throws WriteExternalException {
+    super.writeExternal(element);
+    XmlSerializer.serializeInto(parameters, element);
+  }
+
+  @Override
+  public void readExternal(final Element element) throws  InvalidDataException {
+    super.readExternal(element);
+    XmlSerializer.deserializeInto(parameters, element);
+  }
+
+  @Override
+  public RunProfileState getState(Executor executor, ExecutionEnvironment environment) {
+    // TODO(dka) Implement checks for directory / executable being found
+    return new BuckRunningState(environment, parameters);
+  }
 
 }
