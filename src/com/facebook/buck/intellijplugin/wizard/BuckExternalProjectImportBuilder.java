@@ -14,9 +14,10 @@
  * under the License.
  */
 
-package com.facebook.buck.intellijplugin.services;
+package com.facebook.buck.intellijplugin.wizard;
 
 import com.facebook.buck.intellijplugin.BuckPlugin;
+import com.facebook.buck.intellijplugin.services.ImportBuckControl;
 import com.intellij.ide.util.projectWizard.WizardContext;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.externalSystem.model.DataNode;

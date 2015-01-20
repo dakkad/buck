@@ -17,6 +17,7 @@
 package com.facebook.buck.intellijplugin.services;
 
 import com.facebook.buck.intellijplugin.settings.BuckExecutionSettings;
+import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.externalSystem.model.ExternalSystemException;
 import com.intellij.openapi.externalSystem.model.task.ExternalSystemTaskId;
 import com.intellij.openapi.externalSystem.model.task.ExternalSystemTaskNotificationListener;
@@ -30,6 +31,9 @@ import java.util.List;
  */
 public class BuckTaskManager extends AbstractExternalSystemTaskManager<BuckExecutionSettings>
     implements ExternalSystemTaskManager<BuckExecutionSettings> {
+
+  private static final Logger LOG = Logger.getInstance(BuckTaskManager.class);
+
   @Override
   public void executeTasks(ExternalSystemTaskId externalSystemTaskId,
       List<String> taskNames, String projectPath, BuckExecutionSettings settings,
@@ -37,6 +41,7 @@ public class BuckTaskManager extends AbstractExternalSystemTaskManager<BuckExecu
       ExternalSystemTaskNotificationListener externalSystemTaskNotificationListener)
       throws ExternalSystemException {
     //throw new UnsupportedOperationException("Task running support not implemented");
+    LOG.info("Skipping external task");
   }
 
   @Override

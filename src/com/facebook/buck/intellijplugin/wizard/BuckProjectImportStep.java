@@ -14,7 +14,7 @@
  * under the License.
  */
 
-package com.facebook.buck.intellijplugin.services;
+package com.facebook.buck.intellijplugin.wizard;
 
 import com.facebook.buck.intellijplugin.components.BuckConfiguration;
 import com.facebook.buck.intellijplugin.settings.BuckCompilerForm;
