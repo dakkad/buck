@@ -16,7 +16,7 @@
 
 package com.facebook.buck.intellijplugin.wizard;
 
-import com.facebook.buck.intellijplugin.components.BuckConfiguration;
+import com.facebook.buck.intellijplugin.components.BuckConfigurationComponent;
 import com.facebook.buck.intellijplugin.settings.BuckCompilerForm;
 import com.intellij.ide.util.projectWizard.ModuleWizardStep;
 import com.intellij.ide.util.projectWizard.WizardContext;
@@ -44,7 +44,7 @@ public class BuckProjectImportStep extends ModuleWizardStep {
   @Override
   public JComponent getComponent() {
     LOG.info("Creating Buck Import Display Components");
-    form.setText(BuckConfiguration.getTargetNames(
+    form.setText(BuckConfigurationComponent.getTargetNames(
         ProjectManager.getInstance().getDefaultProject()));
     return form.getComponent();
   }
@@ -56,7 +56,8 @@ public class BuckProjectImportStep extends ModuleWizardStep {
 
   @Override
   public void updateDataModel() {
-    BuckConfiguration.setProjectNames(context.getProject(), form.getText());
+    BuckConfigurationComponent.setProjectNames(context.getProject(),
+        form.getText());
   }
 
   @Override

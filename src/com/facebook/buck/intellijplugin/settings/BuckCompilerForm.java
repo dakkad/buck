@@ -16,7 +16,7 @@
 
 package com.facebook.buck.intellijplugin.settings;
 
-import com.facebook.buck.intellijplugin.components.BuckConfiguration;
+import com.facebook.buck.intellijplugin.components.BuckConfigurationComponent;
 import com.facebook.buck.intellijplugin.content.BuckPluginContent;
 import com.intellij.openapi.project.Project;
 
@@ -65,7 +65,7 @@ public class BuckCompilerForm {
   }
 
   public static BuckCompilerForm newInstance(Project project) {
-    String targets = BuckConfiguration.getTargetNames(project);
+    String targets = BuckConfigurationComponent.getTargetNames(project);
     return newInstance(targets);
   }
 

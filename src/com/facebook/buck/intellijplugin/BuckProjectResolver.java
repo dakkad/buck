@@ -16,6 +16,7 @@
 
 package com.facebook.buck.intellijplugin;
 
+import com.facebook.buck.intellijplugin.runner.BaseDirectoryResolver;
 import com.facebook.buck.intellijplugin.settings.BuckExecutionSettings;
 import com.intellij.openapi.externalSystem.model.DataNode;
 import com.intellij.openapi.externalSystem.model.ExternalSystemException;
@@ -32,13 +33,13 @@ public class BuckProjectResolver implements ExternalSystemProjectResolver<BuckEx
   @Nullable
   @Override
   public DataNode<ProjectData> resolveProjectInfo(
-      ExternalSystemTaskId externalSystemTaskId, String s, boolean b,
-      BuckExecutionSettings s1,
-      ExternalSystemTaskNotificationListener externalSystemTaskNotificationListener)
+      ExternalSystemTaskId externalSystemTaskId, String projectPath, boolean isPreview,
+      BuckExecutionSettings executionSettings,
+      ExternalSystemTaskNotificationListener notificationListener)
       throws ExternalSystemException, IllegalArgumentException,
       IllegalStateException {
-    // TODO(dka) Implement buck bindings for the project data nodes.
-    return null;
+
+    String workingDirectory = BaseDirectoryResolver.fromProject()
   }
 
   @Override

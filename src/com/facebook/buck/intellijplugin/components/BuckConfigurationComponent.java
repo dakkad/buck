@@ -32,12 +32,10 @@ import javax.swing.JComponent;
 /**
  * Buck configuration management using basic project properties component to
  * persist the project selection.
- *
- * @author code@damienallison.com
  */
-public class BuckConfiguration extends BaseConfigurable implements SearchableConfigurable {
+public class BuckConfigurationComponent extends BaseConfigurable implements SearchableConfigurable {
 
-  private static final Logger LOG = Logger.getInstance(BuckConfiguration.class);
+  private static final Logger LOG = Logger.getInstance(BuckConfigurationComponent.class);
   public static final String BUCK_PROJECT_NAMES = BuckPlugin.PLUGIN_NAME +
       ".BuckProjectNames";
   public static final String DEFAULT_PROJECT_NAMES = "";
@@ -49,7 +47,7 @@ public class BuckConfiguration extends BaseConfigurable implements SearchableCon
   private BuckCompilerForm form = BuckCompilerForm.newInstance();
 
 
-  public BuckConfiguration(Project project) {
+  public BuckConfigurationComponent(Project project) {
     this.project = project;
   }
 

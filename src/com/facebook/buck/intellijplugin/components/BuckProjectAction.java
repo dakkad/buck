@@ -43,8 +43,8 @@ public class BuckProjectAction extends AnAction {
   public void actionPerformed(AnActionEvent actionEvent) {
     Project project = actionEvent.getProject();
     // Get the project name to run
-    String projectNames = BuckConfiguration.getTargetNames(project);
-    if (BuckConfiguration.DEFAULT_PROJECT_NAMES.equals(projectNames.trim())) {
+    String projectNames = BuckConfigurationComponent.getTargetNames(project);
+    if (BuckConfigurationComponent.DEFAULT_PROJECT_NAMES.equals(projectNames.trim())) {
       Messages.showErrorDialog(project, BuckPluginContent.NO_TARGETS_WARNING,
           BuckPluginContent.NO_TARGETS_TITLE);
       return;

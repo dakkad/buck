@@ -34,7 +34,7 @@
     <!-- https://confluence.jetbrains.com/display/IDEADEV/Customizing+the+IDEA+Settings+Dialog -->
     <!-- https://confluence.jetbrains.com/display/IDEADEV/Persisting+State+of+Components -->
     <!-- <applicationConfigurable id="BuckProject.BuckConfiguration" instance="com.facebook.buck.intellijplugin.components.BuckConfiguration" displayName="Buck Config" /> -->
-    <projectConfigurable id="BuckProject.BuckConfiguration" instance="com.facebook.buck.intellijplugin.components.BuckConfiguration" displayName="Buck Config" />
+    <projectConfigurable id="BuckProject.BuckConfiguration" instance="com.facebook.buck.intellijplugin.components.BuckConfigurationComponent" displayName="Buck Config" />
 
   </extensions>
 
