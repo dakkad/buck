@@ -65,11 +65,8 @@ public class BuckProjectResolver implements ExternalSystemProjectResolver<BuckEx
 
     // See https://confluence.jetbrains.com/display/IDEADEV/Structure+of+IntelliJ+IDEA+Project
 
-
-
     // Load the project from the working directory
     Project project;
-
     try {
       project = ProjectManager.getInstance()
           .loadAndOpenProject(projectPath);
@@ -81,6 +78,7 @@ public class BuckProjectResolver implements ExternalSystemProjectResolver<BuckEx
     VirtualFile[] moduleContentRoots = projectRootManager.getContentRootsFromAllModules();
     ModuleManager moduleManager = ModuleManager.getInstance(project);
     Module[] modules = moduleManager.getModules();
+
 
     // TODO(dka) Update with project information from above.
     ProjectData projectData = new ProjectData(

@@ -14,5 +14,5 @@
 # under the License.
 #
 
-com.facebook.buck.intellijplugin.buckbuilder.ExternalBuckBuilder
+com.facebook.buck.intellijplugin.runner.BuckRunner
 

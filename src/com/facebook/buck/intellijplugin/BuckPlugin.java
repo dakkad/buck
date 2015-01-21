@@ -28,7 +28,7 @@ public class BuckPlugin {
 
   public static final String PLUGIN_NAME = "BuckPlugin";
   public static final String BUCK_PROJECT_NAME = "Buck Plugin";
-  public static final String BUCK_PLUGIN_ID = "Buck";
+  public static final String BUCK_PLUGIN_ID = "buck";
   public static final ProjectSystemId PROJECT_SYSTEM_ID = new ProjectSystemId(
       BUCK_PLUGIN_ID);
   public static final String BUCK_PROJECT_LABEL = "Buck";
@@ -37,6 +37,8 @@ public class BuckPlugin {
   public static final Icon FAVICON = IconLoader.getIcon("/com/facebook/buck/intellijplugin/resources/favicon.png");
   public static final String BUCK_PROJECT_SETTINGS_ID = "reference.settingsdialog.project.buck";
   public static final String BUCK_RUNNER_ID = "BuckRunner";
+  public static final String BUCK_TARGET_COMPILE = "buck-target-compile";
+  public static final String BUCK_TARGET_LABEL = "buck target";
 
   private BuckPlugin() { }
 
