@@ -65,7 +65,7 @@
     <!-- Along with the external manager we need to reference the the configuration type
         for the pants plugin as well as the buck runner -->
     <configurationType implementation="com.facebook.buck.intellijplugin.execution.BuckConfigurationType"/>
-    <programRunner implementation="com.twitter.intellij.pants.run.PantsRunner"/>
+    <programRunner implementation="com.facebook.buck.intellijplugin.runner.BuckRunner"/>
 
 
     <!-- External service providers must be registered in order for the service
