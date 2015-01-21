@@ -39,6 +39,9 @@ public class BuckPlugin {
   public static final String BUCK_RUNNER_ID = "BuckRunner";
   public static final String BUCK_TARGET_COMPILE = "buck-target-compile";
   public static final String BUCK_TARGET_LABEL = "buck target";
+  public static final String BUCK_SETTINGS_LABEL = "BuckSettings";
+  public static final String PROJECT_PATH_SETTING = "projectPath";
+  public static final String PROJECT_TARGETS_SETTING = "projectTargets";
 
   private BuckPlugin() { }
 

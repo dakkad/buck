@@ -16,10 +16,22 @@
 
 package com.facebook.buck.intellijplugin.buckbuilder;
 
-import com.intellij.compiler.server.BuildProcessParametersProvider;
+import com.facebook.buck.intellijplugin.BuckPlugin;
+import org.jetbrains.jps.model.JpsElement;
+import org.jetbrains.jps.model.JpsElementChildRole;
+import org.jetbrains.jps.model.ex.JpsElementChildRoleBase;
+
+import java.util.List;
 
 /**
- * Buck builder parameters provider sets up the external build configuration.
+ * Jps buck project extensions bean.
  */
-public class BuckBuildParametersProvider extends BuildProcessParametersProvider {
+public interface JpsBuckProjectExtension extends JpsElement, BuckCompileOptions {
+
+  public static final JpsElementChildRole<JpsBuckProjectExtension> ROLE =
+      JpsElementChildRoleBase.create(BuckPlugin.BUCK_PLUGIN_ID);
+
+  public void setTargetPath(String targetPath);
+
+  public void setTargetNames(List<String> targetNames);
 }

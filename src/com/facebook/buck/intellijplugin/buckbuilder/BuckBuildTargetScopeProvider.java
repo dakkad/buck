@@ -16,13 +16,13 @@
 
 package com.facebook.buck.intellijplugin.buckbuilder;
 
+import com.google.common.collect.Lists;
 import com.intellij.compiler.impl.BuildTargetScopeProvider;
 import com.intellij.openapi.compiler.CompileScope;
 import com.intellij.openapi.compiler.CompilerFilter;
 import com.intellij.openapi.project.Project;
 import org.jetbrains.jps.api.CmdlineRemoteProto.Message.ControllerMessage.ParametersMessage.TargetTypeBuildScope;
 
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -33,8 +33,9 @@ public class BuckBuildTargetScopeProvider extends BuildTargetScopeProvider {
   @Override
   public List<TargetTypeBuildScope> getBuildTargetScopes(CompileScope compileScope,
       CompilerFilter compilerFilter, Project project, boolean forceBuild) {
-    return Collections.singleton(TargetTypeBuildScope.newBuilder()
+    return Lists.newArrayList(TargetTypeBuildScope.newBuilder()
         .setTypeId(BuckBuildTargetType.getInstance()
-            .getTypeId()));
+            .getTypeId())
+        .build());
   }
 }

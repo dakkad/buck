@@ -46,7 +46,7 @@
     <!-- External project compiler -->
     <compileServer.plugin classpath="jps-plugin.jar"/>
     <compiler.buildTargetScopeProvider implementation="com.facebook.buck.intellijplugin.buckbuilder.BuckBuildTargetScopeProvider" />
-    <buildProcess.parametersProvider implementation="com.facebook.buck.intellijplugin.buckbuilder.BuckBuildParametersProvider" />
+    <!-- <buildProcess.parametersProvider implementation="com.facebook.buck.intellijplugin.buckbuilder.BuckBuildParametersProvider" /> -->
 
     <!-- https://confluence.jetbrains.com/display/IDEADEV/IntelliJ+IDEA+Tool+Windows -->
     <toolWindow id="Buck Project"  anchor="bottom" secondary="false" factoryClass="com.facebook.buck.intellijplugin.tools.BuckToolWindow" />

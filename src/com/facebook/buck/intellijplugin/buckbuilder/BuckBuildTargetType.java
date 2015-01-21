@@ -50,9 +50,9 @@ public class BuckBuildTargetType extends BuildTargetType<BuckBuildTarget> {
 
   private BuckBuildTarget getTarget(JpsModel jpsModel) {
     JpsProject project = jpsModel.getProject();
-    // TODO(dka) Figure out where to load the settigng from (from the project)
+    JpsBuckProjectExtension extension = JpsBuckProjectExtensionSerializer.find(project);
     // TODO(dka) Figure out if this is a buck compile project
-    return new BuckBuildTarget();
+    return new BuckBuildTarget(extension.getTargetPath(), extension.getTargetNames());
   }
 
   @NotNull

@@ -20,6 +20,7 @@ import com.facebook.buck.intellijplugin.BuckPlugin;
 import com.google.common.collect.Lists;
 import com.intellij.openapi.util.io.FileUtil;
 import gnu.trove.THashSet;
+import org.apache.commons.lang.builder.HashCodeBuilder;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.jps.builders.BuildRootIndex;
@@ -132,7 +133,24 @@ public class BuckBuildTarget extends BuildTarget<BuckSourceRootDescriptor> imple
         files.addAll(moduleTarget.getOutputRoots(compileContext));
       }
     }
-
     return files;
+  }
+
+  @Override
+  public boolean equals(Object other) {
+    if (null == other || !(other instanceof BuckBuildTarget)) {
+      return false;
+    }
+    BuckBuildTarget test = (BuckBuildTarget)other;
+    return getTargetPath().equals(test.getTargetPath()) &&
+        getTargetNames().equals(test.getTargetNames());
+  }
+
+  @Override
+  public int hashCode() {
+    return new HashCodeBuilder(27, 41)
+        .append(path)
+        .append(targets)
+        .toHashCode();
   }
 }
