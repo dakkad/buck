@@ -27,7 +27,7 @@ public class BuckBuildCommand {
 
   private BuckBuildCommand() { }
 
-  public static void build(BuckCommand buckRunner, BuckBuildTarget target) {
+  public static void build(BuckCommand buckRunner, BuckTarget target) {
     int exitCode = buckRunner.executeAndListenToWebSocket("build",
         target.getFullName());
     if (exitCode != 0) {

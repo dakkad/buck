@@ -16,6 +16,7 @@
 
 package com.facebook.buck.intellijplugin.jps.wrapper;
 
+import com.facebook.buck.intellijplugin.buckbuilder.BuckBuildTarget;
 import com.google.common.base.Optional;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;

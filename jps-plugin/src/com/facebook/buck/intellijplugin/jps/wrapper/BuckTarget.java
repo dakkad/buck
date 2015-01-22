@@ -19,15 +19,15 @@ package com.facebook.buck.intellijplugin.jps.wrapper;
 import com.google.common.base.Preconditions;
 
 /**
- * Buck build target.
+ * Buck target.
  */
-public class BuckBuildTarget {
+public class BuckTarget {
 
   private final String type;
   private final String name;
   private final String basePath;
 
-  public BuckBuildTarget(String type, String name, String basePath) {
+  public BuckTarget(String type, String name, String basePath) {
     this.type = Preconditions.checkNotNull(type);
     this.name = Preconditions.checkNotNull(name);
     this.basePath = Preconditions.checkNotNull(basePath);

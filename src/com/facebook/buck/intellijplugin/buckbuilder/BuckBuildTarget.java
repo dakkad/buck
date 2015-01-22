@@ -52,7 +52,7 @@ public class BuckBuildTarget extends BuildTarget<BuckSourceRootDescriptor> imple
   private final String path;
   private final List<String> targets;
 
-  protected BuckBuildTarget(String path, List<String> targets) {
+  public BuckBuildTarget(String path, List<String> targets) {
     super(BuckBuildTargetType.getInstance());
     this.path = path;
     this.targets = targets;

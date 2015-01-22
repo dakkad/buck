@@ -28,7 +28,7 @@ public class BuckTestCommand {
 
   private BuckTestCommand() {}
 
-  public static void runTest(BuckCommand buckRunner, Optional<BuckBuildTarget> target) {
+  public static void runTest(BuckCommand buckRunner, Optional<BuckTarget> target) {
     String targetName = target.isPresent() ? target.get().getFullName() : "--all";
     int exitCode = buckRunner.executeAndListenToWebSocket("test", targetName);
     if (exitCode != 0) {

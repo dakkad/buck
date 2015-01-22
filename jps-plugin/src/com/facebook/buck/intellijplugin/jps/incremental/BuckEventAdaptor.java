@@ -31,7 +31,6 @@ public class BuckEventAdaptor implements BuckEventListener {
     this.context = compileContext;
   }
 
-
   @Override
   public void onEvent(BuckEvent event) {
     // BuildMessage Kind:ERROR/WARNING/INFO/PROGRESS

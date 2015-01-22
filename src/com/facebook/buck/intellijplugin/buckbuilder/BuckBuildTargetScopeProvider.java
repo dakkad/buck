@@ -16,6 +16,7 @@
 
 package com.facebook.buck.intellijplugin.buckbuilder;
 
+import com.facebook.buck.intellijplugin.jps.model.BuckBuildTargetType;
 import com.google.common.collect.Lists;
 import com.intellij.compiler.impl.BuildTargetScopeProvider;
 import com.intellij.openapi.compiler.CompileScope;

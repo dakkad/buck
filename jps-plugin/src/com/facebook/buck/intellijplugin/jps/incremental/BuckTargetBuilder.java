@@ -21,7 +21,10 @@ import com.facebook.buck.intellijplugin.buckbuilder.BuckSourceRootDescriptor;
 import com.facebook.buck.intellijplugin.jps.model.BuckBuildTargetType;
 import com.facebook.buck.intellijplugin.jps.model.JpsBuckProjectExtension;
 import com.facebook.buck.intellijplugin.jps.model.JpsBuckProjectExtensionSerializer;
+import com.facebook.buck.intellijplugin.jps.wrapper.BuckBuildCommand;
 import com.facebook.buck.intellijplugin.jps.wrapper.BuckCommand;
+import com.facebook.buck.intellijplugin.jps.wrapper.BuckEventListener;
+import com.facebook.buck.intellijplugin.jps.wrapper.BuckTarget;
 import com.intellij.openapi.diagnostic.Logger;
 import org.jetbrains.jps.builders.BuildOutputConsumer;
 import org.jetbrains.jps.builders.DirtyFilesHolder;
@@ -60,7 +63,7 @@ public class BuckTargetBuilder extends TargetBuilder<BuckSourceRootDescriptor, B
     JpsBuckProjectExtension extension = JpsBuckProjectExtensionSerializer.find(project);
     // TODO(dka) Check whether we should use buck for compiling - for now yes
     if (projectContainsRelevantModules(project)) {
-      JavaBuilder.IS_ENABLED.set(compileContext, false)
+      JavaBuilder.IS_ENABLED.set(compileContext, false);
     }
   }
 
@@ -79,7 +82,7 @@ public class BuckTargetBuilder extends TargetBuilder<BuckSourceRootDescriptor, B
       DirtyFilesHolder<BuckSourceRootDescriptor, BuckBuildTarget> dirtyFilesHolder,
       BuildOutputConsumer buildOutputConsumer, final CompileContext compileContext)
       throws ProjectBuildException, IOException {
-    String canonicalPath = buckBuildTarget.getTargetPath();
+    File canonicalPath = new File(buckBuildTarget.getTargetPath());
 
 
     // Check whether this build should even be run
@@ -95,8 +98,11 @@ public class BuckTargetBuilder extends TargetBuilder<BuckSourceRootDescriptor, B
 
     // TODO(dka) Look at how we can use CapturingProcessHandler to run buck
 
-    BuckCommand command = new BuckCommand(buckBuildTarget, new File(canonicalPath),
-        new BuckEventAdaptor(compileContext));
-
+    BuckEventListener eventListener = new BuckEventAdaptor(compileContext);
+    BuckCommand command = new BuckCommand(buckBuildTarget, canonicalPath, eventListener);
+    for (String target : buckBuildTarget.getTargetNames()) {
+      BuckBuildCommand.build(command, new BuckTarget("java_library", target,
+          buckBuildTarget.getTargetPath()));
+    }
   }
 }

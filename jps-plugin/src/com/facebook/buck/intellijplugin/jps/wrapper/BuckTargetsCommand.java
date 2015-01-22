@@ -36,7 +36,7 @@ public class BuckTargetsCommand {
 
   private BuckTargetsCommand() {}
 
-  public static List<BuckBuildTarget> getTargets(BuckCommand buckRunner)
+  public static List<BuckTarget> getTargets(BuckCommand buckRunner)
       throws IOException {
 
     int exitCode = buckRunner.execute("targets", "--json");
@@ -51,7 +51,7 @@ public class BuckTargetsCommand {
       throw new IllegalStateException();
     }
 
-    List<BuckBuildTarget> builder = Lists.newArrayList();
+    List<BuckTarget> builder = Lists.newArrayList();
     for (JsonNode target : jsonNode) {
       if (!target.isObject()) {
         throw new IllegalStateException("Expected target node");
@@ -59,7 +59,7 @@ public class BuckTargetsCommand {
       String basePath = target.get(BUCK_BASE_PATH).asText();
       String name = target.get(BUCK_TARGET_NAME).asText();
       String type = target.get(BUCK_TARGET_TYPE).asText();
-      builder.add(new BuckBuildTarget(type, name, basePath));
+      builder.add(new BuckTarget(type, name, basePath));
     }
     return builder;
   }
