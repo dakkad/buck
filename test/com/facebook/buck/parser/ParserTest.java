@@ -42,6 +42,7 @@ import com.facebook.buck.model.BuildTargetException;
 import com.facebook.buck.model.FilesystemBackedBuildFileTree;
 import com.facebook.buck.rules.ActionGraph;
 import com.facebook.buck.rules.BuildRule;
+import com.facebook.buck.cli.BuildTargetNodeToBuildRuleTransformer;
 import com.facebook.buck.rules.FakeRepositoryFactory;
 import com.facebook.buck.rules.FakeRuleKeyBuilderFactory;
 import com.facebook.buck.rules.KnownBuildRuleTypes;
@@ -69,6 +70,7 @@ import com.google.common.collect.ImmutableSortedSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+import com.google.common.hash.HashCode;
 import com.google.common.io.Files;
 
 import org.easymock.EasyMockSupport;
@@ -241,7 +243,7 @@ public class ParserTest extends EasyMockSupport {
         new TestConsole(),
         ImmutableMap.<String, String>of(),
         /* enableProfiling */ false);
-    ActionGraph actionGraph = new TargetGraphToActionGraph(eventBus).apply(targetGraph);
+    ActionGraph actionGraph = buildActionGraph(eventBus, targetGraph);
     BuildRule fooRule = actionGraph.findBuildRuleByTarget(fooTarget);
     assertNotNull(fooRule);
     BuildRule barRule = actionGraph.findBuildRuleByTarget(barTarget);
@@ -1013,7 +1015,7 @@ public class ParserTest extends EasyMockSupport {
         new TestConsole(),
         ImmutableMap.<String, String>of(),
         /* enableProfiling */ false);
-    ActionGraph graph = new TargetGraphToActionGraph(eventBus).apply(targetGraph);
+    ActionGraph graph = buildActionGraph(eventBus, targetGraph);
 
     BuildRule fooRule = graph.findBuildRuleByTarget(fooTarget);
     assertNotNull(fooRule);
@@ -1269,7 +1271,7 @@ public class ParserTest extends EasyMockSupport {
           new TestConsole(),
           ImmutableMap.<String, String>of(),
           /* enableProfiling */ false);
-      ActionGraph graph = new TargetGraphToActionGraph(eventBus).apply(targetGraph);
+      ActionGraph graph = buildActionGraph(eventBus, targetGraph);
 
       BuildRule libRule = graph.findBuildRuleByTarget(libTarget);
       assertEquals(ImmutableList.of(Paths.get("foo/bar/Bar.java")), libRule.getInputs());
@@ -1292,7 +1294,7 @@ public class ParserTest extends EasyMockSupport {
           new TestConsole(),
           ImmutableMap.<String, String>of(),
           /* enableProfiling */ false);
-      ActionGraph graph = new TargetGraphToActionGraph(eventBus).apply(targetGraph);
+      ActionGraph graph = buildActionGraph(eventBus, targetGraph);
 
       BuildRule libRule = graph.findBuildRuleByTarget(libTarget);
       assertEquals(ImmutableList.of(Paths.get("foo/bar/Bar.java")), libRule.getInputs());
@@ -1309,7 +1311,7 @@ public class ParserTest extends EasyMockSupport {
           new TestConsole(),
           ImmutableMap.<String, String>of(),
           /* enableProfiling */ false);
-      ActionGraph graph = new TargetGraphToActionGraph(eventBus).apply(targetGraph);
+      ActionGraph graph = buildActionGraph(eventBus, targetGraph);
 
       BuildRule libRule = graph.findBuildRuleByTarget(libTarget);
       assertEquals(
@@ -1351,7 +1353,7 @@ public class ParserTest extends EasyMockSupport {
           new TestConsole(),
           ImmutableMap.<String, String>of(),
           /* enableProfiling */ false);
-      ActionGraph graph = new TargetGraphToActionGraph(eventBus).apply(targetGraph);
+      ActionGraph graph = buildActionGraph(eventBus, targetGraph);
 
       BuildRule libRule = graph.findBuildRuleByTarget(libTarget);
       assertEquals(
@@ -1376,7 +1378,7 @@ public class ParserTest extends EasyMockSupport {
           new TestConsole(),
           ImmutableMap.<String, String>of(),
           /* enableProfiling */ false);
-      ActionGraph graph = new TargetGraphToActionGraph(eventBus).apply(targetGraph);
+      ActionGraph graph = buildActionGraph(eventBus, targetGraph);
 
       BuildRule libRule = graph.findBuildRuleByTarget(libTarget);
       assertEquals(
@@ -1395,13 +1397,230 @@ public class ParserTest extends EasyMockSupport {
           new TestConsole(),
           ImmutableMap.<String, String>of(),
           /* enableProfiling */ false);
-      ActionGraph graph = new TargetGraphToActionGraph(eventBus).apply(targetGraph);
+      ActionGraph graph = buildActionGraph(eventBus, targetGraph);
 
       BuildRule libRule = graph.findBuildRuleByTarget(libTarget);
       assertEquals(
           ImmutableList.of(Paths.get("foo/bar/Bar.java")),
           libRule.getInputs());
     }
+  }
+
+  @Test
+  public void buildTargetHashCodePopulatesCorrectly() throws Exception {
+    Parser parser = createParser(emptyBuildTargets());
+
+    tempDir.newFolder("foo");
+
+    File testFooBuckFile = tempDir.newFile(
+        "foo/" + BuckConstant.BUILD_RULES_FILE_NAME);
+    Files.write(
+        "java_library(name = 'lib', visibility=['PUBLIC'])\n",
+        testFooBuckFile,
+        Charsets.UTF_8);
+
+    BuildTarget fooLibTarget = BuildTarget.builder("//foo", "lib").build();
+
+    assertEquals(
+        ImmutableMap.of(
+            fooLibTarget,
+            HashCode.fromString("69e73cd0c6beb1086891d00a2f99d3ff5fe2f616")),
+        buildTargetGraphAndGetHashCodes(parser, fooLibTarget));
+  }
+
+  @Test
+  public void targetWithSourceFileChangesHash() throws Exception {
+    Parser parser = createParser(emptyBuildTargets());
+
+    tempDir.newFolder("foo");
+
+    File testFooBuckFile = tempDir.newFile(
+        "foo/" + BuckConstant.BUILD_RULES_FILE_NAME);
+    Files.write(
+        "java_library(name = 'lib', srcs=glob(['*.java']), visibility=['PUBLIC'])\n",
+        testFooBuckFile,
+        Charsets.UTF_8);
+
+    File testFooJavaFile = tempDir.newFile("foo/Foo.java");
+    Files.write(
+        "// Ceci n'est pas une Javafile\n",
+        testFooJavaFile,
+        Charsets.UTF_8);
+
+    BuildTarget fooLibTarget = BuildTarget.builder("//foo", "lib").build();
+
+    assertEquals(
+        ImmutableMap.of(
+            fooLibTarget,
+            HashCode.fromString("0f1f71548cbf6f1942f14cf102fdc49b87f854e4")),
+        buildTargetGraphAndGetHashCodes(parser, fooLibTarget));
+  }
+
+  @Test
+  public void deletingSourceFileChangesHash() throws Exception {
+    Parser parser = createParser(emptyBuildTargets());
+
+    tempDir.newFolder("foo");
+
+    File testFooBuckFile = tempDir.newFile(
+        "foo/" + BuckConstant.BUILD_RULES_FILE_NAME);
+    Files.write(
+        "java_library(name = 'lib', srcs=glob(['*.java']), visibility=['PUBLIC'])\n",
+        testFooBuckFile,
+        Charsets.UTF_8);
+
+    File testFooJavaFile = tempDir.newFile("foo/Foo.java");
+    Files.write(
+        "// Ceci n'est pas une Javafile\n",
+        testFooJavaFile,
+        Charsets.UTF_8);
+
+    File testBarJavaFile = tempDir.newFile("foo/Bar.java");
+    Files.write(
+        "// Seriously, no Java here\n",
+        testBarJavaFile,
+        Charsets.UTF_8);
+
+    BuildTarget fooLibTarget = BuildTarget.builder("//foo", "lib").build();
+
+    assertEquals(
+        ImmutableMap.of(
+            fooLibTarget,
+            HashCode.fromString("9bfb8f834a5fb58ab7e7662740aef7042479d1c7")),
+        buildTargetGraphAndGetHashCodes(parser, fooLibTarget));
+
+    testBarJavaFile.delete();
+    WatchEvent<Path> deleteEvent = createPathEvent(
+        Paths.get("foo/Bar.java"),
+        StandardWatchEventKinds.ENTRY_DELETE);
+    parser.onFileSystemChange(deleteEvent);
+
+    assertEquals(
+        ImmutableMap.of(
+            fooLibTarget,
+            HashCode.fromString("0f1f71548cbf6f1942f14cf102fdc49b87f854e4")),
+        buildTargetGraphAndGetHashCodes(parser, fooLibTarget));
+  }
+
+  @Test
+  public void renamingSourceFileChangesHash() throws Exception {
+    Parser parser = createParser(emptyBuildTargets());
+
+    tempDir.newFolder("foo");
+
+    File testFooBuckFile = tempDir.newFile(
+        "foo/" + BuckConstant.BUILD_RULES_FILE_NAME);
+    Files.write(
+        "java_library(name = 'lib', srcs=glob(['*.java']), visibility=['PUBLIC'])\n",
+        testFooBuckFile,
+        Charsets.UTF_8);
+
+    File testFooJavaFile = tempDir.newFile("foo/Foo.java");
+    Files.write(
+        "// Ceci n'est pas une Javafile\n",
+        testFooJavaFile,
+        Charsets.UTF_8);
+
+    BuildTarget fooLibTarget = BuildTarget.builder("//foo", "lib").build();
+
+    assertEquals(
+        ImmutableMap.of(
+            fooLibTarget,
+            HashCode.fromString("0f1f71548cbf6f1942f14cf102fdc49b87f854e4")),
+        buildTargetGraphAndGetHashCodes(parser, fooLibTarget));
+
+    Path testFooJavaFilePath = testFooJavaFile.toPath();
+    java.nio.file.Files.move(testFooJavaFilePath, testFooJavaFilePath.resolveSibling("Bar.java"));
+    WatchEvent<Path> deleteEvent = createPathEvent(
+        Paths.get("foo/Foo.java"),
+        StandardWatchEventKinds.ENTRY_DELETE);
+    WatchEvent<Path> createEvent = createPathEvent(
+        Paths.get("foo/Bar.java"),
+        StandardWatchEventKinds.ENTRY_CREATE);
+    parser.onFileSystemChange(deleteEvent);
+    parser.onFileSystemChange(createEvent);
+
+    assertEquals(
+        ImmutableMap.of(
+            fooLibTarget,
+            HashCode.fromString("00c8e18ee8a48040b70d899d669048c14ef86592")),
+        buildTargetGraphAndGetHashCodes(parser, fooLibTarget));
+  }
+
+  @Test
+  public void twoBuildTargetHashCodesPopulatesCorrectly() throws Exception {
+    Parser parser = createParser(emptyBuildTargets());
+
+    tempDir.newFolder("foo");
+
+    File testFooBuckFile = tempDir.newFile(
+        "foo/" + BuckConstant.BUILD_RULES_FILE_NAME);
+    Files.write(
+        "java_library(name = 'lib', visibility=['PUBLIC'])\n" +
+        "java_library(name = 'lib2', visibility=['PUBLIC'])\n",
+        testFooBuckFile,
+        Charsets.UTF_8);
+
+    BuildTarget fooLibTarget = BuildTarget.builder("//foo", "lib").build();
+    BuildTarget fooLib2Target = BuildTarget.builder("//foo", "lib2").build();
+    assertEquals(
+        ImmutableMap.of(
+            fooLibTarget,
+            HashCode.fromString("69e73cd0c6beb1086891d00a2f99d3ff5fe2f616"),
+            fooLib2Target,
+            HashCode.fromString("4b8fe54c18ff1ecefc388359aa64f21c56bde4bf")),
+        buildTargetGraphAndGetHashCodes(parser, fooLibTarget, fooLib2Target));
+  }
+
+  @Test
+  public void addingDepToTargetChangesHashOfDependingTargetOnly() throws Exception {
+    Parser parser = createParser(emptyBuildTargets());
+
+    tempDir.newFolder("foo");
+
+    File testFooBuckFile = tempDir.newFile(
+        "foo/" + BuckConstant.BUILD_RULES_FILE_NAME);
+    Files.write(
+        "java_library(name = 'lib', visibility=['PUBLIC'], deps=[':lib2'])\n" +
+        "java_library(name = 'lib2', visibility=['PUBLIC'])\n",
+        testFooBuckFile,
+        Charsets.UTF_8);
+
+    BuildTarget fooLibTarget = BuildTarget.builder("//foo", "lib").build();
+    BuildTarget fooLib2Target = BuildTarget.builder("//foo", "lib2").build();
+    assertEquals(
+        ImmutableMap.of(
+            fooLibTarget,
+            HashCode.fromString("e06a802e9ed2289912353f1f35ebe7d7d33e21ce"),
+            fooLib2Target,
+            HashCode.fromString("4b8fe54c18ff1ecefc388359aa64f21c56bde4bf")),
+        buildTargetGraphAndGetHashCodes(parser, fooLibTarget, fooLib2Target));
+  }
+
+  private ImmutableMap<BuildTarget, HashCode> buildTargetGraphAndGetHashCodes(
+      Parser parser,
+      BuildTarget... buildTargets) throws Exception {
+    // Build the target graph so we can access the hash code cache.
+    //
+    // TODO(user): It'd be really nice if parser.getBuildTargetHashCodeCache()
+    // knew how to run the parser for targets that weren't yet parsed, but
+    // then we'd need to pass in the BuckEventBusFactory, Console, etc.
+    // to every call to get()..
+    ImmutableList<BuildTarget> buildTargetsList = ImmutableList.copyOf(buildTargets);
+    parser.buildTargetGraphForBuildTargets(
+        buildTargetsList,
+        ImmutableList.<String>of(),
+        BuckEventBusFactory.newInstance(),
+        new TestConsole(),
+        ImmutableMap.<String, String>of(),
+        /* enableProfiling */ false);
+
+    return parser.getBuildTargetHashCodeCache().getAll(buildTargetsList);
+  }
+
+  private ActionGraph buildActionGraph(BuckEventBus eventBus, TargetGraph targetGraph) {
+    return new TargetGraphToActionGraph(eventBus, new BuildTargetNodeToBuildRuleTransformer())
+        .apply(targetGraph);
   }
 
   private Iterable<Map<String, Object>> emptyBuildTargets() {

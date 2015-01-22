@@ -19,7 +19,6 @@ package com.facebook.buck.java;
 
 import com.facebook.buck.io.ProjectFilesystem;
 import com.facebook.buck.model.BuildTarget;
-import com.facebook.buck.rules.BuildDependencies;
 import com.facebook.buck.step.ExecutionContext;
 import com.facebook.buck.util.HumanReadableException;
 import com.facebook.buck.util.ProcessExecutor;
@@ -30,49 +29,29 @@ import com.google.common.base.Optional;
 import com.google.common.base.Predicate;
 import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Map;
-import java.util.Set;
 
-public class ExternalJavacStep extends JavacStep {
+public class ExternalJavac implements Javac {
 
   private final Path pathToJavac;
-  private final BuildTarget target;
-  private final Optional<Path> workingDirectory;
 
-  public ExternalJavacStep(
-      Path outputDirectory,
-      Set<Path> javaSourceFilePaths,
-      Set<Path> transitiveClasspathEntries,
-      Set<Path> declaredClasspathEntries,
-      JavacOptions javacOptions,
-      Optional<BuildTarget> invokingRule,
-      BuildDependencies buildDependencies,
-      Optional<SuggestBuildRules> suggestBuildRules,
-      Optional<Path> pathToSrcsList,
-      BuildTarget target,
-      Optional<Path> workingDirectory) {
-    super(outputDirectory,
-        javaSourceFilePaths,
-        transitiveClasspathEntries,
-        declaredClasspathEntries,
-        javacOptions,
-        invokingRule,
-        buildDependencies,
-        suggestBuildRules,
-        pathToSrcsList);
-    this.pathToJavac = javacOptions.getJavaCompilerEnvironment().getJavacPath().get();
-    this.target = target;
-    this.workingDirectory = workingDirectory;
+  public ExternalJavac(Path pathToJavac) {
+    this.pathToJavac = pathToJavac;
   }
 
   @Override
-  public String getDescription(ExecutionContext context) {
+  public String getDescription(
+      ExecutionContext context,
+      ImmutableList<String> options,
+      ImmutableSet<Path> javaSourceFilePaths,
+      Optional<Path> pathToSrcsList) {
     StringBuilder builder = new StringBuilder(pathToJavac.toString());
     builder.append(" ");
-    Joiner.on(" ").appendTo(builder, getOptions(context, getClasspathEntries()));
+    Joiner.on(" ").appendTo(builder, options);
     builder.append(" ");
 
     if (pathToSrcsList.isPresent()) {
@@ -90,19 +69,28 @@ public class ExternalJavacStep extends JavacStep {
   }
 
   @Override
-  protected int buildWithClasspath(ExecutionContext context, Set<Path> buildClasspathEntries)
-      throws InterruptedException {
+  public int buildWithClasspath(
+      ExecutionContext context,
+      BuildTarget invokingRule,
+      ImmutableList<String> options,
+      ImmutableSet<Path> javaSourceFilePaths,
+      Optional<Path> pathToSrcsList,
+      Optional<Path> workingDirectory) throws InterruptedException {
     ImmutableList.Builder<String> command = ImmutableList.builder();
     command.add(pathToJavac.toString());
-    command.addAll(getOptions(context, buildClasspathEntries));
+    command.addAll(options);
 
     ImmutableList<Path> expandedSources;
     try {
-      expandedSources = getExpandedSourcePaths(context);
+      expandedSources = getExpandedSourcePaths(
+          context,
+          invokingRule,
+          javaSourceFilePaths,
+          workingDirectory);
     } catch (IOException e) {
       throw new HumanReadableException(
           "Unable to expand sources for %s into %s",
-          target,
+          invokingRule,
           workingDirectory);
     }
     if (pathToSrcsList.isPresent()) {
@@ -114,7 +102,8 @@ public class ExternalJavacStep extends JavacStep {
             pathToSrcsList.get());
         command.add("@" + pathToSrcsList.get());
       } catch (IOException e) {
-        context.logError(e,
+        context.logError(
+            e,
             "Cannot write list of .java files to compile to %s file! Terminating compilation.",
             pathToSrcsList.get());
         return 1;
@@ -131,8 +120,8 @@ public class ExternalJavacStep extends JavacStep {
     Map<String, String> env = processBuilder.environment();
     env.clear();
     env.putAll(context.getEnvironment());
-    env.put("BUCK_INVOKING_RULE", (invokingRule.isPresent() ? invokingRule.get().toString() : ""));
-    env.put("BUCK_TARGET", target.toString());
+    env.put("BUCK_INVOKING_RULE", invokingRule.toString());
+    env.put("BUCK_TARGET", invokingRule.toString());
     env.put("BUCK_DIRECTORY_ROOT", context.getProjectDirectoryRoot().toString());
 
     processBuilder.directory(context.getProjectDirectoryRoot().toAbsolutePath().toFile());
@@ -149,8 +138,11 @@ public class ExternalJavacStep extends JavacStep {
     return exitCode;
   }
 
-  private ImmutableList<Path> getExpandedSourcePaths(ExecutionContext context)
-      throws IOException {
+  private ImmutableList<Path> getExpandedSourcePaths(
+      ExecutionContext context,
+      BuildTarget invokingRule,
+      ImmutableSet<Path> javaSourceFilePaths,
+      Optional<Path> workingDirectory) throws IOException {
     ProjectFilesystem projectFilesystem = context.getProjectFilesystem();
 
     // Add sources file or sources list to command
@@ -163,14 +155,14 @@ public class ExternalJavacStep extends JavacStep {
           throw new HumanReadableException(
               "Attempting to compile target %s which specified a .src.zip input %s but no " +
                   "working directory was specified.",
-              target.toString(),
+              invokingRule.toString(),
               path);
         }
         // For a Zip of .java files, create a JavaFileObject for each .java entry.
         ImmutableList<Path> zipPaths = Unzip.extractZipFile(
             projectFilesystem.resolve(path),
             projectFilesystem.resolve(workingDirectory.get()),
-            /* overwriteExistingFiles */ true);
+          /* overwriteExistingFiles */ true);
         sources.addAll(
             FluentIterable.from(zipPaths)
                 .filter(
@@ -184,5 +176,4 @@ public class ExternalJavacStep extends JavacStep {
     }
     return sources.build();
   }
-
 }

@@ -27,11 +27,14 @@ import com.google.common.base.Optional;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.base.Splitter;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Map;
+
+import java.util.regex.Pattern;
 
 /**
  * A java-specific "view" of BuckConfig.
@@ -49,6 +52,13 @@ public class JavaBuckConfig {
       throws InterruptedException {
     Optional<String> sourceLevel = delegate.getValue("java", "source_level");
     Optional<String> targetLevel = delegate.getValue("java", "target_level");
+    Optional<String> extraArgumentsString = delegate.getValue("java", "extra_arguments");
+
+    ImmutableList<String> extraArguments =
+        ImmutableList.copyOf(
+            Splitter.on(Pattern.compile("[ ,]+"))
+            .omitEmptyStrings()
+            .split(extraArgumentsString.or("")));
 
     ImmutableMap<String, String> allEntries = delegate.getEntriesForSection("java");
     ImmutableMap.Builder<String, String> bootclasspaths = ImmutableMap.builder();
@@ -63,12 +73,21 @@ public class JavaBuckConfig {
         .setSourceLevel(sourceLevel.or(TARGETED_JAVA_VERSION))
         .setTargetLevel(targetLevel.or(TARGETED_JAVA_VERSION))
         .setBootclasspathMap(bootclasspaths.build())
+        .setExtraArguments(extraArguments)
         .build();
+  }
+
+  public Javac getJavac() {
+    Optional<Path> externalJavac = getJavacPath();
+    if (externalJavac.isPresent()) {
+      return new ExternalJavac(externalJavac.get());
+    }
+    return new Jsr199Javac();
   }
 
   private JavaCompilerEnvironment getJavaCompilerEnvironment(ProcessExecutor processExecutor)
       throws InterruptedException {
-    Optional<Path> javac = getJavac();
+    Optional<Path> javac = getJavacPath();
     Optional<JavacVersion> javacVersion = Optional.absent();
     if (javac.isPresent()) {
       javacVersion = Optional.of(getJavacVersion(processExecutor, javac.get()));
@@ -79,7 +98,7 @@ public class JavaBuckConfig {
   }
 
   @VisibleForTesting
-  Optional<Path> getJavac() {
+  Optional<Path> getJavacPath() {
     Optional<String> path = delegate.getValue("tools", "javac");
     if (path.isPresent()) {
       File javac = new File(path.get());
@@ -108,9 +127,15 @@ public class JavaBuckConfig {
       ProcessExecutor.Result versionResult = executor.launchAndExecute(
           build,
           ImmutableSet.of(EXPECTING_STD_OUT),
-          Optional.<String>absent());
+          /* stdin */ Optional.<String>absent(),
+          /* timeOutMs */ Optional.<Long>absent());
       if (versionResult.getExitCode() == 0) {
-        return new JavacVersion(versionResult.getStderr().get());
+        String stderr = versionResult.getStderr().get();
+        int firstNewline = stderr.indexOf('\n');
+        if (firstNewline != -1) {
+          stderr = stderr.substring(0, firstNewline);
+        }
+        return new JavacVersion(stderr);
       } else {
         throw new HumanReadableException(versionResult.getStderr().get());
       }

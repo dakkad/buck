@@ -18,6 +18,7 @@ package com.facebook.buck.cli;
 
 import static org.junit.Assert.assertEquals;
 
+import com.facebook.buck.command.BuildReport;
 import com.facebook.buck.model.BuildTargetFactory;
 import com.facebook.buck.rules.BuildRule;
 import com.facebook.buck.rules.BuildRuleResolver;
@@ -28,7 +29,6 @@ import com.facebook.buck.rules.SourcePathResolver;
 import com.facebook.buck.util.Ansi;
 import com.google.common.base.Joiner;
 import com.google.common.base.Optional;
-import com.google.common.collect.Maps;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -48,7 +48,8 @@ public class BuildCommandTest {
   public void setUp() {
     BuildRuleResolver ruleResolver = new BuildRuleResolver();
     SourcePathResolver resolver = new SourcePathResolver(ruleResolver);
-    ruleToResult = Maps.newLinkedHashMap();
+
+    ruleToResult = new LinkedHashMap<>();
 
     BuildRule rule1 = new FakeBuildRule(
         BuildTargetFactory.newInstance("//fake:rule1"),
@@ -79,9 +80,7 @@ public class BuildCommandTest {
             "BUILT_LOCALLY buck-out/gen/fake/rule1.txt\n" +
         "\u001B[1m\u001B[41m\u001B[37mFAIL\u001B[0m //fake:rule2\n" +
         "\u001B[1m\u001B[42m\u001B[30mOK  \u001B[0m //fake:rule3 FETCHED_FROM_CACHE\n";
-    String observedReport = BuildCommand.generateBuildReportForConsole(
-        ruleToResult,
-        Ansi.forceTty());
+    String observedReport = new BuildReport(ruleToResult).generateForConsole(Ansi.forceTty());
     assertEquals(expectedReport, observedReport);
   }
 
@@ -105,7 +104,7 @@ public class BuildCommandTest {
         "    }",
         "  }",
         "}");
-    String observedReport = BuildCommand.generateJsonBuildReport(ruleToResult);
+    String observedReport = new BuildReport(ruleToResult).generateJsonBuildReport();
     assertEquals(expectedReport, observedReport);
   }
 }
