@@ -14,10 +14,20 @@
  * under the License.
  */
 
-package com.facebook.buck.intellijplugin.jps.incremental;
+package com.facebook.buck.intellijplugin.jps.wrapper;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
- * Utilities and helpers for Jps Buck Build
+ * Object mapper factory which returns an instance.
  */
-public class JpsBuckUtil {
+public class MapperFactory {
+
+  public static ObjectMapper MAPPER = new ObjectMapper();
+
+  private MapperFactory() { }
+
+  public static ObjectMapper getInstance() {
+    return MAPPER;
+  }
 }

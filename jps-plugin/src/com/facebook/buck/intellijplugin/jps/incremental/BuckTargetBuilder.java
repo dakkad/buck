@@ -22,12 +22,18 @@ import com.facebook.buck.intellijplugin.jps.model.BuckBuildTargetType;
 import com.facebook.buck.intellijplugin.jps.model.JpsBuckProjectExtension;
 import com.facebook.buck.intellijplugin.jps.model.JpsBuckProjectExtensionSerializer;
 import com.intellij.openapi.diagnostic.Logger;
+import org.jetbrains.jps.builders.BuildOutputConsumer;
+import org.jetbrains.jps.builders.DirtyFilesHolder;
 import org.jetbrains.jps.incremental.CompileContext;
+import org.jetbrains.jps.incremental.ProjectBuildException;
 import org.jetbrains.jps.incremental.TargetBuilder;
 import org.jetbrains.jps.incremental.java.JavaBuilder;
 import org.jetbrains.jps.model.JpsProject;
+import org.jetbrains.jps.model.module.JpsModule;
 
+import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 
 /**
  * The buck target builder which runs buck and streams output back to IntelliJ
@@ -51,8 +57,27 @@ public class BuckTargetBuilder extends TargetBuilder<BuckSourceRootDescriptor, B
     JpsProject project = compileContext.getProjectDescriptor().getProject();
     JpsBuckProjectExtension extension = JpsBuckProjectExtensionSerializer.find(project);
     // TODO(dka) Check whether we should use buck for compiling - for now yes
-    if (JpsBuckUtil.containsRelevantModules(project.getModules())) {
+    if (projectContainsRelevantModules(project)) {
       JavaBuilder.IS_ENABLED.set(compileContext, false)
     }
+  }
+
+  private boolean projectContainsRelevantModules(JpsProject project) {
+    for (JpsModule modules : project.getModules()) {
+      if (null != JpsBuckProjectExtensionSerializer.find(project)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+
+  @Override
+  public void build(BuckBuildTarget buckBuildTarget,
+      DirtyFilesHolder<BuckSourceRootDescriptor, BuckBuildTarget> dirtyFilesHolder,
+      BuildOutputConsumer buildOutputConsumer, CompileContext compileContext)
+      throws ProjectBuildException, IOException {
+    String canonicalPath = buckBuildTarget.getTargetPath();
+
   }
 }

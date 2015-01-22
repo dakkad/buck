@@ -37,6 +37,6 @@ public class BuckBuilderService extends BuilderService {
 
   @Override
   public List<? extends TargetBuilder<?, ?>> createBuilders() {
-    return Collections.singletonList(new BuckTargetBuilder())
+    return Collections.singletonList(new BuckTargetBuilder());
   }
 }
