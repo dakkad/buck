@@ -16,18 +16,25 @@
 
 package com.facebook.buck.intellijplugin.jps.wrapper;
 
+import com.facebook.buck.intellijplugin.jps.wrapper.BuckdListener.BuckPluginEventListener;
 import com.google.common.base.Optional;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
-import org.apache.commons.net.SocketClient;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.net.ServerSocket;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 /**
  * Buck command runner which wraps up the buck commands.
@@ -39,18 +46,19 @@ public class BuckCommand {
   private static final String BUCKD_BIN = "buckd";
   private static final String BUCK_EXTRA_JAVA_ARGS = "BUCK_EXTRA_JAVA_ARGS";
   private static final String BUCKD_HTTPSERVER_PORT = "-Dbuck.httpserver.port";
+  private static final String NEW_LINE = "\n";
 
   private final File workingDirectory;
+  private final ExecutorService executorService;
   private String buckPath;
   private Optional<String> buckdPath;
-  private Optional<SocketClient> socket;
+  private Optional<BuckdSocketClient> socket;
   private BuckPluginEventListener listener;
   private String stdout;
   private String stderr;
 
-  public BuckRunner(Project project,
-      Optional<String> buckDirectory,
-      BuckPluginEventListener listener) throws BuckNotFound {
+  public BuckCommand(Project project, Optional<String> buckDirectory,
+      BuckPluginEventListener listener) throws BuckNotFoundError {
     Preconditions.checkNotNull(project);
     Preconditions.checkNotNull(buckDirectory);
     this.listener = Preconditions.checkNotNull(listener);
@@ -62,20 +70,9 @@ public class BuckCommand {
     Preconditions.checkState(workingDirectory.isDirectory(),
         String.format("%s is not a valid working directory.", workingDirectory));
     executorService = Executors.newFixedThreadPool(2); // For stdout and stderr stream readers
-    if (!detectBuck(buckDirectory)) {
-      throw new BuckNotFound();
-    }
   }
 
-  public int execute(String... args) {
-    ImmutableList<String> command = ImmutableList.<String>builder()
-        .add(buckPath)
-        .addAll(ImmutableList.copyOf(args))
-        .build();
-    return execute(command, ImmutableMap.<String, String>of());
-  }
-
-  public int executeAndListenToWebsocket(String... args) {
+  public int executeAndListenToWebSocket(String... args) {
     if (socket.isPresent()) {
       socket.get().start();
     }
@@ -86,30 +83,65 @@ public class BuckCommand {
     return exitCode;
   }
 
-  public String getStdout() {
+  public int execute(String... args) {
+    ImmutableList<String> command = ImmutableList.<String>builder()
+        .add(buckPath)
+        .addAll(ImmutableList.copyOf(args))
+        .build();
+    return execute(command, ImmutableMap.<String, String>of());
+  }
+
+  private int execute(ImmutableList<String> command, ImmutableMap<String, String> environment) {
+    Preconditions.checkNotNull(command);
+    ProcessBuilder processBuilder = new ProcessBuilder(command);
+    processBuilder.directory(workingDirectory);
+    for (ImmutableMap.Entry<String, String> entry : environment.entrySet()) {
+      processBuilder.environment().put(entry.getKey(), entry.getValue());
+    }
+    try {
+      Process process = processBuilder.start();
+      int exitCode;
+      Future<String> stdOutFuture = readStream(process.getInputStream());
+      Future<String> stdErrFuture = readStream(process.getErrorStream());
+      exitCode = process.waitFor();
+      stdout = stdOutFuture.get();
+      stderr = stdErrFuture.get();
+      return exitCode;
+    } catch (ExecutionException | InterruptedException | IOException e) {
+      LOG.error(e);
+    }
+    return -1;
+  }
+
+  private Future<String> readStream(final InputStream stream) {
+    return executorService.submit(new Callable<String>() {
+      @Override
+      public String call() throws IOException {
+        BufferedReader reader = new BufferedReader(new InputStreamReader(stream));
+        try {
+          StringBuilder output = new StringBuilder();
+          String line;
+          while (null != (line = reader.readLine())) {
+            output.append(line)
+                .append(NEW_LINE)
+          }
+          // Unify line separators
+          return output.toString();
+        } finally {
+          reader.close();
+        }
+      }
+    });
+  }
+
+  public String getStdOut() {
     return stdout;
   }
 
-  public String getStderr() {
+  public String getStdErr() {
     return stderr;
   }
 
-  private boolean detectBuck(Optional<String> buckDirectory) {
-    if (buckDirectory.isPresent()) {
-      String binDirectory = buckDirectory.get() + "/bin";
-      if (detectBuckUnderDirectory(binDirectory)) {
-        return true;
-      }
-    }
-    // Find buck under system path
-    String value = Strings.nullToEmpty(System.getenv("PATH"));
-    for (String binDirectory : value.split(File.pathSeparator)) {
-      if (detectBuckUnderDirectory(binDirectory)) {
-        return true;
-      }
-    }
-    return false;
-  }
 
   private boolean detectBuckUnderDirectory(String binDirectory) {
     boolean success = false;
@@ -133,9 +165,9 @@ public class BuckCommand {
             ImmutableMap.<String, String>of(BUCK_EXTRA_JAVA_ARGS,
                 String.format("%s=%d", BUCKD_HTTPSERVER_PORT, port)));
         if (exitCode != 0) {
-          throw new Exception(getStderr());
+          throw new Exception(getStdErr());
         }
-        socket = Optional.of(new SocketClient(port, listener));
+        socket = Optional.of(new BuckdSocketClient(port, listener));
       } catch (Exception e) {
         LOG.warn(String.format("Can not launch buckd: %s", e.getMessage()));
       }
@@ -151,6 +183,6 @@ public class BuckCommand {
     return port;
   }
 
-  public class BuckNotFound extends Exception {
+  public class BuckNotFoundError extends Error {
   }
 }

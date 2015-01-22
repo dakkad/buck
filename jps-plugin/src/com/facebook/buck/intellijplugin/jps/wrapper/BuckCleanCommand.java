@@ -30,7 +30,7 @@ public class BuckCleanCommand {
   public static void clean(BuckCommand buckRunner) {
     int exitCode = buckRunner.execute("clean");
     if (exitCode != 0) {
-      LOG.error(buckRunner.getStderr());
+      LOG.error(buckRunner.getStdErr());
       return;
     }
   }

@@ -41,12 +41,12 @@ public class BuckTargetsCommand {
 
     int exitCode = buckRunner.execute("targets", "--json");
     if (exitCode != 0) {
-      throw new RuntimeException(buckRunner.getStderr());
+      throw new RuntimeException(buckRunner.getStdErr());
     }
 
     // Parse output
     ObjectMapper mapper = MapperFactory.getInstance();
-    JsonNode jsonNode = mapper.readTree(buckRunner.getStdout());
+    JsonNode jsonNode = mapper.readTree(buckRunner.getStdOut());
     if (!jsonNode.isArray()) {
       throw new IllegalStateException();
     }

@@ -16,24 +16,10 @@
 
 package com.facebook.buck.intellijplugin.jps.wrapper;
 
-import com.google.common.base.Optional;
-import com.intellij.openapi.diagnostic.Logger;
-
 /**
- * Buck test command
- */
-public class BuckTestCommand {
+* Listen to buck plugin events.
+*/
+public interface BuckPluginEventListener {
 
-  private static final Logger LOG = Logger.getInstance(BuckTestCommand.class);
-
-  private BuckTestCommand() {}
-
-  public static void runTest(BuckCommand buckRunner, Optional<BuckBuildTarget> target) {
-    String targetName = target.isPresent() ? target.get().getFullName() : "--all";
-    int exitCode = buckRunner.executeAndListenToWebSocket("test", targetName);
-    if (exitCode != 0) {
-      // TODO Show stdout to a console tab
-      LOG.error(buckRunner.getStdErr());
-    }
-  }
+  public void onEvent(BuckEvent event);
 }

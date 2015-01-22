@@ -42,7 +42,7 @@ public class BuckEventFactory {
   private BuckEventFactory() {}
 
   @Nullable
-  public static BuckEvent factory(JsonNode node) {
+  public static BuckEvent toEvent(JsonNode node) {
     String type = node.get(RULE_TYPE).asText();
     long timestamp = node.get(TIMESTAMP_FIELD).asLong();
     String buildId = node.get(BUILD_IDENTIFIER_FIELD).asText();

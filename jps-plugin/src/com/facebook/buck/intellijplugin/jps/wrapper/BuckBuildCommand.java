@@ -28,9 +28,10 @@ public class BuckBuildCommand {
   private BuckBuildCommand() { }
 
   public static void build(BuckCommand buckRunner, BuckBuildTarget target) {
-    int exitCode = buckRunner.executeAndListenToWebsocket("build", target.getFullName());
+    int exitCode = buckRunner.executeAndListenToWebSocket("build",
+        target.getFullName());
     if (exitCode != 0) {
-      LOG.error(buckRunner.getStderr());
+      LOG.error(buckRunner.getStdErr());
       return;
     }
   }

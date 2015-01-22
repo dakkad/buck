@@ -31,17 +31,17 @@ import java.net.URI;
 import java.net.URISyntaxException;
 
 /**
- * Buck Daemon socket listener
+ * Buck socket client.
  */
-public class BuckdListener {
+public class BuckdSocketClient {
 
-  private static final Logger LOG = Logger.getInstance(BuckdListener.class);
+  private static final Logger LOG = Logger.getInstance(BuckdSocketClient.class);
 
   private final BuckPluginEventListener listener;
   private final URI echoUri;
   private WebSocketClient client;
 
-  BuckdListener(int port, BuckPluginEventListener listener) {
+  BuckdSocketClient(int port, BuckPluginEventListener listener) {
     String address = "ws://localhost:" + port + "/comet/echo";
     try {
       echoUri = new URI(address);
@@ -66,15 +66,11 @@ public class BuckdListener {
 
   private void dispatch(String message) throws IOException {
     ObjectMapper mapper = MapperFactory.getInstance();
-    JsonNode root = mapper.readTree(message);
-    BuckEvent event = BuckEventFactory.factory(root);
+    JsonNode node = mapper.readTree(message);
+    BuckEvent event = BuckEventFactory.toEvent(node);
     if (event != null) {
       listener.onEvent(event);
     }
-  }
-
-  public interface BuckPluginEventListener {
-    public void onEvent(BuckEvent event);
   }
 
   private class DefaultWebSocketClient extends WebSocketClient {
@@ -88,7 +84,7 @@ public class BuckdListener {
       try {
         dispatch(message);
       } catch (IOException e) {
-        LOG.error("Failed to parse buck message: " + message, e);
+        LOG.warn("IO Error dispatching message", e);
       }
     }
 
@@ -99,12 +95,12 @@ public class BuckdListener {
 
     @Override
     public void onOpen(ServerHandshake handshake) {
-      LOG.info(String.format("WebSocket opened: %s", handshake.toString()));
+      LOG.info(String.format("Websocket opened: %s", handshake.toString()));
     }
 
     @Override
     public void onClose(int code, String reason, boolean remote) {
-      LOG.info(String.format("WebSocket closed: Code: %d Message: %s", code, reason));
+      LOG.info(String.format("Websocket closed: %d %s", code, reason));
     }
   }
 }
