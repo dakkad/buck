@@ -21,9 +21,11 @@ import com.facebook.buck.intellijplugin.jps.model.BuckBuildTarget;
 import com.facebook.buck.intellijplugin.jps.model.BuckBuildTargetType;
 import com.facebook.buck.intellijplugin.jps.model.JpsBuckProjectExtension;
 import com.facebook.buck.intellijplugin.jps.model.JpsBuckProjectExtensionSerializer;
+import com.facebook.buck.intellijplugin.jps.wrapper.BuckCommand;
 import com.intellij.openapi.diagnostic.Logger;
 import org.jetbrains.jps.builders.BuildOutputConsumer;
 import org.jetbrains.jps.builders.DirtyFilesHolder;
+import org.jetbrains.jps.builders.java.JavaBuilderUtil;
 import org.jetbrains.jps.incremental.CompileContext;
 import org.jetbrains.jps.incremental.ProjectBuildException;
 import org.jetbrains.jps.incremental.TargetBuilder;
@@ -33,7 +35,6 @@ import org.jetbrains.jps.model.module.JpsModule;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.List;
 
 /**
  * The buck target builder which runs buck and streams output back to IntelliJ
@@ -78,6 +79,21 @@ public class BuckTargetBuilder extends TargetBuilder<BuckSourceRootDescriptor, B
       BuildOutputConsumer buildOutputConsumer, CompileContext compileContext)
       throws ProjectBuildException, IOException {
     String canonicalPath = buckBuildTarget.getTargetPath();
+
+    // Check whether this build should even be run
+    if (!dirtyFilesHolder.hasDirtyFiles() &&
+        !JavaBuilderUtil.isForcedRecompilationAllJavaModules(compileContext)) {
+      compileContext.processMessage(BuckMessage.info("No changes to compile"));
+      return;
+    }
+
+    // TODO(dka) Consider checking to make sure that buck is found
+
+    // TODO(dka) Look at how we can integrate streamed feedback from buck
+
+    // TODO(dka) Look at how we can use CapturingProcessHandler to run buck
+
+    BuckCommand command = new BuckCommand(buckBuildTarget, compileContext);
 
   }
 }

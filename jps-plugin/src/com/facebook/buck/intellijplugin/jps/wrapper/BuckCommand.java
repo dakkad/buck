@@ -16,13 +16,13 @@
 
 package com.facebook.buck.intellijplugin.jps.wrapper;
 
-import com.facebook.buck.intellijplugin.jps.wrapper.BuckdListener.BuckPluginEventListener;
 import com.google.common.base.Optional;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
+import org.jetbrains.jps.incremental.CompileContext;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -48,17 +48,17 @@ public class BuckCommand {
   private static final String BUCKD_HTTPSERVER_PORT = "-Dbuck.httpserver.port";
   private static final String NEW_LINE = "\n";
 
-  private final File workingDirectory;
-  private final ExecutorService executorService;
+  private File workingDirectory;
+  private ExecutorService executorService;
   private String buckPath;
   private Optional<String> buckdPath;
   private Optional<BuckdSocketClient> socket;
-  private BuckPluginEventListener listener;
+  private BuckEventListener listener;
   private String stdout;
   private String stderr;
 
   public BuckCommand(Project project, Optional<String> buckDirectory,
-      BuckPluginEventListener listener) throws BuckNotFoundError {
+      BuckEventListener listener) throws BuckNotFoundError {
     Preconditions.checkNotNull(project);
     Preconditions.checkNotNull(buckDirectory);
     this.listener = Preconditions.checkNotNull(listener);
@@ -70,6 +70,11 @@ public class BuckCommand {
     Preconditions.checkState(workingDirectory.isDirectory(),
         String.format("%s is not a valid working directory.", workingDirectory));
     executorService = Executors.newFixedThreadPool(2); // For stdout and stderr stream readers
+  }
+
+  public BuckCommand(BuckBuildTarget buckBuildTarget, CompileContext compileContext,
+      BuckEventListener listener) {
+
   }
 
   public int executeAndListenToWebSocket(String... args) {
@@ -123,9 +128,8 @@ public class BuckCommand {
           String line;
           while (null != (line = reader.readLine())) {
             output.append(line)
-                .append(NEW_LINE)
+                .append(NEW_LINE);
           }
-          // Unify line separators
           return output.toString();
         } finally {
           reader.close();

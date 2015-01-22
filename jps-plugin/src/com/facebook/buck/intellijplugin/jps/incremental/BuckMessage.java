@@ -14,12 +14,18 @@
  * under the License.
  */
 
-package com.facebook.buck.intellijplugin.jps.wrapper;
+package com.facebook.buck.intellijplugin.jps.incremental;
+
+import com.facebook.buck.intellijplugin.BuckPlugin;
+import org.jetbrains.jps.incremental.messages.BuildMessage;
+import org.jetbrains.jps.incremental.messages.BuildMessage.Kind;
+import org.jetbrains.jps.incremental.messages.CompilerMessage;
 
 /**
-* Listen to buck plugin events.
-*/
-public interface BuckPluginEventListener {
-
-  public void onEvent(BuckEvent event);
+ * Helper to create different types of compiler message feedback for IntelliJ.
+ */
+public class BuckMessage {
+  public static BuildMessage info(String message) {
+    return new CompilerMessage(BuckPlugin.BUCK_PLUGIN_ID, Kind.INFO, message);
+  }
 }

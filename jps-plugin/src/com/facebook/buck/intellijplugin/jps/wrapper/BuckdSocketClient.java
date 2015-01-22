@@ -37,11 +37,11 @@ public class BuckdSocketClient {
 
   private static final Logger LOG = Logger.getInstance(BuckdSocketClient.class);
 
-  private final BuckPluginEventListener listener;
+  private final BuckEventListener listener;
   private final URI echoUri;
   private WebSocketClient client;
 
-  BuckdSocketClient(int port, BuckPluginEventListener listener) {
+  BuckdSocketClient(int port, BuckEventListener listener) {
     String address = "ws://localhost:" + port + "/comet/echo";
     try {
       echoUri = new URI(address);
