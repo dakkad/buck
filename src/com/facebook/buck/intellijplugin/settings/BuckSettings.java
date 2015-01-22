@@ -29,6 +29,7 @@ import com.intellij.openapi.externalSystem.settings.ExternalSystemSettingsListen
 import com.intellij.openapi.project.Project;
 import com.intellij.util.xmlb.annotations.AbstractCollection;
 
+import java.io.Serializable;
 import java.util.Set;
 
 /**
@@ -43,7 +44,7 @@ import java.util.Set;
     }
 )
 public class BuckSettings extends AbstractExternalSystemSettings<BuckSettings, BuckProjectSettings, BuckSettingsListener>
-    implements PersistentStateComponent<BuckSettings.BuckState> {
+    implements PersistentStateComponent<BuckSettings.BuckState>, Serializable {
 
   private final Project project;
 

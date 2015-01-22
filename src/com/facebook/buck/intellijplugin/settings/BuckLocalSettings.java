@@ -27,11 +27,8 @@ import com.intellij.openapi.project.Project;
 // TODO(dka) Move to services
 public class BuckLocalSettings extends AbstractExternalSystemLocalSettings {
 
-  private final Project project;
-
   public BuckLocalSettings(Project project, PlatformFacade facade) {
     super(BuckPlugin.PROJECT_SYSTEM_ID, project, facade);
-    this.project = project;
   }
 
   public static BuckLocalSettings getInstance(Project project) {

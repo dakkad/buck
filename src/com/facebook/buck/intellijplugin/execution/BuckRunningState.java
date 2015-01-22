@@ -27,6 +27,9 @@ import com.intellij.execution.process.ProcessHandler;
 import com.intellij.execution.process.ProcessTerminatedListener;
 import com.intellij.execution.runners.ExecutionEnvironment;
 
+import java.util.Collections;
+import java.util.List;
+
 /**
  * Buck running state information and execution launcher.
  */
@@ -63,6 +66,10 @@ public class BuckRunningState extends CommandLineState implements RunProfileStat
     }
     result.setExePath(command);
     result.setPassParentEnvironment(PASS_ENVIRONMENT);
+    if (null == parameters.getArgumentList()) {
+      List<String> arguments = Collections.emptyList();
+      parameters.setArgumentList(arguments);
+    }
     for (String argument : parameters.getArgumentList()) {
       result.addParameter(argument);
     }

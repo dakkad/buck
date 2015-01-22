@@ -16,6 +16,7 @@
 
 package com.facebook.buck.intellijplugin.buckbuilder;
 
+import com.facebook.buck.intellijplugin.components.BuckConfigurationComponent;
 import com.facebook.buck.intellijplugin.jps.model.BuckBuildTargetType;
 import com.google.common.collect.Lists;
 import com.intellij.compiler.impl.BuildTargetScopeProvider;
@@ -35,6 +36,9 @@ public class BuckBuildTargetScopeProvider extends BuildTargetScopeProvider {
   public List<TargetTypeBuildScope> getBuildTargetScopes(CompileScope compileScope,
       CompilerFilter compilerFilter, Project project, boolean forceBuild) {
     return Lists.newArrayList(TargetTypeBuildScope.newBuilder()
+        .setAllTargets(true)
+        .setForceBuild(true)
+        .addTargetId(BuckConfigurationComponent.getTargetNames(project))
         .setTypeId(BuckBuildTargetType.getInstance()
             .getTypeId())
         .build());

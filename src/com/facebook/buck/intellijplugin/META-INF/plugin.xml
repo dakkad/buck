@@ -95,12 +95,12 @@
       <implementation-class>
         com.facebook.buck.intellijplugin.components.ExternalBuckProjectConfig
       </implementation-class>
-    </component>
+    </component> -->
     <component>
       <implementation-class>
-        com.facebook.buck.intellijplugin.components.BuckConfiguration
+        com.facebook.buck.intellijplugin.components.BuckConfigurationComponent
       </implementation-class>
-    </component> -->
+    </component>
     <!-- As per the service documentation external services need to be named
     in a services directory of the meta inf. The services are lazy loaded.
     https://confluence.jetbrains.com/display/IDEADEV/External+Builder+API+and+Plugins

@@ -19,10 +19,13 @@ package com.facebook.buck.intellijplugin.settings;
 import com.intellij.openapi.externalSystem.settings.ExternalProjectSettings;
 import org.jetbrains.annotations.NotNull;
 
+import java.io.Serializable;
+
 /**
  * Buck project settings which provides an adaptor to the components settings.
  */
-public class BuckProjectSettings extends ExternalProjectSettings {
+public class BuckProjectSettings extends ExternalProjectSettings
+    implements Serializable {
 
   private String target = "";
 
