@@ -14,7 +14,7 @@
  * under the License.
  */
 
-package com.facebook.buck.intellijplugin.buckbuilder;
+package com.facebook.buck.intellijplugin.jps.model;
 
 import com.google.common.collect.Lists;
 import org.jetbrains.annotations.NotNull;

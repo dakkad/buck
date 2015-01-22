@@ -14,7 +14,7 @@
  * under the License.
  */
 
-package com.facebook.buck.intellijplugin.buckbuilder;
+package com.facebook.buck.intellijplugin.jps.model;
 
 import com.facebook.buck.intellijplugin.BuckPlugin;
 import com.facebook.buck.intellijplugin.runner.BaseDirectoryResolver;

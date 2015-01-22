@@ -14,9 +14,10 @@
  * under the License.
  */
 
-package com.facebook.buck.intellijplugin.buckbuilder;
+package com.facebook.buck.intellijplugin.jps.model;
 
 import com.facebook.buck.intellijplugin.BuckPlugin;
+import com.facebook.buck.intellijplugin.buckbuilder.BuckCompileOptions;
 import org.jetbrains.jps.model.JpsElement;
 import org.jetbrains.jps.model.JpsElementChildRole;
 import org.jetbrains.jps.model.ex.JpsElementChildRoleBase;
