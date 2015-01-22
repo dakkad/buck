@@ -19,35 +19,24 @@ package com.facebook.buck.intellijplugin.jps.wrapper;
 import com.google.common.base.Preconditions;
 
 /**
- * An event from Buckd
+ * Buck start event
  */
-public class BuckEvent {
+public class BuckStartEvent extends BuckEvent {
 
-  private final String type;
-  private final long timestamp;
-  private final String buildId;
-  private final long threadId;
+  private final String name;
 
-  BuckEvent(String type, long timestamp, String buildId, int threadId) {
-    this.type = Preconditions.checkNotNull(type);
-    this.timestamp = Preconditions.checkNotNull(timestamp);
-    this.buildId = Preconditions.checkNotNull(buildId);
-    this.threadId = Preconditions.checkNotNull(threadId);
+  BuckStartEvent(long timestamp, String buildId, int threadId, String name) {
+    super(BuckEventFactory.START_EVENT_LABEL, timestamp, buildId, threadId);
+    this.name = Preconditions.checkNotNull(name);
   }
 
-  public String getType() {
-    return type;
+  public String getName() {
+    return name;
   }
 
-  public long getTimestamp() {
-    return timestamp;
-  }
-
-  public String getBuildId() {
-    return buildId;
-  }
-
-  public long getThreadId() {
-    return threadId;
+  public boolean matchesEndRule(BuckEndEvent endEvent) {
+    Preconditions.checkNotNull(endEvent);
+    return getThreadId() == endEvent.getThreadId() && getBuildId().equals(endEvent.getBuildId())
+        && getName().equals(endEvent.getName());
   }
 }

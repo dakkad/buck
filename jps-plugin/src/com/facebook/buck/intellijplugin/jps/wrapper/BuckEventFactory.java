@@ -25,32 +25,42 @@ import org.jetbrains.annotations.Nullable;
  */
 public class BuckEventFactory {
 
-  public static final String RULE_START = "BuildRuleStarted";
-  public static final String RULE_END = "BuildRuleFinished";
+  public static final String START_EVENT_LABEL = "BuildRuleStarted";
+  public static final String END_EVENT_LABEL = "BuildRuleFinished";
   public static final String TEST_RESULTS_AVAILABLE = "ResultsAvailable";
   private static final Logger LOG = Logger.getInstance(BuckEventFactory.class);
+  private static final String RULE_TYPE = "type";
+  private static final String TIMESTAMP_FIELD = "timestamp";
+  private static final String BUILD_IDENTIFIER_FIELD = "buildId";
+  private static final String THREAD_ID_FIELD = "threadId";
+  private static final String BUILD_RULE = "buildRule";
+  private static final String NAME_FIELD = "name";
+  private static final String STATUS_FIELD = "status";
+  private static final String CACHE_FIELD = "cacheResult";
+  private static final String CACHE_HIT_INDICATOR = "HIT";
 
   private BuckEventFactory() {}
 
   @Nullable
   public static BuckEvent factory(JsonNode node) {
-    String type = node.get("type").asText();
-    long timestamp = node.get("timestamp").asLong();
-    String buildId = node.get("buildId").asText();
-    int threadId = node.get("threadId").asInt();
-    if (RULE_START.equals(type)) {
-      String name = node.get("buildRule")
-          .get("name").asText();
-      return new RuleStart(timestamp, buildId, threadId, name);
-    } else if (RULE_END.equals(type)) {
-      String name = object.get("buildRule").getAsJsonObject().get("name").getAsString();
-      String status = object.get("status").getAsString();
-      String cache = object.get("cacheResult").getAsString();
-      return new RuleEnd(timestamp, buildId, threadId, name, status, cache.equals("HIT"));
+    String type = node.get(RULE_TYPE).asText();
+    long timestamp = node.get(TIMESTAMP_FIELD).asLong();
+    String buildId = node.get(BUILD_IDENTIFIER_FIELD).asText();
+    int threadId = node.get(THREAD_ID_FIELD).asInt();
+    if (START_EVENT_LABEL.equals(type)) {
+      String name = node.get(BUILD_RULE)
+          .get(NAME_FIELD).asText();
+      return new BuckStartEvent(timestamp, buildId, threadId, name);
+    } else if (END_EVENT_LABEL.equals(type)) {
+      String name = node.get(BUILD_RULE)
+          .get(NAME_FIELD).asText();
+      String status = node.get(STATUS_FIELD).asText();
+      String cache = node.get(CACHE_FIELD).asText();
+      return new BuckEndEvent(timestamp, buildId, threadId, name, status,
+          CACHE_HIT_INDICATOR.equals(cache));
     } else if (TEST_RESULTS_AVAILABLE.equals(type)) {
-      return TestResultsAvailable.factory(object, timestamp, buildId, threadId);
-    } else {
-      LOG.warn("Unhandled message: " + object.toString());
+      return TestResultsAvailable.factory(node, timestamp, buildId, threadId);
     }
+    LOG.warn("Unhandled message: " + node.toString());
     return null;
   }}
