@@ -14,12 +14,10 @@
  * under the License.
  */
 
-package com.facebook.buck.intellijplugin.jps.model;
+package com.facebook.buck.intellijplugin.buckbuilder;
 
 import com.facebook.buck.intellijplugin.BuckPlugin;
-import com.facebook.buck.intellijplugin.buckbuilder.BuckCompileOptions;
-import com.facebook.buck.intellijplugin.buckbuilder.BuckSourceRootDescriptor;
-import com.facebook.buck.intellijplugin.buckbuilder.BuckTargetGenerator;
+import com.facebook.buck.intellijplugin.jps.model.BuckBuildTargetType;
 import com.google.common.collect.Lists;
 import com.intellij.openapi.util.io.FileUtil;
 import gnu.trove.THashSet;
@@ -50,7 +48,6 @@ import java.util.Set;
  * Buck build target information representation.
  */
 public class BuckBuildTarget extends BuildTarget<BuckSourceRootDescriptor> implements BuckCompileOptions {
-
 
   private final String path;
   private final List<String> targets;

@@ -16,8 +16,8 @@
 
 package com.facebook.buck.intellijplugin.jps.incremental;
 
+import com.facebook.buck.intellijplugin.buckbuilder.BuckBuildTarget;
 import com.facebook.buck.intellijplugin.buckbuilder.BuckSourceRootDescriptor;
-import com.facebook.buck.intellijplugin.jps.model.BuckBuildTarget;
 import com.facebook.buck.intellijplugin.jps.model.BuckBuildTargetType;
 import com.facebook.buck.intellijplugin.jps.model.JpsBuckProjectExtension;
 import com.facebook.buck.intellijplugin.jps.model.JpsBuckProjectExtensionSerializer;
@@ -33,6 +33,7 @@ import org.jetbrains.jps.incremental.java.JavaBuilder;
 import org.jetbrains.jps.model.JpsProject;
 import org.jetbrains.jps.model.module.JpsModule;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.Collections;
 
@@ -76,9 +77,10 @@ public class BuckTargetBuilder extends TargetBuilder<BuckSourceRootDescriptor, B
   @Override
   public void build(BuckBuildTarget buckBuildTarget,
       DirtyFilesHolder<BuckSourceRootDescriptor, BuckBuildTarget> dirtyFilesHolder,
-      BuildOutputConsumer buildOutputConsumer, CompileContext compileContext)
+      BuildOutputConsumer buildOutputConsumer, final CompileContext compileContext)
       throws ProjectBuildException, IOException {
     String canonicalPath = buckBuildTarget.getTargetPath();
+
 
     // Check whether this build should even be run
     if (!dirtyFilesHolder.hasDirtyFiles() &&
@@ -93,7 +95,8 @@ public class BuckTargetBuilder extends TargetBuilder<BuckSourceRootDescriptor, B
 
     // TODO(dka) Look at how we can use CapturingProcessHandler to run buck
 
-    BuckCommand command = new BuckCommand(buckBuildTarget, compileContext);
+    BuckCommand command = new BuckCommand(buckBuildTarget, new File(canonicalPath),
+        new BuckEventAdaptor(compileContext));
 
   }
 }

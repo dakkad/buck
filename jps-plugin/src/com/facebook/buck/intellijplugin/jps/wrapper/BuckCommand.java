@@ -22,7 +22,6 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
-import org.jetbrains.jps.incremental.CompileContext;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -72,9 +71,15 @@ public class BuckCommand {
     executorService = Executors.newFixedThreadPool(2); // For stdout and stderr stream readers
   }
 
-  public BuckCommand(BuckBuildTarget buckBuildTarget, CompileContext compileContext,
+  public BuckCommand(BuckBuildTarget buckBuildTarget, File workingDirectory,
       BuckEventListener listener) {
-
+    buckdPath = Optional.absent();
+    socket = Optional.absent();
+    stdout = "";
+    stderr = "";
+    this.workingDirectory = workingDirectory;
+    this.listener = listener;
+    executorService = Executors.newFixedThreadPool(2); // For stdout and stderr stream readers
   }
 
   public int executeAndListenToWebSocket(String... args) {

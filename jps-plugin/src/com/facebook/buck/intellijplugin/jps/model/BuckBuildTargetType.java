@@ -17,6 +17,7 @@
 package com.facebook.buck.intellijplugin.jps.model;
 
 import com.facebook.buck.intellijplugin.BuckPlugin;
+import com.facebook.buck.intellijplugin.buckbuilder.BuckBuildTarget;
 import com.google.common.collect.Lists;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
