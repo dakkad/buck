@@ -59,7 +59,7 @@ public class BuckEventFactory {
       return new BuckEndEvent(timestamp, buildId, threadId, name, status,
           CACHE_HIT_INDICATOR.equals(cache));
     } else if (TEST_RESULTS_AVAILABLE.equals(type)) {
-      return TestResultsAvailable.factory(node, timestamp, buildId, threadId);
+      return BuckTestEvent.factory(node, timestamp, buildId, threadId);
     }
     LOG.warn("Unhandled message: " + node.toString());
     return null;

@@ -25,7 +25,6 @@ import org.java_websocket.client.WebSocketClient;
 import org.java_websocket.drafts.Draft;
 import org.java_websocket.drafts.Draft_17;
 import org.java_websocket.handshake.ServerHandshake;
-import org.jetbrains.jps.incremental.messages.BuildingTargetProgressMessage.Event;
 
 import java.io.IOException;
 import java.net.URI;
@@ -68,14 +67,14 @@ public class BuckdListener {
   private void dispatch(String message) throws IOException {
     ObjectMapper mapper = MapperFactory.getInstance();
     JsonNode root = mapper.readTree(message);
-    Event event = EventFactory.factory(root);
+    BuckEvent event = BuckEventFactory.factory(root);
     if (event != null) {
       listener.onEvent(event);
     }
   }
 
   public interface BuckPluginEventListener {
-    public void onEvent(Event event);
+    public void onEvent(BuckEvent event);
   }
 
   private class DefaultWebSocketClient extends WebSocketClient {
@@ -86,7 +85,11 @@ public class BuckdListener {
 
     @Override
     public void onMessage(String message) {
-      dispatch(message);
+      try {
+        dispatch(message);
+      } catch (IOException e) {
+        LOG.error("Failed to parse buck message: " + message, e);
+      }
     }
 
     @Override
@@ -96,12 +99,12 @@ public class BuckdListener {
 
     @Override
     public void onOpen(ServerHandshake handshake) {
-      LOG.info(String.format("Websocket opened: %s", handshake.toString()));
+      LOG.info(String.format("WebSocket opened: %s", handshake.toString()));
     }
 
     @Override
     public void onClose(int code, String reason, boolean remote) {
-      LOG.info(String.format("Websocket closed: %d %s", code, reason));
+      LOG.info(String.format("WebSocket closed: Code: %d Message: %s", code, reason));
     }
   }
 }

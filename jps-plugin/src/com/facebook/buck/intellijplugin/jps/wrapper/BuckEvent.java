@@ -23,10 +23,10 @@ import com.google.common.base.Preconditions;
  */
 public class BuckEvent {
 
-  private final String type;
-  private final long timestamp;
-  private final String buildId;
-  private final long threadId;
+  protected final String type;
+  protected final long timestamp;
+  protected final String buildId;
+  protected final long threadId;
 
   BuckEvent(String type, long timestamp, String buildId, int threadId) {
     this.type = Preconditions.checkNotNull(type);
