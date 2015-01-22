@@ -96,7 +96,9 @@ public class ProjectCommand extends AbstractCommandRunner<ProjectCommandOptions>
   public ProjectCommand(CommandRunnerParams params) {
     super(params);
 
-    this.targetGraphTransformer = new TargetGraphToActionGraph(params.getBuckEventBus());
+    this.targetGraphTransformer = new TargetGraphToActionGraph(
+        params.getBuckEventBus(),
+        new BuildTargetNodeToBuildRuleTransformer());
   }
 
   @Override
@@ -304,10 +306,6 @@ public class ProjectCommand extends AbstractCommandRunner<ProjectCommandOptions>
     }
 
     boolean combinedProject = options.getCombinedProject();
-    if (combinedProject && passedInTargetsSet.size() != 1) {
-      throw new HumanReadableException(
-          "Combined project can only be generated for one target at a time");
-    }
     ImmutableSet<BuildTarget> targets;
     if (passedInTargetsSet.isEmpty()) {
       targets = FluentIterable

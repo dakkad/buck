@@ -104,7 +104,7 @@ public class PrebuiltCxxLibrary extends AbstractCxxLibrary {
   public CxxPreprocessorInput getCxxPreprocessorInput(CxxPlatform cxxPlatform) {
     return CxxPreprocessorInput.builder()
         // Just pass the include dirs as system includes.
-        .setSystemIncludeRoots(includeDirs)
+        .addAllSystemIncludeRoots(includeDirs)
         .build();
   }
 
@@ -140,7 +140,7 @@ public class PrebuiltCxxLibrary extends AbstractCxxLibrary {
     final ImmutableList<SourcePath> libraries = librariesBuilder.build();
     final ImmutableList<String> linkerArgs = linkerArgsBuilder.build();
 
-    return new NativeLinkableInput(/* inputs */ libraries, /* args */ linkerArgs);
+    return ImmutableNativeLinkableInput.of(/* inputs */ libraries, /* args */ linkerArgs);
   }
 
   @Override

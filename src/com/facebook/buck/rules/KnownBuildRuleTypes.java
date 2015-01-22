@@ -16,6 +16,7 @@
 
 package com.facebook.buck.rules;
 
+import com.facebook.buck.android.AndroidAarDescription;
 import com.facebook.buck.android.AndroidBinary;
 import com.facebook.buck.android.AndroidBinaryDescription;
 import com.facebook.buck.android.AndroidBuildConfigDescription;
@@ -58,6 +59,7 @@ import com.facebook.buck.cxx.DefaultCxxPlatform;
 import com.facebook.buck.cxx.PrebuiltCxxLibraryDescription;
 import com.facebook.buck.extension.BuckExtensionDescription;
 import com.facebook.buck.file.Downloader;
+import com.facebook.buck.file.ExplodingDownloader;
 import com.facebook.buck.file.HttpDownloader;
 import com.facebook.buck.file.RemoteFileDescription;
 import com.facebook.buck.gwt.GwtBinaryDescription;
@@ -65,6 +67,7 @@ import com.facebook.buck.java.JavaBinaryDescription;
 import com.facebook.buck.java.JavaBuckConfig;
 import com.facebook.buck.java.JavaLibraryDescription;
 import com.facebook.buck.java.JavaTestDescription;
+import com.facebook.buck.java.Javac;
 import com.facebook.buck.java.JavacOptions;
 import com.facebook.buck.java.KeystoreDescription;
 import com.facebook.buck.java.PrebuiltJarDescription;
@@ -347,12 +350,17 @@ public class KnownBuildRuleTypes {
     // Default maven repo, if set
     Optional<String> defaultMavenRepo = config.getValue("download", "maven_repo");
     boolean downloadAtRuntimeOk = config.getBooleanValue("download", "in_build", false);
-    Downloader downloader = new HttpDownloader(Optional.<Proxy>absent(), defaultMavenRepo);
-
+    Downloader downloader;
+    if (downloadAtRuntimeOk) {
+      downloader = new HttpDownloader(Optional.<Proxy>absent(), defaultMavenRepo);
+    } else {
+      downloader = new ExplodingDownloader();
+    }
 
     Builder builder = builder();
 
     JavaBuckConfig javaConfig = new JavaBuckConfig(config);
+    Javac javac = javaConfig.getJavac();
     JavacOptions defaultJavacOptions = javaConfig.getDefaultJavacOptions(processExecutor);
     JavacOptions androidBinaryOptions = JavacOptions.builder(defaultJavacOptions)
         .build();
@@ -370,19 +378,22 @@ public class KnownBuildRuleTypes {
         new AppleLibraryDescription(appleConfig, cxxLibraryDescription);
     builder.register(appleLibraryDescription);
 
+    builder.register(new AndroidAarDescription());
     builder.register(
         new AndroidBinaryDescription(
+            javac,
             androidBinaryOptions,
             proGuardConfig,
             ndkCxxPlatforms));
-    builder.register(new AndroidBuildConfigDescription(androidBinaryOptions));
+    builder.register(new AndroidBuildConfigDescription(javac, androidBinaryOptions));
     builder.register(new AndroidInstrumentationApkDescription(
             proGuardConfig,
+            javac,
             androidBinaryOptions,
             ndkCxxPlatforms));
-    builder.register(new AndroidLibraryDescription(androidBinaryOptions));
+    builder.register(new AndroidLibraryDescription(javac, androidBinaryOptions));
     builder.register(new AndroidManifestDescription());
-    builder.register(new AndroidPrebuiltAarDescription(androidBinaryOptions));
+    builder.register(new AndroidPrebuiltAarDescription(javac, androidBinaryOptions));
     builder.register(new AndroidResourceDescription());
     builder.register(new ApkGenruleDescription());
     builder.register(new AppleAssetCatalogDescription());
@@ -391,7 +402,7 @@ public class KnownBuildRuleTypes {
     builder.register(new AppleLibraryDescription(appleConfig, cxxLibraryDescription));
     builder.register(new AppleResourceDescription());
     builder.register(new AppleTestDescription(appleLibraryDescription));
-    builder.register(new BuckExtensionDescription(defaultJavacOptions));
+    builder.register(new BuckExtensionDescription(javac, defaultJavacOptions));
     builder.register(new CoreDataModelDescription());
     builder.register(cxxBinaryDescription);
     builder.register(cxxLibraryDescription);
@@ -403,9 +414,9 @@ public class KnownBuildRuleTypes {
     builder.register(new GenParcelableDescription());
     builder.register(new GwtBinaryDescription());
     builder.register(new IosPostprocessResourcesDescription());
-    builder.register(new JavaBinaryDescription(defaultJavacOptions, defaultCxxPlatform));
-    builder.register(new JavaLibraryDescription(defaultJavacOptions));
-    builder.register(new JavaTestDescription(defaultJavacOptions, testRuleTimeoutMs));
+    builder.register(new JavaBinaryDescription(javac, defaultJavacOptions, defaultCxxPlatform));
+    builder.register(new JavaLibraryDescription(javac, defaultJavacOptions));
+    builder.register(new JavaTestDescription(javac, defaultJavacOptions, testRuleTimeoutMs));
     builder.register(new KeystoreDescription());
     builder.register(new NdkLibraryDescription(ndkVersion, ndkCxxPlatforms));
     builder.register(new OCamlBinaryDescription(ocamlBuckConfig));
@@ -429,15 +440,18 @@ public class KnownBuildRuleTypes {
             pythonEnv,
             defaultCxxPlatform,
             cxxPlatforms));
-    builder.register(new RemoteFileDescription(downloadAtRuntimeOk, downloader));
-    builder.register(new RobolectricTestDescription(androidBinaryOptions, testRuleTimeoutMs));
+    builder.register(new RemoteFileDescription(downloader));
+    builder.register(new RobolectricTestDescription(
+            javac,
+            androidBinaryOptions,
+            testRuleTimeoutMs));
     builder.register(new ShBinaryDescription());
     builder.register(new ShTestDescription());
     builder.register(
         new ThriftLibraryDescription(
             thriftBuckConfig,
             ImmutableList.of(
-                new ThriftJavaEnhancer(thriftBuckConfig, defaultJavacOptions),
+                new ThriftJavaEnhancer(thriftBuckConfig, javac, defaultJavacOptions),
                 new ThriftCxxEnhancer(
                     thriftBuckConfig,
                     cxxBuckConfig,

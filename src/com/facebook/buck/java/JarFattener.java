@@ -60,6 +60,7 @@ public class JarFattener extends AbstractBuildRule implements BinaryBuildRule {
   public static final String FAT_JAR_SRC_RESOURCE = "com/facebook/buck/java/FatJar.java";
   public static final String FAT_JAR_MAIN_SRC_RESOURCE = "com/facebook/buck/java/FatJarMain.java";
 
+  private final Javac javac;
   private final JavacOptions javacOptions;
   private final SourcePath innerJar;
   private final ImmutableMap<String, SourcePath> nativeLibraries;
@@ -68,10 +69,12 @@ public class JarFattener extends AbstractBuildRule implements BinaryBuildRule {
   public JarFattener(
       BuildRuleParams params,
       SourcePathResolver resolver,
+      Javac javac,
       JavacOptions javacOptions,
       SourcePath innerJar,
       ImmutableMap<String, SourcePath> nativeLibraries) {
     super(params, resolver);
+    this.javac = javac;
     this.javacOptions = javacOptions;
     this.innerJar = innerJar;
     this.nativeLibraries = nativeLibraries;
@@ -126,17 +129,20 @@ public class JarFattener extends AbstractBuildRule implements BinaryBuildRule {
     steps.add(writeFromResource(fatJarSource, FAT_JAR_SRC_RESOURCE));
     Path fatJarMainSource = outputDir.resolve(Paths.get(FAT_JAR_MAIN_SRC_RESOURCE).getFileName());
     steps.add(writeFromResource(fatJarMainSource, FAT_JAR_MAIN_SRC_RESOURCE));
+
     steps.add(
-        new JavacInMemoryStep(
+        new JavacStep(
+            javac,
             fatJarDir,
+            Optional.<Path>absent(),
             ImmutableSet.of(fatJarSource, fatJarMainSource),
-            ImmutableSet.<Path>of(),
-            ImmutableSet.<Path>of(),
+            Optional.<Path>absent(),
+            /* transitive classpath */ ImmutableSet.<Path>of(),
+            /* declared classpath */ ImmutableSet.<Path>of(),
             javacOptions,
-            Optional.of(getBuildTarget()),
+            getBuildTarget(),
             BuildDependencies.FIRST_ORDER_ONLY,
-            Optional.<JavacStep.SuggestBuildRules>absent(),
-            Optional.<Path>absent()));
+            Optional.<JavacStep.SuggestBuildRules>absent()));
 
     // Symlink the inner JAR into it's place in the fat JAR.
     steps.add(new MkdirStep(fatJarDir.resolve(FAT_JAR_INNER_JAR).getParent()));

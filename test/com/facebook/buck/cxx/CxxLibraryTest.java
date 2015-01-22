@@ -38,7 +38,6 @@ import com.facebook.buck.rules.SourcePathResolver;
 import com.facebook.buck.step.Step;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 
 import org.junit.Test;
 
@@ -74,8 +73,8 @@ public class CxxLibraryTest {
       @Override
       public CxxPreprocessorInput getCxxPreprocessorInput(CxxPlatform cxxPlatform) {
         return CxxPreprocessorInput.builder()
-            .setRules(ImmutableSet.of(headerTarget, headerSymlinkTreeTarget))
-            .setIncludeRoots(headerSymlinkTreeRoot)
+            .addRules(headerTarget, headerSymlinkTreeTarget)
+            .addIncludeRoots(headerSymlinkTreeRoot)
             .build();
       }
 
@@ -84,10 +83,10 @@ public class CxxLibraryTest {
           CxxPlatform cxxPlatform,
           Linker.LinkableDepType type) {
         return type == Linker.LinkableDepType.STATIC ?
-            new NativeLinkableInput(
+            ImmutableNativeLinkableInput.of(
                 ImmutableList.<SourcePath>of(new BuildTargetSourcePath(archive.getBuildTarget())),
                 ImmutableList.of(archiveOutput.toString())) :
-            new NativeLinkableInput(
+            ImmutableNativeLinkableInput.of(
                 ImmutableList.<SourcePath>of(
                     new BuildTargetSourcePath(sharedLibrary.getBuildTarget())),
                 ImmutableList.of(sharedLibraryOutput.toString()));
@@ -121,14 +120,14 @@ public class CxxLibraryTest {
     // Verify that we get the header/symlink targets and root via the CxxPreprocessorDep
     // interface.
     CxxPreprocessorInput expectedCxxPreprocessorInput = CxxPreprocessorInput.builder()
-        .setRules(ImmutableSet.of(headerTarget, headerSymlinkTreeTarget))
-        .setIncludeRoots(headerSymlinkTreeRoot)
+        .addRules(headerTarget, headerSymlinkTreeTarget)
+        .addIncludeRoots(headerSymlinkTreeRoot)
         .build();
     assertEquals(expectedCxxPreprocessorInput, cxxLibrary.getCxxPreprocessorInput(cxxPlatform));
 
     // Verify that we get the static archive and it's build target via the NativeLinkable
     // interface.
-    NativeLinkableInput expectedStaticNativeLinkableInput = new NativeLinkableInput(
+    NativeLinkableInput expectedStaticNativeLinkableInput = ImmutableNativeLinkableInput.of(
         ImmutableList.<SourcePath>of(new BuildTargetSourcePath(archive.getBuildTarget())),
         ImmutableList.of(archiveOutput.toString()));
     assertEquals(
@@ -139,7 +138,7 @@ public class CxxLibraryTest {
 
     // Verify that we get the static archive and it's build target via the NativeLinkable
     // interface.
-    NativeLinkableInput expectedSharedNativeLinkableInput = new NativeLinkableInput(
+    NativeLinkableInput expectedSharedNativeLinkableInput = ImmutableNativeLinkableInput.of(
         ImmutableList.<SourcePath>of(new BuildTargetSourcePath(sharedLibrary.getBuildTarget())),
         ImmutableList.of(sharedLibraryOutput.toString()));
     assertEquals(

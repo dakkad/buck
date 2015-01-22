@@ -111,7 +111,9 @@ public class TestCommand extends AbstractCommandRunner<TestCommandOptions> {
   public TestCommand(CommandRunnerParams params) {
     super(params);
 
-    this.targetGraphTransformer = new TargetGraphToActionGraph(params.getBuckEventBus());
+    this.targetGraphTransformer = new TargetGraphToActionGraph(
+        params.getBuckEventBus(),
+        new BuildTargetNodeToBuildRuleTransformer());
   }
 
   @Override
@@ -334,8 +336,12 @@ public class TestCommand extends AbstractCommandRunner<TestCommandOptions> {
         getCommandRunnerParams().getClock())) {
 
       // Build all of the test rules.
-      int exitCode = BuildCommand.executeBuildAndPrintAnyFailuresToConsole(
-          testRules, build, options, console);
+      int exitCode = build.executeAndPrintFailuresToConsole(
+          testRules,
+          options.isKeepGoing(),
+          console,
+          options.getPathToBuildReport());
+
       getBuckEventBus().post(BuildEvent.finished(emptyTargetsList, exitCode));
       if (exitCode != 0) {
         return exitCode;

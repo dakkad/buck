@@ -97,11 +97,10 @@ public class CxxBinaryDescriptionTest {
       @Override
       public CxxPreprocessorInput getCxxPreprocessorInput(CxxPlatform cxxPlatform) {
         return CxxPreprocessorInput.builder()
-            .setRules(
-                ImmutableSet.of(
-                    header.getBuildTarget(),
-                    headerSymlinkTree.getBuildTarget()))
-            .setIncludeRoots(headerSymlinkTreeRoot)
+            .addRules(
+                header.getBuildTarget(),
+                headerSymlinkTree.getBuildTarget())
+            .addIncludeRoots(headerSymlinkTreeRoot)
             .build();
       }
 
@@ -109,7 +108,7 @@ public class CxxBinaryDescriptionTest {
       public NativeLinkableInput getNativeLinkableInput(
           CxxPlatform cxxPlatform,
           Linker.LinkableDepType type) {
-        return new NativeLinkableInput(
+        return ImmutableNativeLinkableInput.of(
             ImmutableList.<SourcePath>of(new BuildTargetSourcePath(archive.getBuildTarget())),
             ImmutableList.of(archiveOutput.toString()));
       }

@@ -23,6 +23,7 @@ import com.facebook.buck.dalvik.EstimateLinearAllocStep;
 import com.facebook.buck.io.ProjectFilesystem;
 import com.facebook.buck.java.AccumulateClassNamesStep;
 import com.facebook.buck.java.HasJavaClassHashes;
+import com.facebook.buck.java.Javac;
 import com.facebook.buck.java.JavacOptions;
 import com.facebook.buck.java.JavacStep;
 import com.facebook.buck.model.BuildTarget;
@@ -79,10 +80,7 @@ public class AaptPackageResources extends AbstractBuildRule
   public static final String R_DOT_JAVA_LINEAR_ALLOC_SIZE = "r_dot_java_linear_alloc_size";
 
   /** Options to use with {@link com.facebook.buck.android.DxStep} when dexing R.java. */
-  public static final EnumSet<DxStep.Option> DX_OPTIONS = EnumSet.of(
-      DxStep.Option.USE_CUSTOM_DX_IF_AVAILABLE,
-      DxStep.Option.RUN_IN_PROCESS,
-      DxStep.Option.NO_OPTIMIZE);
+  public static final EnumSet<DxStep.Option> DX_OPTIONS = EnumSet.of(DxStep.Option.NO_OPTIMIZE);
 
   private final SourcePath manifest;
   private final FilteredResourcesProvider filteredResourcesProvider;
@@ -90,6 +88,7 @@ public class AaptPackageResources extends AbstractBuildRule
   private final PackageType packageType;
   private final ImmutableSet<TargetCpuType> cpuFilters;
   private final ImmutableList<HasAndroidResourceDeps> resourceDeps;
+  private final Javac javac;
   private final JavacOptions javacOptions;
   private final boolean rDotJavaNeedsDexing;
   private final boolean shouldBuildStringSourceMap;
@@ -104,6 +103,7 @@ public class AaptPackageResources extends AbstractBuildRule
       ImmutableSet<Path> assetsDirectories,
       PackageType packageType,
       ImmutableSet<TargetCpuType> cpuFilters,
+      Javac javac,
       JavacOptions javacOptions,
       boolean rDotJavaNeedsDexing,
       boolean shouldBuildStringSourceMap) {
@@ -114,6 +114,7 @@ public class AaptPackageResources extends AbstractBuildRule
     this.assetsDirectories = assetsDirectories;
     this.packageType = packageType;
     this.cpuFilters = cpuFilters;
+    this.javac = javac;
     this.javacOptions = javacOptions;
     this.rDotJavaNeedsDexing = rDotJavaNeedsDexing;
     this.shouldBuildStringSourceMap = shouldBuildStringSourceMap;
@@ -351,12 +352,13 @@ public class AaptPackageResources extends AbstractBuildRule
     Path rDotJavaBin = getPathToCompiledRDotJavaFiles();
     steps.add(new MakeCleanDirectoryStep(rDotJavaBin));
 
-    JavacStep javac = RDotJava.createJavacStepForUberRDotJavaFiles(
+    JavacStep javacStep = RDotJava.createJavacStepForUberRDotJavaFiles(
         ImmutableSet.copyOf(getResolver().getAllPaths(mergeStep.getRDotJavaFiles())),
         rDotJavaBin,
+        javac,
         javacOptions,
         getBuildTarget());
-    steps.add(javac);
+    steps.add(javacStep);
 
     Path rDotJavaClassesTxt = getPathToRDotJavaClassesTxt();
     steps.add(new MakeCleanDirectoryStep(rDotJavaClassesTxt.getParent()));

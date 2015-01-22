@@ -308,16 +308,19 @@ public class CxxPreprocessables {
         args.build(),
         getPreprocessOutputPath(target, source.getType(), name),
         source.getPath(),
-        preprocessorInput.getIncludeRoots(),
-        preprocessorInput.getSystemIncludeRoots(),
+        ImmutableList.copyOf(preprocessorInput.getIncludeRoots()),
+        ImmutableList.copyOf(preprocessorInput.getSystemIncludeRoots()),
+        ImmutableList.copyOf(preprocessorInput.getFrameworkRoots()),
         preprocessorInput.getIncludes(),
         cxxPlatform.getDebugPathSanitizer());
     resolver.addToIndex(cxxPreprocess);
 
     // Return the output name and source pair.
-    return new AbstractMap.SimpleEntry<>(
+    return new AbstractMap.SimpleEntry<String, CxxSource>(
         name,
-        new CxxSource(outputType, new BuildTargetSourcePath(cxxPreprocess.getBuildTarget())));
+        ImmutableCxxSource.of(
+            outputType,
+            new BuildTargetSourcePath(cxxPreprocess.getBuildTarget())));
   }
 
   /**
