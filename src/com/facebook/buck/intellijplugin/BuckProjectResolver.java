@@ -18,8 +18,6 @@ package com.facebook.buck.intellijplugin;
 
 import com.facebook.buck.intellijplugin.runner.BaseDirectoryResolver;
 import com.facebook.buck.intellijplugin.settings.BuckExecutionSettings;
-import com.intellij.execution.ExecutionManager;
-import com.intellij.execution.runners.ExecutionEnvironment;
 import com.intellij.openapi.application.Application;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.externalSystem.model.DataNode;
@@ -28,7 +26,6 @@ import com.intellij.openapi.externalSystem.model.ProjectKeys;
 import com.intellij.openapi.externalSystem.model.project.ProjectData;
 import com.intellij.openapi.externalSystem.model.task.ExternalSystemTaskId;
 import com.intellij.openapi.externalSystem.model.task.ExternalSystemTaskNotificationListener;
-import com.intellij.openapi.externalSystem.service.internal.ExternalSystemProcessingManager;
 import com.intellij.openapi.externalSystem.service.project.ExternalSystemProjectResolver;
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.module.ModuleManager;
@@ -112,8 +109,7 @@ public class BuckProjectResolver implements ExternalSystemProjectResolver<BuckEx
   private void runBuckProject() {
     // TODO(dka) Do some work!
     Application application = ApplicationManager.getApplication();
-    ExecutionEnvironment environment = ExecutionManager.getInstance(project);
-
+    //ExecutionEnvironment environment = ExecutionManager.getInstance(project);
   }
 
   @Override
