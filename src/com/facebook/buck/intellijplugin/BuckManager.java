@@ -27,31 +27,37 @@ import com.facebook.buck.intellijplugin.settings.BuckSettingsListener;
 import com.intellij.execution.ExecutionException;
 import com.intellij.execution.configurations.SimpleJavaParameters;
 import com.intellij.ide.actions.OpenProjectFileChooserDescriptor;
+import com.intellij.openapi.externalSystem.ExternalSystemAutoImportAware;
 import com.intellij.openapi.externalSystem.ExternalSystemConfigurableAware;
 import com.intellij.openapi.externalSystem.ExternalSystemManager;
+import com.intellij.openapi.externalSystem.ExternalSystemUiAware;
 import com.intellij.openapi.externalSystem.model.ProjectSystemId;
 import com.intellij.openapi.externalSystem.service.project.ExternalSystemProjectResolver;
 import com.intellij.openapi.externalSystem.task.ExternalSystemTaskManager;
+import com.intellij.openapi.externalSystem.util.ExternalSystemApiUtil;
 import com.intellij.openapi.externalSystem.util.ExternalSystemConstants;
 import com.intellij.openapi.fileChooser.FileChooserDescriptor;
 import com.intellij.openapi.options.Configurable;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.startup.StartupActivity;
 import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.util.Function;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.net.URL;
 import java.util.List;
+import javax.swing.Icon;
 
 /**
  * Buck manager helper.
  */
 public class BuckManager implements
     ExternalSystemConfigurableAware,
-    // ExternalSystemAutoImportAware,
-    // ExternalSystemUiAware,
-    // StartupActivity,
+    ExternalSystemAutoImportAware,
+    ExternalSystemUiAware,
+    StartupActivity,
     ExternalSystemManager<BuckProjectSettings,
             BuckSettingsListener,
             BuckSettings,
@@ -81,7 +87,7 @@ public class BuckManager implements
 
   @NotNull
   @Override
-  public Configurable getConfigurable(Project project) {
+  public Configurable getConfigurable(@NotNull Project project) {
     return new BuckConfigurable(project);
   }
 
@@ -161,7 +167,7 @@ public class BuckManager implements
 
   }
 
-  /*@Override
+  @Override
   public void runActivity(@NotNull Project project) {
 
   }
@@ -190,5 +196,12 @@ public class BuckManager implements
   @Override
   public Icon getTaskIcon() {
     return BuckPlugin.FAVICON;
-  } */
+  }
+
+  @Nullable
+  @Override
+  public String getAffectedExternalProjectPath(@NotNull String fileName,
+      @NotNull Project project) {
+    return null;
+  }
 }

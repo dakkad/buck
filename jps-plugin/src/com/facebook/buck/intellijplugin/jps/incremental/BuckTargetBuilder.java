@@ -94,8 +94,6 @@ public class BuckTargetBuilder extends TargetBuilder<BuckSourceRootDescriptor, B
 
     // TODO(dka) Consider checking to make sure that buck is found
 
-    // TODO(dka) Look at how we can integrate streamed feedback from buck
-
     // TODO(dka) Look at how we can use CapturingProcessHandler to run buck
 
     BuckEventListener eventListener = new BuckEventAdaptor(compileContext);

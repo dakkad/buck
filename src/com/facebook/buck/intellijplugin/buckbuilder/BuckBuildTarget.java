@@ -107,7 +107,6 @@ public class BuckBuildTarget extends BuildTarget<BuckSourceRootDescriptor> imple
     for (JpsModule module : jpsModel.getProject().getModules()) {
       for (JavaModuleBuildTargetType javaBuildType : JavaModuleBuildTargetType.ALL_TYPES) {
         ModuleBuildTarget moduleBuildTarget = new ModuleBuildTarget(module, javaBuildType);
-        // TODO(dka) Figure out where the filtering is going on
         generator.process(moduleBuildTarget);
       }
     }

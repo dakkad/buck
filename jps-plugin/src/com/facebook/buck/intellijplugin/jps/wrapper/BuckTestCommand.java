@@ -32,7 +32,7 @@ public class BuckTestCommand {
     String targetName = target.isPresent() ? target.get().getFullName() : "--all";
     int exitCode = buckRunner.executeAndListenToWebSocket("test", targetName);
     if (exitCode != 0) {
-      // TODO Show stdout to a console tab
+      // TODO Send stdout to a console tab
       LOG.error(buckRunner.getStdErr());
     }
   }

@@ -85,6 +85,6 @@ public class JpsBuckProjectExtensionSerializer extends JpsProjectExtensionSerial
 
   @Override
   public void saveExtension(JpsProject jpsProject, Element element) {
-    // TODO(dka) Consider saving the extension???
+    // TODO(dka) Consider saving the extension. Not done in pants.
   }
 }

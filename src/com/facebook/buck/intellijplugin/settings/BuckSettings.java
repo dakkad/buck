@@ -40,17 +40,18 @@ import java.util.Set;
     name = "BuckSettings",
     storages = {
         @Storage(file = StoragePathMacros.PROJECT_FILE),
-        @Storage(file = StoragePathMacros.PROJECT_CONFIG_DIR + BaseDirectoryResolver.BUCK_CONFIG_FILE, scheme = StorageScheme.DIRECTORY_BASED)
+        @Storage(file = StoragePathMacros.PROJECT_CONFIG_DIR + BaseDirectoryResolver.BUCK_CONFIG_FILE,
+            scheme = StorageScheme.DIRECTORY_BASED)
     }
 )
 public class BuckSettings extends AbstractExternalSystemSettings<BuckSettings, BuckProjectSettings, BuckSettingsListener>
     implements PersistentStateComponent<BuckSettings.BuckState>, Serializable {
 
-  private final Project project;
+  //private final Project project;
 
   public BuckSettings(Project project) {
     super(BuckSettingsListener.TOPIC, project);
-    this.project = project;
+    //this.project = project;
   }
 
   @Override
@@ -85,7 +86,7 @@ public class BuckSettings extends AbstractExternalSystemSettings<BuckSettings, B
     super.loadState(state);
   }
 
-  public static class BuckState implements State<BuckProjectSettings> {
+  public static class BuckState implements State<BuckProjectSettings>, Serializable {
 
     @Override
     @AbstractCollection(surroundWithTag = false, elementTypes = {BuckProjectSettings.class})

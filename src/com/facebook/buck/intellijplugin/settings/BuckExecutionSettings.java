@@ -19,23 +19,26 @@ package com.facebook.buck.intellijplugin.settings;
 import com.intellij.openapi.externalSystem.model.settings.ExternalSystemExecutionSettings;
 import com.intellij.openapi.project.Project;
 
+import java.io.Serializable;
+
 /**
  * Buck execution settings provider.
  */
-public class BuckExecutionSettings extends ExternalSystemExecutionSettings {
+public class BuckExecutionSettings extends ExternalSystemExecutionSettings
+    implements Serializable {
 
-  private final Project project;
+  //private final Project project;
   private final String path;
 
   public BuckExecutionSettings(Project project, String path) {
     super();
-    this.project = project;
+    //this.project = project;
     this.path = path;
   }
 
-  public Project getProject() {
-    return project;
-  }
+  //public Project getProject() {
+  //  return project;
+  //}
 
   public String getPath() {
     return path;

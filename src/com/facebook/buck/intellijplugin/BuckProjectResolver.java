@@ -20,9 +20,11 @@ import com.facebook.buck.intellijplugin.runner.BaseDirectoryResolver;
 import com.facebook.buck.intellijplugin.settings.BuckExecutionSettings;
 import com.intellij.openapi.application.Application;
 import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.externalSystem.model.DataNode;
 import com.intellij.openapi.externalSystem.model.ExternalSystemException;
 import com.intellij.openapi.externalSystem.model.ProjectKeys;
+import com.intellij.openapi.externalSystem.model.project.ContentRootData;
 import com.intellij.openapi.externalSystem.model.project.ProjectData;
 import com.intellij.openapi.externalSystem.model.task.ExternalSystemTaskId;
 import com.intellij.openapi.externalSystem.model.task.ExternalSystemTaskNotificationListener;
@@ -47,6 +49,7 @@ import java.io.IOException;
 public class BuckProjectResolver implements ExternalSystemProjectResolver<BuckExecutionSettings> {
 
   private static final String BUCK_WORKING_DIRECTORY = "/.idea/buck/";
+  private static final Logger LOG = Logger.getInstance(BuckProjectResolver.class);
 
   @Nullable
   @Override
@@ -56,6 +59,8 @@ public class BuckProjectResolver implements ExternalSystemProjectResolver<BuckEx
       ExternalSystemTaskNotificationListener notificationListener)
       throws ExternalSystemException, IllegalArgumentException,
       IllegalStateException {
+
+    LOG.info("Attempting to resolve external project information for " + projectPath);
 
     VirtualFile root = VirtualFileManager.getInstance()
         .findFileByUrl(VfsUtil.pathToUrl(projectPath));
@@ -85,7 +90,7 @@ public class BuckProjectResolver implements ExternalSystemProjectResolver<BuckEx
     // TODO(dka) Update with project information from above.
     ProjectData projectData = new ProjectData(
         BuckPlugin.PROJECT_SYSTEM_ID,
-        project.getName(),
+        "buck",
         root.getPath() + BUCK_WORKING_DIRECTORY + projectPath,
         projectPath);
 
@@ -103,6 +108,10 @@ public class BuckProjectResolver implements ExternalSystemProjectResolver<BuckEx
 
     DataNode<ProjectData> projectDataNode = new DataNode<ProjectData>(
         ProjectKeys.PROJECT, projectData, null);
+
+    ContentRootData contentRoot = new ContentRootData(BuckPlugin.PROJECT_SYSTEM_ID,
+        projectPath);
+    //projectDataNode.addChild();
     return projectDataNode;
   }
 

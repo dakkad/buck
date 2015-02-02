@@ -129,6 +129,5 @@ public class BuckConfigurationComponent extends BaseConfigurable implements Sear
 
   @Override
   public void disposeUIResources() {
-    // TODO(dka) 20150115 null components
   }
 }
