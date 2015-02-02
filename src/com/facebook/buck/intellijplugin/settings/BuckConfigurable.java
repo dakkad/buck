@@ -29,11 +29,11 @@ public class BuckConfigurable extends AbstractExternalSystemConfigurable<
     BuckSettingsListener,
     BuckSettings> {
 
-  private final Project project;
+  //private final Project project;
 
   public BuckConfigurable(Project project) {
     super(project, BuckPlugin.PROJECT_SYSTEM_ID);
-    this.project = project;
+    //this.project = project;
   }
 
   @Override

@@ -72,7 +72,6 @@
     <configurationType implementation="com.facebook.buck.intellijplugin.execution.BuckConfigurationType"/>
     <programRunner implementation="com.facebook.buck.intellijplugin.runner.BuckRunner"/>
 
-
     <!-- External service providers must be registered in order for the service
         manager to allow resolution of them at run time (unique instance) -->
     <projectService serviceImplementation="com.facebook.buck.intellijplugin.settings.BuckSettings"/>
