@@ -16,7 +16,6 @@
 
 package com.facebook.buck.intellijplugin;
 
-import com.facebook.buck.intellijplugin.runner.BaseDirectoryResolver;
 import com.facebook.buck.intellijplugin.settings.BuckExecutionSettings;
 import com.intellij.openapi.application.Application;
 import com.intellij.openapi.application.ApplicationManager;
@@ -63,16 +62,17 @@ public class BuckProjectResolver implements ExternalSystemProjectResolver<BuckEx
 
     LOG.info("Attempting to resolve external project information for " + projectPath);
 
-    if (!BaseDirectoryResolver.hasIntellijProject(projectPath)) {
+    //if (!BaseDirectoryResolver.hasIntellijProject(projectPath)) {
       // run some init
-      runBuckProject();
-    }
+    //  runBuckProject();
+    //}
 
     // See https://confluence.jetbrains.com/display/IDEADEV/Structure+of+IntelliJ+IDEA+Project
 
     // Load the project from the working directory
     Project project;
     try {
+
       project = ProjectManager.getInstance()
           .loadAndOpenProject(projectPath);
     } catch (JDOMException | InvalidDataException | IOException e) {
