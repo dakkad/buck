@@ -25,19 +25,20 @@ import com.intellij.openapi.externalSystem.model.DataNode;
 import com.intellij.openapi.externalSystem.model.ExternalSystemException;
 import com.intellij.openapi.externalSystem.model.ProjectKeys;
 import com.intellij.openapi.externalSystem.model.project.ContentRootData;
+import com.intellij.openapi.externalSystem.model.project.ModuleData;
 import com.intellij.openapi.externalSystem.model.project.ProjectData;
 import com.intellij.openapi.externalSystem.model.task.ExternalSystemTaskId;
 import com.intellij.openapi.externalSystem.model.task.ExternalSystemTaskNotificationListener;
 import com.intellij.openapi.externalSystem.service.project.ExternalSystemProjectResolver;
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.module.ModuleManager;
+import com.intellij.openapi.module.ModuleTypeId;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectManager;
+import com.intellij.openapi.roots.ModuleRootManager;
 import com.intellij.openapi.roots.ProjectRootManager;
 import com.intellij.openapi.util.InvalidDataException;
-import com.intellij.openapi.vfs.VfsUtil;
 import com.intellij.openapi.vfs.VirtualFile;
-import com.intellij.openapi.vfs.VirtualFileManager;
 import org.jdom.JDOMException;
 import org.jetbrains.annotations.Nullable;
 
@@ -62,10 +63,7 @@ public class BuckProjectResolver implements ExternalSystemProjectResolver<BuckEx
 
     LOG.info("Attempting to resolve external project information for " + projectPath);
 
-    VirtualFile root = VirtualFileManager.getInstance()
-        .findFileByUrl(VfsUtil.pathToUrl(projectPath));
-
-    if (!BaseDirectoryResolver.hasIntellijProject(root)) {
+    if (!BaseDirectoryResolver.hasIntellijProject(projectPath)) {
       // run some init
       runBuckProject();
     }
@@ -84,30 +82,41 @@ public class BuckProjectResolver implements ExternalSystemProjectResolver<BuckEx
     ProjectRootManager projectRootManager = ProjectRootManager.getInstance(project);
     VirtualFile[] moduleContentRoots = projectRootManager.getContentRootsFromAllModules();
     ModuleManager moduleManager = ModuleManager.getInstance(project);
+
     Module[] modules = moduleManager.getModules();
 
+    String projectName = project.getName();
 
-    // TODO(dka) Update with project information from above.
     ProjectData projectData = new ProjectData(
         BuckPlugin.PROJECT_SYSTEM_ID,
-        "buck",
-        root.getPath() + BUCK_WORKING_DIRECTORY + projectPath,
+        projectName,
+        projectPath + BUCK_WORKING_DIRECTORY,
         projectPath);
-
-
-    //ModuleRootManager moduleRootManager = ModuleRootManager.getInstance(
-    //    modules[0]);
-
-
-    // inspect the project DataNode<ProjectData>
-
-    // inspect the module DataNode<ModuleData>
-    // TODO(dka) Check out public static final Topic<ModuleListener> MODULES =
-    // new Topic<ModuleListener>("modules added or removed from project",
-    // ModuleListener.class);
 
     DataNode<ProjectData> projectDataNode = new DataNode<ProjectData>(
         ProjectKeys.PROJECT, projectData, null);
+
+    for (Module module : modules) {
+      ModuleRootManager moduleRootManager = ModuleRootManager.getInstance(module);
+      ModuleData moduleData = new ModuleData(
+          module.getName(),
+          BuckPlugin.PROJECT_SYSTEM_ID,
+          ModuleTypeId.JAVA_MODULE,
+          module.getName(),
+          module.getModuleFilePath(),
+          projectPath);
+      DataNode<ModuleData> moduleDataNode =
+          projectDataNode.createChild(ProjectKeys.MODULE, moduleData);
+      for (VirtualFile root : moduleRootManager.getContentRoots()) {
+        ContentRootData rootData = new ContentRootData(BuckPlugin.PROJECT_SYSTEM_ID,
+            root.getCanonicalPath());
+        moduleDataNode.createChild(ProjectKeys.CONTENT_ROOT, rootData);
+      }
+    }
+
+    // TODO(dka) Check out public static final Topic<ModuleListener> MODULES =
+    // new Topic<ModuleListener>("modules added or removed from project",
+    // ModuleListener.class);
 
     ContentRootData contentRoot = new ContentRootData(BuckPlugin.PROJECT_SYSTEM_ID,
         projectPath);
