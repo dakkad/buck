@@ -45,13 +45,21 @@ import java.util.Set;
     }
 )
 public class BuckSettings extends AbstractExternalSystemSettings<BuckSettings, BuckProjectSettings, BuckSettingsListener>
-    implements PersistentStateComponent<BuckSettings.BuckState>, Serializable {
+    implements PersistentStateComponent<BuckSettings.BuckState> {
 
-  //private final Project project;
+
+  private boolean compileWithBuck;
 
   public BuckSettings(Project project) {
     super(BuckSettingsListener.TOPIC, project);
-    //this.project = project;
+  }
+
+  public boolean getCompileWithBuck() {
+    return compileWithBuck;
+  }
+
+  public void setCompileWithBuck(boolean compileWithBuck) {
+    this.compileWithBuck = compileWithBuck;
   }
 
   @Override
@@ -61,7 +69,7 @@ public class BuckSettings extends AbstractExternalSystemSettings<BuckSettings, B
 
   @Override
   protected void copyExtraSettingsFrom(BuckSettings buckSettings) {
-
+    this.compileWithBuck = buckSettings.getCompileWithBuck();
   }
 
   @Override
@@ -76,7 +84,7 @@ public class BuckSettings extends AbstractExternalSystemSettings<BuckSettings, B
   @Override
   public BuckState getState() {
     BuckState state = new BuckState();
-    // TODO(dka) Set the persistent state
+    state.setCompileWithBuck(compileWithBuck);
     fillState(state);
     return state;
   }
@@ -84,22 +92,31 @@ public class BuckSettings extends AbstractExternalSystemSettings<BuckSettings, B
   @Override
   public void loadState(BuckState state) {
     super.loadState(state);
+    setCompileWithBuck(state.getCompileWithBuck());
   }
 
   public static class BuckState implements State<BuckProjectSettings>, Serializable {
 
+    private Set<BuckProjectSettings> linkedExternalProjectSettings = Sets.newTreeSet();
+    private boolean compileWithBuck;
+
     @Override
     @AbstractCollection(surroundWithTag = false, elementTypes = {BuckProjectSettings.class})
     public Set<BuckProjectSettings> getLinkedExternalProjectsSettings() {
-      return Sets.newHashSet();
+      return linkedExternalProjectSettings;
     }
 
     @Override
     public void setLinkedExternalProjectsSettings(Set<BuckProjectSettings> set) {
-
+      linkedExternalProjectSettings = set;
     }
 
-    // TODO(dka) Implement the project settings interface for restoring the project
-    // on load
+    public void setCompileWithBuck(boolean compileWithBuck) {
+      this.compileWithBuck = compileWithBuck;
+    }
+
+    public boolean getCompileWithBuck() {
+      return compileWithBuck;
+    }
   }
 }
