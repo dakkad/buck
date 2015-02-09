@@ -22,7 +22,6 @@ import com.facebook.buck.android.AndroidPackageable;
 import com.facebook.buck.android.AndroidPackageableCollector;
 import com.facebook.buck.model.BuildTargets;
 import com.facebook.buck.rules.AbstractBuildRule;
-import com.facebook.buck.rules.AnnotationProcessingData;
 import com.facebook.buck.rules.BuildContext;
 import com.facebook.buck.rules.BuildOutputInitializer;
 import com.facebook.buck.rules.BuildRule;
@@ -52,9 +51,10 @@ import com.google.common.hash.HashCode;
 
 import java.nio.file.Path;
 
+@BuildsAnnotationProcessor
 public class PrebuiltJar extends AbstractBuildRule
-    implements JavaLibrary, HasClasspathEntries, ExportDependencies,
-    InitializableFromDisk<JavaLibrary.Data>, AndroidPackageable {
+    implements AndroidPackageable, ExportDependencies, HasClasspathEntries,
+    InitializableFromDisk<JavaLibrary.Data>, JavaLibrary {
 
   private static final BuildableProperties OUTPUT_TYPE = new BuildableProperties(LIBRARY);
 
@@ -191,8 +191,8 @@ public class PrebuiltJar extends AbstractBuildRule
   }
 
   @Override
-  public AnnotationProcessingData getAnnotationProcessingData() {
-    return AnnotationProcessingData.EMPTY;
+  public AnnotationProcessingParams getAnnotationProcessingParams() {
+    return AnnotationProcessingParams.EMPTY;
   }
 
   @Override
@@ -233,7 +233,7 @@ public class PrebuiltJar extends AbstractBuildRule
         .setReflectively("binaryJar", binaryJar)
         .setReflectively("sourceJar", sourceJar)
         .setReflectively("gwtJar", gwtJar)
-        .set("javadocUrl", javadocUrl);
+        .setReflectively("javadocUrl", javadocUrl);
   }
 
 }

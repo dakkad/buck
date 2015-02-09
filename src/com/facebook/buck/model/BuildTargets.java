@@ -49,10 +49,12 @@ public class BuildTargets {
    */
 
   public static Path getBinPath(BuildTarget target, String format) {
-    return Paths.get(String.format("%s/%s" + format,
-        BuckConstant.BIN_DIR,
-        target.getBasePathWithSlash(),
-        target.getShortNameAndFlavorPostfix()));
+    return Paths.get(
+        String.format(
+            "%s/%s" + format,
+            BuckConstant.BIN_DIR,
+            target.getBasePathWithSlash(),
+            target.getShortNameAndFlavorPostfix()));
   }
 
   /**
@@ -87,7 +89,7 @@ public class BuildTargets {
         flavor,
         buildTarget);
     return BuildTarget.builder(buildTarget)
-        .setFlavor(flavor)
+        .addFlavors(flavor)
         .build();
   }
 
@@ -115,28 +117,6 @@ public class BuildTargets {
   }
 
   /**
-   * @return a new flavored {@link BuildTarget} by merging any existing flavors with the
-   *         given flavor.
-   */
-  public static BuildTarget extendFlavoredBuildTarget(BuildTarget target, Flavor... flavors) {
-    BuildTarget.Builder builder = BuildTarget.builder(target);
-    for (Flavor flavor : flavors) {
-      builder.addFlavor(flavor);
-    }
-    return builder.build();
-  }
-
-  /**
-   * @return a new flavored {@link BuildTarget} by merging any existing flavors with the
-   *         given flavors.
-   */
-  public static BuildTarget extendFlavoredBuildTarget(
-      BuildTarget target,
-      Iterable<Flavor> flavors) {
-    return BuildTarget.builder(target).addFlavors(flavors).build();
-  }
-
-  /**
    * Propagate flavors represented by the given {@link FlavorDomain} objects from a parent
    * target to it's dependencies.
    */
@@ -154,7 +134,7 @@ public class BuildTargets {
       // Now extract all relevant domain flavors from our parent target.
       Optional<Flavor> flavor;
       try {
-        flavor = domain.getFlavor(target.getFlavors());
+        flavor = domain.getFlavor(ImmutableSet.copyOf(target.getFlavors()));
       } catch (FlavorDomainException e) {
         throw new HumanReadableException("%s: %s", target, e.getMessage());
       }
@@ -170,7 +150,7 @@ public class BuildTargets {
       for (BuildTarget dep : deps) {
         Optional<Flavor> depFlavor;
         try {
-          depFlavor = domain.getFlavor(dep.getFlavors());
+          depFlavor = domain.getFlavor(ImmutableSet.copyOf(dep.getFlavors()));
         } catch (FlavorDomainException e) {
           throw new HumanReadableException("%s: dep %s: %s", target, dep, e.getMessage());
         }
@@ -189,7 +169,7 @@ public class BuildTargets {
 
     // Now flavor each dependency with the relevant flavors.
     for (BuildTarget dep : deps) {
-      flavoredDeps.add(BuildTargets.extendFlavoredBuildTarget(dep, flavors));
+      flavoredDeps.add(BuildTarget.builder(dep).addAllFlavors(flavors).build());
     }
 
     return flavoredDeps.build();

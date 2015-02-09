@@ -23,6 +23,7 @@ import com.facebook.buck.model.Flavor;
 import com.facebook.buck.model.FlavorDomain;
 import com.facebook.buck.model.FlavorDomainException;
 import com.facebook.buck.model.HasSourceUnderTest;
+import com.facebook.buck.model.ImmutableFlavor;
 import com.facebook.buck.rules.AbstractBuildRule;
 import com.facebook.buck.rules.BuildContext;
 import com.facebook.buck.rules.BuildRule;
@@ -32,6 +33,7 @@ import com.facebook.buck.rules.BuildRuleType;
 import com.facebook.buck.rules.BuildTargetSourcePath;
 import com.facebook.buck.rules.BuildableContext;
 import com.facebook.buck.rules.Description;
+import com.facebook.buck.rules.ImmutableBuildRuleType;
 import com.facebook.buck.rules.Label;
 import com.facebook.buck.rules.PathSourcePath;
 import com.facebook.buck.rules.RuleKey;
@@ -44,6 +46,7 @@ import com.facebook.buck.util.HumanReadableException;
 import com.facebook.infer.annotation.SuppressFieldNotInitialized;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Optional;
+import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableCollection;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -55,9 +58,9 @@ import java.nio.file.Paths;
 
 public class PythonTestDescription implements Description<PythonTestDescription.Arg> {
 
-  private static final BuildRuleType TYPE = new BuildRuleType("python_test");
+  private static final BuildRuleType TYPE = ImmutableBuildRuleType.of("python_test");
 
-  private static final Flavor BINARY_FLAVOR = new Flavor("binary");
+  private static final Flavor BINARY_FLAVOR = ImmutableFlavor.of("binary");
 
   private final Path pathToPex;
   private final Optional<Path> pathToPythonTestMain;
@@ -135,12 +138,12 @@ public class PythonTestDescription implements Description<PythonTestDescription.
 
     // Modify the build rule params to change the target, type, and remove all deps.
     BuildRuleParams newParams = params.copyWithChanges(
-        new BuildRuleType("create_test_modules_list"),
+        ImmutableBuildRuleType.of("create_test_modules_list"),
         BuildTargets.createFlavoredBuildTarget(
             params.getBuildTarget(),
-            new Flavor("test_module")),
-        ImmutableSortedSet.<BuildRule>of(),
-        ImmutableSortedSet.<BuildRule>of());
+            ImmutableFlavor.of("test_module")),
+        Suppliers.ofInstance(ImmutableSortedSet.<BuildRule>of()),
+        Suppliers.ofInstance(ImmutableSortedSet.<BuildRule>of()));
 
     final String contents = getTestModulesListContents(testModules);
 
@@ -154,8 +157,8 @@ public class PythonTestDescription implements Description<PythonTestDescription.
       @Override
       protected RuleKey.Builder appendDetailsToRuleKey(RuleKey.Builder builder) {
         return builder
-            .set("contents", contents)
-            .set("output", outputPath.toString());
+            .setReflectively("contents", contents)
+            .setReflectively("output", outputPath.toString());
       }
 
       @Override
@@ -190,8 +193,9 @@ public class PythonTestDescription implements Description<PythonTestDescription.
     // found.
     CxxPlatform cxxPlatform;
     try {
-      cxxPlatform = cxxPlatforms.getValue(
-          params.getBuildTarget().getFlavors()).or(defaultCxxPlatform);
+      cxxPlatform = cxxPlatforms
+          .getValue(ImmutableSet.copyOf(params.getBuildTarget().getFlavors()))
+          .or(defaultCxxPlatform);
     } catch (FlavorDomainException e) {
       throw new HumanReadableException("%s: %s", params.getBuildTarget(), e.getMessage());
     }
@@ -229,7 +233,7 @@ public class PythonTestDescription implements Description<PythonTestDescription.
     resolver.addToIndex(testModulesBuildRule);
 
     // Build up the list of everything going into the python test.
-    PythonPackageComponents testComponents = new PythonPackageComponents(
+    PythonPackageComponents testComponents = ImmutablePythonPackageComponents.of(
         ImmutableMap
             .<Path, SourcePath>builder()
             .put(
@@ -247,8 +251,8 @@ public class PythonTestDescription implements Description<PythonTestDescription.
     BuildRuleParams binaryParams = params.copyWithChanges(
         PythonBinaryDescription.TYPE,
         getBinaryBuildTarget(params.getBuildTarget()),
-        PythonUtil.getDepsFromComponents(pathResolver, allComponents),
-        ImmutableSortedSet.<BuildRule>of());
+        Suppliers.ofInstance(PythonUtil.getDepsFromComponents(pathResolver, allComponents)),
+        Suppliers.ofInstance(ImmutableSortedSet.<BuildRule>of()));
     PythonBinary binary = new PythonBinary(
         binaryParams,
         pathResolver,
@@ -261,13 +265,14 @@ public class PythonTestDescription implements Description<PythonTestDescription.
     // Generate and return the python test rule, which depends on the python binary rule above.
     return new PythonTest(
         params.copyWithDeps(
-            ImmutableSortedSet.<BuildRule>naturalOrder()
-                .addAll(params.getDeclaredDeps())
-                .add(binary)
-                .build(),
-            params.getExtraDeps()),
+            Suppliers.ofInstance(
+                ImmutableSortedSet.<BuildRule>naturalOrder()
+                    .addAll(params.getDeclaredDeps())
+                    .add(binary)
+                    .build()),
+            Suppliers.ofInstance(params.getExtraDeps())),
         pathResolver,
-        new BuildTargetSourcePath(binary.getBuildTarget()),
+        binary,
         resolver.getAllRules(args.sourceUnderTest.or(ImmutableSortedSet.<BuildTarget>of())),
         args.labels.or(ImmutableSet.<Label>of()),
         args.contacts.or(ImmutableSet.<String>of()));

@@ -25,7 +25,7 @@ import com.facebook.buck.json.BuildFileParseException;
 import com.facebook.buck.json.ProjectBuildFileParser;
 import com.facebook.buck.json.ProjectBuildFileParserFactory;
 import com.facebook.buck.model.BuildTarget;
-import com.facebook.buck.util.BuckConstant;
+import com.facebook.buck.parser.ParserConfig;
 import com.facebook.buck.util.Console;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.HashMultimap;
@@ -145,8 +145,6 @@ public class JavaSymbolFinder {
     ImmutableSetMultimap.Builder<Path, BuildTarget> sourceFileTargetsMultimap =
         ImmutableSetMultimap.builder();
     try (ProjectBuildFileParser parser = projectBuildFileParserFactory.createParser(
-        // TODO(jacko): Get this from the right place when plugins are working.
-        config.getDefaultIncludes(),
         console,
         environment,
         buckEventBus)) {
@@ -212,10 +210,11 @@ public class JavaSymbolFinder {
   private ImmutableList<Path> possibleBuckFilesForSourceFile(Path sourceFilePath) {
     ImmutableList.Builder<Path> possibleBuckFiles = ImmutableList.builder();
     Path dir = sourceFilePath.getParent();
+    ParserConfig parserConfig = new ParserConfig(config);
 
     // For a source file like foo/bar/example.java, add paths like foo/bar/BUCK and foo/BUCK.
     while (dir != null) {
-      Path buckFile = dir.resolve(BuckConstant.BUILD_RULES_FILE_NAME);
+      Path buckFile = dir.resolve(parserConfig.getBuildFileName());
       if (projectFilesystem.isFile(buckFile)) {
         possibleBuckFiles.add(buckFile);
       }
@@ -223,7 +222,7 @@ public class JavaSymbolFinder {
     }
 
     // Finally, add ./BUCK in the root directory.
-    Path rootBuckFile = Paths.get(BuckConstant.BUILD_RULES_FILE_NAME);
+    Path rootBuckFile = Paths.get(parserConfig.getBuildFileName());
     if (projectFilesystem.exists(rootBuckFile)) {
       possibleBuckFiles.add(rootBuckFile);
     }

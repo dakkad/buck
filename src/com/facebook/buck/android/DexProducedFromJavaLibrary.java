@@ -28,6 +28,7 @@ import com.facebook.buck.rules.BuildOutputInitializer;
 import com.facebook.buck.rules.BuildRule;
 import com.facebook.buck.rules.BuildRuleParams;
 import com.facebook.buck.rules.BuildableContext;
+import com.facebook.buck.rules.ImmutableSha1HashCode;
 import com.facebook.buck.rules.InitializableFromDisk;
 import com.facebook.buck.rules.OnDiskBuildInfo;
 import com.facebook.buck.rules.RuleKey;
@@ -118,10 +119,13 @@ public class DexProducedFromJavaLibrary extends AbstractBuildRule
 
       // To be conservative, use --force-jumbo for these intermediate .dex files so that they can be
       // merged into a final classes.dex that uses jumbo instructions.
-      DxStep dx = new DxStep(
-          getPathToDex(),
+      DxStep dx = new DxStep(getPathToDex(),
           Collections.singleton(pathToOutputFile),
-          EnumSet.of(DxStep.Option.NO_OPTIMIZE, DxStep.Option.FORCE_JUMBO));
+          EnumSet.of(
+              DxStep.Option.USE_CUSTOM_DX_IF_AVAILABLE,
+              DxStep.Option.RUN_IN_PROCESS,
+              DxStep.Option.NO_OPTIMIZE,
+              DxStep.Option.FORCE_JUMBO));
       steps.add(dx);
     } else {
       linearAllocEstimate = Suppliers.ofInstance(0);
@@ -209,6 +213,6 @@ public class DexProducedFromJavaLibrary extends AbstractBuildRule
       hasher.putUnencodedChars(entry.getValue().toString());
       hasher.putByte((byte) 0);
     }
-    return new Sha1HashCode(hasher.hash().toString());
+    return ImmutableSha1HashCode.of(hasher.hash().toString());
   }
 }

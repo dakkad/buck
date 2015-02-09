@@ -22,14 +22,14 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.junit.Assume.assumeTrue;
 
 import com.facebook.buck.cli.BuckConfig;
+import com.facebook.buck.cli.BuckConfigTestUtils;
 import com.facebook.buck.io.ProjectFilesystem;
 import com.facebook.buck.parser.BuildTargetParser;
-import com.facebook.buck.testutil.TestConsole;
 import com.facebook.buck.testutil.integration.DebuggableTemporaryFolder;
 import com.facebook.buck.util.HumanReadableException;
-import com.facebook.buck.util.ProcessExecutor;
 import com.facebook.buck.util.environment.Platform;
 import com.google.common.base.Functions;
 import com.google.common.base.Joiner;
@@ -65,7 +65,7 @@ public class JavaBuckConfigTest {
     Reader reader = new StringReader(
         Joiner.on('\n').join(
             "[tools]",
-            "    javac = " + javac.toPath().toString()));
+            "    javac = " + javac.toPath().toString().replace("\\", "\\\\")));
     JavaBuckConfig config = createWithDefaultFilesystem(reader);
 
     assertEquals(Optional.of(javac.toPath()), config.getJavacPath());
@@ -76,7 +76,7 @@ public class JavaBuckConfigTest {
     String invalidPath = temporaryFolder.getRoot().getAbsolutePath() + "DoesNotExist";
     Reader reader = new StringReader(Joiner.on('\n').join(
         "[tools]",
-        "    javac = " + invalidPath));
+        "    javac = " + invalidPath.replace("\\", "\\\\")));
     JavaBuckConfig config = createWithDefaultFilesystem(reader);
     try {
       config.getJavacPath();
@@ -89,7 +89,7 @@ public class JavaBuckConfigTest {
   @Test
   public void whenJavacIsNotExecutableThenHumanReadableExeceptionIsThrown() throws IOException {
     File javac = temporaryFolder.newFile();
-    javac.setExecutable(false);
+    assumeTrue("Should be able to set file non-executable", javac.setExecutable(false));
 
     Reader reader = new StringReader(Joiner.on('\n').join(
         "[tools]",
@@ -100,6 +100,21 @@ public class JavaBuckConfigTest {
       fail("Should throw exception as javac file is not executable.");
     } catch (HumanReadableException e) {
       assertEquals(e.getHumanReadableErrorMessage(), "Javac is not executable: " + javac.getPath());
+    }
+  }
+
+  @Test
+  public void whenJavacJarDoesNotExistThenHumanReadableExceptionIsThrown() throws IOException {
+    String invalidPath = temporaryFolder.getRoot().getAbsolutePath() + "DoesNotExist";
+    Reader reader = new StringReader(Joiner.on('\n').join(
+            "[tools]",
+            "    javac_jar = " + invalidPath.replace("\\", "\\\\")));
+    JavaBuckConfig config = createWithDefaultFilesystem(reader);
+    try {
+      config.getJavacJarPath();
+      fail("Should throw exception as javac file does not exist.");
+    } catch (HumanReadableException e) {
+      assertEquals(e.getHumanReadableErrorMessage(), "Javac JAR does not exist: " + invalidPath);
     }
   }
 
@@ -116,8 +131,7 @@ public class JavaBuckConfigTest {
 
     JavaBuckConfig config = createWithDefaultFilesystem(new StringReader(localConfig));
 
-    JavacOptions options = config.getDefaultJavacOptions(
-        new ProcessExecutor(new TestConsole()));
+    JavacOptions options = config.getDefaultJavacOptions();
 
     assertEquals(sourceLevel, options.getSourceLevel());
     assertEquals(targetLevel, options.getTargetLevel());
@@ -128,8 +142,7 @@ public class JavaBuckConfigTest {
       throws IOException, InterruptedException {
     JavaBuckConfig config = createWithDefaultFilesystem(new StringReader(""));
 
-    JavacOptions options = config.getDefaultJavacOptions(
-        new ProcessExecutor(new TestConsole()));
+    JavacOptions options = config.getDefaultJavacOptions();
 
     assertEquals(TARGETED_JAVA_VERSION, options.getSourceLevel());
     assertEquals(TARGETED_JAVA_VERSION, options.getTargetLevel());
@@ -141,7 +154,7 @@ public class JavaBuckConfigTest {
     String localConfig = "[java]\nbootclasspath-6 = one.jar\nbootclasspath-7 = two.jar";
     JavaBuckConfig config = createWithDefaultFilesystem(new StringReader(localConfig));
 
-    JavacOptions options = config.getDefaultJavacOptions(new ProcessExecutor(new TestConsole()));
+    JavacOptions options = config.getDefaultJavacOptions();
 
     JavacOptions jse5 = JavacOptions.builder(options).setSourceLevel("5").build();
     JavacOptions jse6 = JavacOptions.builder(options).setSourceLevel("6").build();
@@ -160,31 +173,11 @@ public class JavaBuckConfigTest {
     return joined.contains(expectedParameter);
   }
 
-  @Test
-  public void shouldDefaultToCreatingAnInMemoryJavac() throws IOException {
-    JavaBuckConfig config = createWithDefaultFilesystem(new StringReader(""));
-
-    Javac actualJavac = config.getJavac();
-    assertTrue(actualJavac instanceof Jsr199Javac);
-  }
-
-  @Test
-  public void shouldCreateAnExternalJavaWhenTheJavacPathIsSet() throws IOException {
-    File javac = temporaryFolder.newFile();
-    javac.setExecutable(true);
-
-    String localConfig = "[tools]\njavac = " + javac;
-    JavaBuckConfig config = createWithDefaultFilesystem(new StringReader(localConfig));
-
-    Javac actualJavac = config.getJavac();
-    assertTrue(actualJavac instanceof ExternalJavac);
-  }
-
   private JavaBuckConfig createWithDefaultFilesystem(Reader reader)
       throws IOException {
     ProjectFilesystem filesystem = new ProjectFilesystem(temporaryFolder.getRootPath());
     BuildTargetParser parser = new BuildTargetParser();
-    BuckConfig raw = BuckConfig.createFromReader(
+    BuckConfig raw = BuckConfigTestUtils.createFromReader(
         reader,
         filesystem,
         parser,

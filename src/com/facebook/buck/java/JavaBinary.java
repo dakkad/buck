@@ -48,8 +48,8 @@ import java.util.Collections;
 
 import javax.annotation.Nullable;
 
-public class JavaBinary extends AbstractBuildRule implements BinaryBuildRule,
-    HasClasspathEntries {
+@BuildsAnnotationProcessor
+public class JavaBinary extends AbstractBuildRule implements BinaryBuildRule, HasClasspathEntries {
 
   private static final BuildableProperties OUTPUT_TYPE = new BuildableProperties(PACKAGING);
 
@@ -89,7 +89,7 @@ public class JavaBinary extends AbstractBuildRule implements BinaryBuildRule,
   public RuleKey.Builder appendDetailsToRuleKey(RuleKey.Builder builder) {
     return builder
         .setReflectively("mainClass", mainClass)
-        .set("blacklist", blacklist);
+        .setReflectively("blacklist", blacklist);
   }
 
   @Override

@@ -18,18 +18,20 @@ package com.facebook.buck.android;
 
 import com.facebook.buck.android.AndroidLibraryGraphEnhancer.ResourceDependencyMode;
 import com.facebook.buck.java.AnnotationProcessingParams;
+import com.facebook.buck.java.ImmutableJavacOptions;
 import com.facebook.buck.java.JavaLibraryDescription;
 import com.facebook.buck.java.JavaTestDescription;
-import com.facebook.buck.java.Javac;
 import com.facebook.buck.java.JavacOptions;
 import com.facebook.buck.rules.BuildRule;
 import com.facebook.buck.rules.BuildRuleParams;
 import com.facebook.buck.rules.BuildRuleResolver;
 import com.facebook.buck.rules.BuildRuleType;
 import com.facebook.buck.rules.Description;
+import com.facebook.buck.rules.ImmutableBuildRuleType;
 import com.facebook.buck.rules.SourcePathResolver;
 import com.facebook.infer.annotation.SuppressFieldNotInitialized;
 import com.google.common.base.Optional;
+import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSortedSet;
 
@@ -37,17 +39,14 @@ import java.nio.file.Path;
 
 public class RobolectricTestDescription implements Description<RobolectricTestDescription.Arg> {
 
-  public static final BuildRuleType TYPE = new BuildRuleType("robolectric_test");
+  public static final BuildRuleType TYPE = ImmutableBuildRuleType.of("robolectric_test");
 
-  private final Javac javac;
   private final JavacOptions templateOptions;
   private final Optional<Long> testRuleTimeoutMs;
 
   public RobolectricTestDescription(
-      Javac javac,
       JavacOptions templateOptions,
       Optional<Long> testRuleTimeoutMs) {
-    this.javac = javac;
     this.templateOptions = templateOptions;
     this.testRuleTimeoutMs = testRuleTimeoutMs;
   }
@@ -69,7 +68,8 @@ public class RobolectricTestDescription implements Description<RobolectricTestDe
       A args) {
     SourcePathResolver pathResolver = new SourcePathResolver(resolver);
 
-    JavacOptions.Builder javacOptions = JavaLibraryDescription.getJavacOptions(
+    ImmutableJavacOptions.Builder javacOptions = JavaLibraryDescription.getJavacOptions(
+        pathResolver,
         args,
         templateOptions);
 
@@ -77,12 +77,12 @@ public class RobolectricTestDescription implements Description<RobolectricTestDe
         params.getBuildTarget(),
         params.getProjectFilesystem(),
         resolver);
-    javacOptions.setAnnotationProcessingData(annotationParams);
+    javacOptions.setAnnotationProcessingParams(annotationParams);
 
     AndroidLibraryGraphEnhancer graphEnhancer = new AndroidLibraryGraphEnhancer(
         params.getBuildTarget(),
-        params.copyWithExtraDeps(resolver.getAllRules(args.exportedDeps.get())),
-        javac,
+        params.copyWithExtraDeps(
+            Suppliers.ofInstance(resolver.getAllRules(args.exportedDeps.get()))),
         javacOptions.build(),
         ResourceDependencyMode.TRANSITIVE);
     Optional<DummyRDotJava> dummyRDotJava = graphEnhancer.createBuildableForAndroidResources(
@@ -96,7 +96,7 @@ public class RobolectricTestDescription implements Description<RobolectricTestDe
           .addAll(params.getExtraDeps())
           .add(dummyRDotJava.get())
           .build();
-      params = params.copyWithExtraDeps(newExtraDeps);
+      params = params.copyWithExtraDeps(Suppliers.ofInstance(newExtraDeps));
     }
 
     return new RobolectricTest(
@@ -110,7 +110,6 @@ public class RobolectricTestDescription implements Description<RobolectricTestDe
         args.contacts.get(),
         args.proguardConfig,
         additionalClasspathEntries,
-        javac,
         javacOptions.build(),
         args.vmArgs.get(),
         JavaTestDescription.validateAndGetSourcesUnderTest(

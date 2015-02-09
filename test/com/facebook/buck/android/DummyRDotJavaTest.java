@@ -18,7 +18,6 @@ package com.facebook.buck.android;
 
 import static com.facebook.buck.android.AndroidResource.BuildOutput;
 import static com.facebook.buck.java.JavaCompilationConstants.ANDROID_JAVAC_OPTIONS;
-import static com.facebook.buck.java.JavaCompilationConstants.DEFAULT_JAVAC;
 import static org.junit.Assert.assertEquals;
 
 import com.facebook.buck.model.BuildTargetFactory;
@@ -29,6 +28,7 @@ import com.facebook.buck.rules.BuildRuleResolver;
 import com.facebook.buck.rules.FakeBuildRuleParamsBuilder;
 import com.facebook.buck.rules.FakeBuildableContext;
 import com.facebook.buck.rules.FakeOnDiskBuildInfo;
+import com.facebook.buck.rules.ImmutableSha1HashCode;
 import com.facebook.buck.rules.Sha1HashCode;
 import com.facebook.buck.rules.SourcePathResolver;
 import com.facebook.buck.step.Step;
@@ -83,7 +83,6 @@ public class DummyRDotJavaTest {
         ImmutableSet.of(
             (HasAndroidResourceDeps) resourceRule1,
             (HasAndroidResourceDeps) resourceRule2),
-        DEFAULT_JAVAC,
         ANDROID_JAVAC_OPTIONS);
 
     FakeBuildableContext buildableContext = new FakeBuildableContext();
@@ -129,7 +128,6 @@ public class DummyRDotJavaTest {
             .build(),
         new SourcePathResolver(new BuildRuleResolver()),
         ImmutableSet.<HasAndroidResourceDeps>of(),
-        DEFAULT_JAVAC,
         ANDROID_JAVAC_OPTIONS);
     assertEquals(Paths.get("buck-out/bin/java/com/example/__library_rdotjava_bin__"),
         dummyRDotJava.getRDotJavaBinFolder());
@@ -141,7 +139,6 @@ public class DummyRDotJavaTest {
         new FakeBuildRuleParamsBuilder(BuildTargetFactory.newInstance("//java/base:rule")).build(),
         new SourcePathResolver(new BuildRuleResolver()),
         ImmutableSet.<HasAndroidResourceDeps>of(),
-        DEFAULT_JAVAC,
         ANDROID_JAVAC_OPTIONS);
 
     FakeOnDiskBuildInfo onDiskBuildInfo = new FakeOnDiskBuildInfo();
@@ -163,7 +160,6 @@ public class DummyRDotJavaTest {
     return RDotJava.createJavacStepForDummyRDotJavaFiles(
         javaSourceFiles,
         Paths.get(rDotJavaClassesFolder),
-        DEFAULT_JAVAC,
         ANDROID_JAVAC_OPTIONS,
         /* buildTarget */ null)
         .getDescription(TestExecutionContext.newInstance());
@@ -180,7 +176,7 @@ public class DummyRDotJavaTest {
     if (resourceRule instanceof AndroidResource) {
       ((AndroidResource) resourceRule)
           .getBuildOutputInitializer()
-          .setBuildOutput(new BuildOutput(new Sha1HashCode(sha1HashCode)));
+          .setBuildOutput(new BuildOutput(ImmutableSha1HashCode.of(sha1HashCode)));
     }
   }
 }

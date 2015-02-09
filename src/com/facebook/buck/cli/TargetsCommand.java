@@ -27,6 +27,7 @@ import com.facebook.buck.model.HasTests;
 import com.facebook.buck.model.InMemoryBuildFileTree;
 import com.facebook.buck.parser.NoSuchBuildTargetException;
 import com.facebook.buck.parser.Parser;
+import com.facebook.buck.parser.ParserConfig;
 import com.facebook.buck.parser.TargetNodePredicateSpec;
 import com.facebook.buck.rules.ActionGraph;
 import com.facebook.buck.rules.BuildRule;
@@ -122,6 +123,7 @@ public class TargetsCommand extends AbstractCommandRunner<TargetsCommandOptions>
     // know which targets can refer to the specified targets or their dependencies in their
     // 'source_under_test'. Once we migrate from 'source_under_test' to 'tests', this should no
     // longer be necessary.
+    ParserConfig parserConfig = new ParserConfig(options.getBuckConfig());
     TargetGraph graph;
     try {
       if (matchingBuildTargets.isEmpty() || options.isDetectTestChanges()) {
@@ -130,7 +132,7 @@ public class TargetsCommand extends AbstractCommandRunner<TargetsCommandOptions>
                 new TargetNodePredicateSpec(
                     Predicates.<TargetNode<?>>alwaysTrue(),
                     getProjectFilesystem().getIgnorePaths())),
-            options.getDefaultIncludes(),
+            parserConfig,
             getBuckEventBus(),
             console,
             environment,
@@ -138,7 +140,7 @@ public class TargetsCommand extends AbstractCommandRunner<TargetsCommandOptions>
       } else {
         graph = getParser().buildTargetGraphForBuildTargets(
             matchingBuildTargets,
-            options.getDefaultIncludes(),
+            parserConfig,
             getBuckEventBus(),
             console,
             environment,
@@ -170,13 +172,14 @@ public class TargetsCommand extends AbstractCommandRunner<TargetsCommandOptions>
           buildRuleTypes.isEmpty() ?
               Optional.<ImmutableSet<BuildRuleType>>absent() :
               Optional.of(buildRuleTypes),
-          options.isDetectTestChanges());
+          options.isDetectTestChanges(),
+          parserConfig.getBuildFileName());
     }
 
     // Print out matching targets in alphabetical order.
     if (options.getPrintJson()) {
       try {
-        printJsonForTargets(matchingNodes, options.getDefaultIncludes());
+        printJsonForTargets(matchingNodes, new ParserConfig(options.getBuckConfig()));
       } catch (BuildFileParseException e) {
         console.printBuildFailureWithoutStacktrace(e);
         return 1;
@@ -207,7 +210,8 @@ public class TargetsCommand extends AbstractCommandRunner<TargetsCommandOptions>
       Optional<ImmutableSet<Path>> referencedFiles,
       final Optional<ImmutableSet<BuildTarget>> matchingBuildTargets,
       final Optional<ImmutableSet<BuildRuleType>> buildRuleTypes,
-      boolean detectTestChanges) {
+      boolean detectTestChanges,
+      String buildFileName) {
     ImmutableSet<TargetNode<?>> directOwners;
     if (referencedFiles.isPresent()) {
       BuildFileTree buildFileTree = new InMemoryBuildFileTree(
@@ -220,7 +224,8 @@ public class TargetsCommand extends AbstractCommandRunner<TargetsCommandOptions>
           .filter(
               new DirectOwnerPredicate(
                   buildFileTree,
-                  referencedFiles.get()))
+                  referencedFiles.get(),
+                  buildFileName))
           .toSet();
     } else {
       directOwners = graph.getNodes();
@@ -321,15 +326,7 @@ public class TargetsCommand extends AbstractCommandRunner<TargetsCommandOptions>
   @VisibleForTesting
   void printJsonForTargets(
       SortedMap<String, TargetNode<?>> buildIndex,
-      Iterable<String> defaultIncludes)
-      throws BuildFileParseException, IOException, InterruptedException {
-    ImmutableList<String> includesCopy = ImmutableList.copyOf(defaultIncludes);
-    printJsonForTargetsInternal(buildIndex, includesCopy);
-  }
-
-  private void printJsonForTargetsInternal(
-      SortedMap<String, TargetNode<?>> buildIndex,
-      ImmutableList<String> defaultIncludes)
+      ParserConfig parserConfig)
       throws BuildFileParseException, IOException, InterruptedException {
     // Print the JSON representation of the build node for the specified target(s).
     getStdOut().println("[");
@@ -345,7 +342,7 @@ public class TargetsCommand extends AbstractCommandRunner<TargetsCommandOptions>
         Path buildFile = getRepository().getAbsolutePathToBuildFile(buildTarget);
         rules = getParser().parseBuildFile(
             buildFile,
-            defaultIncludes,
+            parserConfig,
             environment,
             console,
             getBuckEventBus());
@@ -443,7 +440,7 @@ public class TargetsCommand extends AbstractCommandRunner<TargetsCommandOptions>
     try {
       targetGraph = getParser().buildTargetGraphForBuildTargets(
           matchingBuildTargets,
-          options.getDefaultIncludes(),
+          new ParserConfig(options.getBuckConfig()),
           getBuckEventBus(),
           console,
           environment,
@@ -518,7 +515,7 @@ public class TargetsCommand extends AbstractCommandRunner<TargetsCommandOptions>
     try {
       ruleObjects = parser.parseBuildFile(
           getRepository().getAbsolutePathToBuildFile(buildTarget),
-          options.getDefaultIncludes(),
+          new ParserConfig(options.getBuckConfig()),
           environment,
           console,
           getBuckEventBus());
@@ -541,6 +538,7 @@ public class TargetsCommand extends AbstractCommandRunner<TargetsCommandOptions>
 
     private final ImmutableSet<Path> referencedInputs;
     private final ImmutableSet<Path> basePathOfTargets;
+    private final String buildFileName;
 
     /**
      * @param referencedInputs A {@link TargetNode} must reference at least one of these paths as
@@ -549,7 +547,8 @@ public class TargetsCommand extends AbstractCommandRunner<TargetsCommandOptions>
      */
     public DirectOwnerPredicate(
         BuildFileTree buildFileTree,
-        ImmutableSet<Path> referencedInputs) {
+        ImmutableSet<Path> referencedInputs,
+        String buildFileName) {
       this.referencedInputs = referencedInputs;
 
       ImmutableSet.Builder<Path> basePathOfTargetsBuilder = ImmutableSet.builder();
@@ -559,7 +558,8 @@ public class TargetsCommand extends AbstractCommandRunner<TargetsCommandOptions>
           basePathOfTargetsBuilder.add(path.get());
         }
       }
-      basePathOfTargets = basePathOfTargetsBuilder.build();
+      this.basePathOfTargets = basePathOfTargetsBuilder.build();
+      this.buildFileName = buildFileName;
     }
 
     @Override
@@ -578,7 +578,7 @@ public class TargetsCommand extends AbstractCommandRunner<TargetsCommandOptions>
         }
       }
 
-      return referencedInputs.contains(node.getBuildTarget().getBuildFilePath());
+      return referencedInputs.contains(node.getBuildTarget().getBasePath().resolve(buildFileName));
     }
   }
 }

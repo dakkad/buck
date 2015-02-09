@@ -84,8 +84,8 @@ public class CxxPreprocess extends AbstractBuildRule {
   @Override
   protected RuleKey.Builder appendDetailsToRuleKey(RuleKey.Builder builder) {
     builder
-        .set("preprocessor", preprocessor)
-        .set("output", output.toString());
+        .setReflectively("preprocessor", preprocessor)
+        .setReflectively("output", output.toString());
 
     // Sanitize any relevant paths in the flags we pass to the preprocessor, to prevent them
     // from contributing to the rule key.
@@ -95,18 +95,18 @@ public class CxxPreprocess extends AbstractBuildRule {
           .transform(sanitizer.get().sanitize(Optional.<Path>absent(), /* expandPaths */ false))
           .toList();
     }
-    builder.set("flags", flags);
+    builder.setReflectively("flags", flags);
 
     // Hash the layout of each potentially included C/C++ header file and it's contents.
     // We do this here, rather than returning them from `getInputsToCompareToOutput` so
     // that we can match the contents hash up with where it was laid out in the include
     // search path, and therefore can accurately capture header file renames.
-    for (Path path : ImmutableSortedSet.copyOf(includes.nameToPathMap().keySet())) {
-      SourcePath source = includes.nameToPathMap().get(path);
-      builder.setInput("include(" + path + ")", getResolver().getPath(source));
+    for (Path path : ImmutableSortedSet.copyOf(includes.getNameToPathMap().keySet())) {
+      SourcePath source = includes.getNameToPathMap().get(path);
+      builder.setReflectively("include(" + path + ")", getResolver().getPath(source));
     }
 
-    builder.set(
+    builder.setReflectively(
         "frameworkRoots",
         FluentIterable.from(frameworkRoots)
             .transform(Functions.toStringFunction())
@@ -123,7 +123,7 @@ public class CxxPreprocess extends AbstractBuildRule {
 
     // Resolve the map of symlinks to real paths to hand off the preprocess step.
     ImmutableMap.Builder<Path, Path> replacementPathsBuilder = ImmutableMap.builder();
-    for (Map.Entry<Path, SourcePath> entry : includes.fullNameToPathMap().entrySet()) {
+    for (Map.Entry<Path, SourcePath> entry : includes.getFullNameToPathMap().entrySet()) {
       replacementPathsBuilder.put(entry.getKey(), getResolver().getPath(entry.getValue()));
     }
     ImmutableMap<Path, Path> replacementPaths = replacementPathsBuilder.build();

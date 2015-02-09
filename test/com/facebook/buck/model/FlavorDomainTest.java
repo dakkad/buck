@@ -30,30 +30,33 @@ public class FlavorDomainTest {
 
   @Test
   public void getFlavor() throws FlavorDomainException {
-    Flavor flavor = new Flavor("hello");
+    Flavor flavor = ImmutableFlavor.of("hello");
     FlavorDomain<String> domain = new FlavorDomain<>(
         "test",
         ImmutableMap.of(flavor, "something"));
     BuildTarget target = BuildTargetFactory.newInstance("//:test#hello");
-    assertEquals(Optional.of(flavor), domain.getFlavor(target.getFlavors()));
+    assertEquals(Optional.of(flavor), domain.getFlavor(ImmutableSet.copyOf(target.getFlavors())));
     target = BuildTargetFactory.newInstance("//:test#invalid");
-    assertEquals(Optional.<Flavor>absent(), domain.getFlavor(target.getFlavors()));
+    assertEquals(
+        Optional.<Flavor>absent(),
+        domain.getFlavor(ImmutableSet.copyOf(target.getFlavors())));
   }
 
   @Test
   public void multipleFlavorsForSameDomainShouldThrow() {
-    Flavor hello = new Flavor("hello");
-    Flavor goodbye = new Flavor("goodbye");
+    Flavor hello = ImmutableFlavor.of("hello");
+    Flavor goodbye = ImmutableFlavor.of("goodbye");
     FlavorDomain<String> domain = new FlavorDomain<>(
         "test",
         ImmutableMap.of(
             hello, "something",
             goodbye, "something"));
-    BuildTarget target = BuildTargets.extendFlavoredBuildTarget(
-        BuildTargetFactory.newInstance("//:test"),
-        ImmutableSet.of(hello, goodbye));
+    BuildTarget target = BuildTarget
+        .builder(BuildTargetFactory.newInstance("//:test"))
+        .addAllFlavors(ImmutableSet.of(hello, goodbye))
+        .build();
     try {
-      domain.getFlavor(target.getFlavors());
+      domain.getFlavor(ImmutableSet.copyOf(target.getFlavors()));
       fail("should have thrown");
     } catch (FlavorDomainException e) {
       assertTrue(e.getMessage().contains("multiple \"test\" flavors"));
@@ -62,14 +65,14 @@ public class FlavorDomainTest {
 
   @Test
   public void getValue() throws FlavorDomainException {
-    Flavor flavor = new Flavor("hello");
+    Flavor flavor = ImmutableFlavor.of("hello");
     FlavorDomain<String> domain = new FlavorDomain<>(
         "test",
         ImmutableMap.of(flavor, "something"));
     String val = domain.getValue(flavor);
     assertEquals("something", val);
     try {
-      domain.getValue(new Flavor("invalid"));
+      domain.getValue(ImmutableFlavor.of("invalid"));
       fail("should have thrown");
     } catch (FlavorDomainException e) {
       assertTrue(e.getMessage().contains("has no flavor"));

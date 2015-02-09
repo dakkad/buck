@@ -21,6 +21,7 @@ import com.facebook.buck.io.ProjectFilesystem;
 import com.facebook.buck.model.BuildTarget;
 import com.facebook.buck.model.BuildTargets;
 import com.facebook.buck.model.Flavor;
+import com.facebook.buck.model.ImmutableFlavor;
 import com.facebook.buck.rules.AbstractBuildRule;
 import com.facebook.buck.rules.BuildContext;
 import com.facebook.buck.rules.BuildRuleParams;
@@ -41,6 +42,7 @@ import com.google.common.base.Joiner;
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Objects;
 import com.google.common.base.Optional;
+import com.google.common.base.Preconditions;
 import com.google.common.base.Predicate;
 import com.google.common.base.Strings;
 import com.google.common.collect.FluentIterable;
@@ -69,7 +71,7 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public class CompilationDatabase extends AbstractBuildRule {
 
-  public static final Flavor COMPILATION_DATABASE = new Flavor("compilation-database");
+  public static final Flavor COMPILATION_DATABASE = ImmutableFlavor.of("compilation-database");
 
 
   private final AppleConfig appleConfig;
@@ -253,10 +255,10 @@ public class CompilationDatabase extends AbstractBuildRule {
 
         // TODO(mbolin): Make the sysroot configurable.
         commandArgs.add("-isysroot");
-        Path sysroot = appleSdkPaths.sdkPath();
+        Path sysroot = appleSdkPaths.getSdkPath();
         commandArgs.add(sysroot.toString());
 
-        String sdkRoot = appleSdkPaths.sdkPath().toString();
+        String sdkRoot = appleSdkPaths.getSdkPath().toString();
         for (String framework : frameworks) {
           // TODO(mbolin): Other placeholders are possible, but do not appear to be used yet.
           // Specifically, PBXReference.SourceTree#fromBuildSetting() seems to have more
@@ -338,7 +340,7 @@ public class CompilationDatabase extends AbstractBuildRule {
             .onResultOf(new Function<AppleSdk, String>() {
                 @Override
                 public String apply(AppleSdk appleSdk) {
-                    return appleSdk.version();
+                    return appleSdk.getVersion();
                 }
             });
 
@@ -347,7 +349,7 @@ public class CompilationDatabase extends AbstractBuildRule {
         .filter(new Predicate<AppleSdk>() {
           @Override
           public boolean apply(AppleSdk sdk) {
-            return sdk.applePlatform() == ApplePlatform.IPHONESIMULATOR;
+            return sdk.getApplePlatform() == ApplePlatform.IPHONESIMULATOR;
           }
         })
         .toSortedSet(appleSdkVersionComparator);
@@ -355,7 +357,7 @@ public class CompilationDatabase extends AbstractBuildRule {
       throw new RuntimeException("No iphonesimulator found in: " + allAppleSdkPaths.keySet());
     }
 
-    return allAppleSdkPaths.get(sortedIphoneSimulatorSdks.last());
+    return Preconditions.checkNotNull(allAppleSdkPaths.get(sortedIphoneSimulatorSdks.last()));
   }
 
   @VisibleForTesting

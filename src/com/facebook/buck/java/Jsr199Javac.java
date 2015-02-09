@@ -19,8 +19,11 @@ package com.facebook.buck.java;
 import com.facebook.buck.event.MissingSymbolEvent;
 import com.facebook.buck.log.Logger;
 import com.facebook.buck.model.BuildTarget;
+import com.facebook.buck.rules.RuleKey;
 import com.facebook.buck.step.ExecutionContext;
+import com.facebook.buck.util.ClassLoaderCache;
 import com.facebook.buck.util.HumanReadableException;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Function;
 import com.google.common.base.Functions;
 import com.google.common.base.Joiner;
@@ -75,6 +78,33 @@ import javax.tools.ToolProvider;
 public class Jsr199Javac implements Javac {
 
   private static final Logger LOG = Logger.get(Jsr199Javac.class);
+  private static final JavacVersion VERSION = new JavacVersion() {
+    @Override
+    public String getVersionString() {
+      return "in memory";
+    }
+  };
+
+  @Override
+  public JavacVersion getVersion() {
+    return VERSION;
+  }
+
+  private Optional<Path> javacJar;
+
+  /**
+   * @param javacJar If absent, use the system compiler.  Otherwise, load the compiler from this
+   *                 path.
+   */
+  Jsr199Javac(Optional<Path> javacJar) {
+    // XXX: maybe we can accept a Provider<JavaCompiler> or just a JavaCompiler instance.
+    this.javacJar = javacJar;
+  }
+
+  @VisibleForTesting
+  public Optional<Path> getJavacJar() {
+    return javacJar;
+  }
 
   @Override
   public String getDescription(
@@ -101,6 +131,18 @@ public class Jsr199Javac implements Javac {
   }
 
   @Override
+  public boolean isUsingWorkspace() {
+    return false;
+  }
+
+  @Override
+  public RuleKey.Builder appendToRuleKey(RuleKey.Builder builder, String key) {
+    return builder.setReflectively(key + ".javac", "jsr199")
+        .setReflectively(key + ".javac.version", "in-memory")
+        .setReflectively(key + ".javacjar", javacJar);
+  }
+
+  @Override
   public int buildWithClasspath(
       ExecutionContext context,
       BuildTarget invokingRule,
@@ -108,10 +150,34 @@ public class Jsr199Javac implements Javac {
       ImmutableSet<Path> javaSourceFilePaths,
       Optional<Path> pathToSrcsList,
       Optional<Path> workingDirectory) {
-    JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
-    Preconditions.checkNotNull(
-        compiler,
-        "If using JRE instead of JDK, ToolProvider.getSystemJavaCompiler() may be null.");
+    JavaCompiler compiler;
+
+    if (javacJar.isPresent()) {
+      ClassLoaderCache classLoaderCache = context.getClassLoaderCache();
+      ClassLoader compilerClassLoader = classLoaderCache.getClassLoaderForClassPath(
+          ClassLoader.getSystemClassLoader(),
+          ImmutableList.of(javacJar.get()));
+      try {
+        compiler = (JavaCompiler)
+            compilerClassLoader.loadClass("com.sun.tools.javac.api.JavacTool")
+            .newInstance();
+      } catch (ClassNotFoundException | IllegalAccessException | InstantiationException ex) {
+        throw new RuntimeException(ex);
+      }
+    } else {
+      synchronized (ToolProvider.class) {
+        // ToolProvider has no synchronization internally, so if we don't synchronize from the
+        // outside we could wind up loading the compiler classes multiple times from different
+        // class loaders.
+        compiler = ToolProvider.getSystemJavaCompiler();
+      }
+
+      if (compiler == null) {
+        throw new HumanReadableException(
+            "No system compiler found. Did you install the JRE instead of the JDK?");
+      }
+    }
+
     StandardJavaFileManager fileManager = compiler.getStandardFileManager(null, null, null);
     Iterable<? extends JavaFileObject> compilationUnits = ImmutableSet.of();
     try {
@@ -120,7 +186,7 @@ public class Jsr199Javac implements Javac {
           context.getProjectFilesystem().getAbsolutifier(),
           javaSourceFilePaths);
     } catch (IOException e) {
-      close(fileManager, compilationUnits, null);
+      close(fileManager, compilationUnits);
       e.printStackTrace(context.getStdErr());
       return 1;
     }
@@ -136,7 +202,7 @@ public class Jsr199Javac implements Javac {
                 .transform(ARGFILES_ESCAPER),
             pathToSrcsList.get());
       } catch (IOException e) {
-        close(fileManager, compilationUnits, null);
+        close(fileManager, compilationUnits);
         context.logError(
             e,
             "Cannot write list of .java files to compile to %s file! Terminating compilation.",
@@ -164,13 +230,16 @@ public class Jsr199Javac implements Javac {
     boolean isSuccess;
 
     try {
-      bundle = prepareProcessors(invokingRule, options);
+      bundle = prepareProcessors(
+          compiler.getClass().getClassLoader(),
+          invokingRule,
+          options);
       compilationTask.setProcessors(bundle.processors);
 
       // Invoke the compilation and inspect the result.
       isSuccess = compilationTask.call();
     } finally {
-      close(fileManager, compilationUnits, bundle);
+      close(fileManager, compilationUnits);
     }
 
     if (isSuccess) {
@@ -202,8 +271,7 @@ public class Jsr199Javac implements Javac {
 
   private void close(
       JavaFileManager fileManager,
-      Iterable<? extends JavaFileObject> compilationUnits,
-      @Nullable ProcessorBundle bundle) {
+      Iterable<? extends JavaFileObject> compilationUnits) {
     try {
       fileManager.close();
     } catch (IOException e) {
@@ -220,13 +288,12 @@ public class Jsr199Javac implements Javac {
         LOG.warn(e, "Unable to close zipfile. We may be leaking memory.");
       }
     }
-
-    if (bundle != null) {
-      bundle.close();
-    }
   }
 
-  private ProcessorBundle prepareProcessors(BuildTarget target, List<String> options) {
+  private ProcessorBundle prepareProcessors(
+      ClassLoader compilerClassLoader,
+      @Nullable BuildTarget target,
+      List<String> options) {
     String processorClassPath = null;
     String processorNames = null;
 
@@ -244,6 +311,12 @@ public class Jsr199Javac implements Javac {
     if (processorClassPath == null || processorNames == null) {
       return processorBundle;
     }
+
+    // N.B. You might think that we could avoid some overhead by using the same classloader every
+    // time we create an instance of annotation processor.  In an ideal world, that would work well,
+    // but many annotation processors aren't thread-safe, and they store state in class-static
+    // variables.  In the interest of maximum safety, we'll create a new ClassLoader every time we
+    // need an annotation processor.
 
     Iterable<String> rawPaths = Splitter.on(File.pathSeparator)
         .omitEmptyStrings()
@@ -266,7 +339,7 @@ public class Jsr199Javac implements Javac {
         .toArray(URL.class);
     processorBundle.classLoader = new URLClassLoader(
         urls,
-        ToolProvider.getSystemToolClassLoader());
+        compilerClassLoader);
 
     Iterable<String> names = Splitter.on(",")
         .trimResults()
@@ -282,7 +355,6 @@ public class Jsr199Javac implements Javac {
                 .asSubclass(Processor.class);
         processorBundle.processors.add(aClass.newInstance());
       } catch (ReflectiveOperationException e) {
-        processorBundle.close();
         // If this happens, then the build is really in trouble. Better warn the user.
         throw new HumanReadableException(
             "%s: javac unable to load annotation processor: %s",
@@ -345,23 +417,7 @@ public class Jsr199Javac implements Javac {
 
   private static class ProcessorBundle {
     @Nullable
-    public URLClassLoader classLoader;
+    public ClassLoader classLoader;
     public List<Processor> processors = Lists.newArrayList();
-
-    public void close() {
-      if (classLoader == null) {
-        return;
-      }
-
-      try {
-        classLoader.close();
-      } catch (IOException e) {
-        // Nothing sane to do. Log and carry on.
-        LOG.warn("Unable to close annotation processor classloader.");
-      } finally {
-        // Null out the classloader to allow it to be garbage collected.
-        classLoader = null;
-      }
-    }
   }
 }

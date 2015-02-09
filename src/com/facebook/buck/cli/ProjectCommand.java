@@ -18,21 +18,23 @@ package com.facebook.buck.cli;
 
 import com.facebook.buck.apple.AppleBuildRules;
 import com.facebook.buck.apple.AppleTestDescription;
+import com.facebook.buck.apple.ProjectGenerator;
+import com.facebook.buck.apple.WorkspaceAndProjectGenerator;
 import com.facebook.buck.apple.XcodeProjectConfigDescription;
 import com.facebook.buck.apple.XcodeWorkspaceConfigDescription;
-import com.facebook.buck.apple.xcode.ProjectGenerator;
-import com.facebook.buck.apple.xcode.WorkspaceAndProjectGenerator;
 import com.facebook.buck.java.JavaLibraryDescription;
 import com.facebook.buck.java.intellij.Project;
 import com.facebook.buck.json.BuildFileParseException;
 import com.facebook.buck.log.Logger;
 import com.facebook.buck.model.BuildTarget;
 import com.facebook.buck.model.BuildTargetException;
+import com.facebook.buck.model.FilesystemBackedBuildFileTree;
 import com.facebook.buck.model.HasBuildTarget;
+import com.facebook.buck.parser.ParserConfig;
 import com.facebook.buck.parser.TargetNodePredicateSpec;
+import com.facebook.buck.python.PythonBuckConfig;
 import com.facebook.buck.rules.ActionGraph;
 import com.facebook.buck.rules.AssociatedTargetNodePredicate;
-import com.facebook.buck.rules.BuildRule;
 import com.facebook.buck.rules.BuildRuleResolver;
 import com.facebook.buck.rules.ProjectConfig;
 import com.facebook.buck.rules.ProjectConfigDescription;
@@ -47,7 +49,6 @@ import com.facebook.buck.util.HumanReadableException;
 import com.facebook.buck.util.ProcessManager;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Charsets;
-import com.google.common.base.Function;
 import com.google.common.base.Functions;
 import com.google.common.base.Optional;
 import com.google.common.base.Preconditions;
@@ -55,7 +56,6 @@ import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
 import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMultimap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.io.Files;
 
@@ -120,7 +120,7 @@ public class ProjectCommand extends AbstractCommandRunner<ProjectCommandOptions>
               new TargetNodePredicateSpec(
                   Predicates.<TargetNode<?>>alwaysTrue(),
                   getProjectFilesystem().getIgnorePaths())),
-          options.getDefaultIncludes(),
+          new ParserConfig(options.getBuckConfig()),
           getBuckEventBus(),
           console,
           environment,
@@ -177,98 +177,90 @@ public class ProjectCommand extends AbstractCommandRunner<ProjectCommandOptions>
     // configuration files.
     ActionGraph actionGraph = targetGraphTransformer.apply(targetGraphAndTargets.getTargetGraph());
 
-    ExecutionContext executionContext = createExecutionContext(
-        options,
-        actionGraph);
+    try (ExecutionContext executionContext = createExecutionContext(
+            options,
+            actionGraph)) {
 
-    Project project = new Project(
-        new SourcePathResolver(new BuildRuleResolver(actionGraph.getNodes())),
-        ImmutableSet.copyOf(
-            FluentIterable
-                .from(actionGraph.getNodes())
-                .filter(
-                    new Predicate<BuildRule>() {
-                      @Override
-                      public boolean apply(BuildRule input) {
-                        return input instanceof ProjectConfig;
-                      }
-                    })
-                .transform(
-                    new Function<BuildRule, ProjectConfig>() {
-                      @Override
-                      public ProjectConfig apply(BuildRule input) {
-                        return (ProjectConfig) input;
-                      }
-                    }
-                )),
-        actionGraph,
-        options.getBasePathToAliasMap(),
-        options.getJavaPackageFinder(),
-        executionContext,
-        getProjectFilesystem(),
-        options.getPathToDefaultAndroidManifest(),
-        options.getPathToPostProcessScript(),
-        options.getBuckConfig().getPythonInterpreter(),
-        getObjectMapper());
+      Project project = new Project(
+          new SourcePathResolver(new BuildRuleResolver(actionGraph.getNodes())),
+          FluentIterable
+              .from(actionGraph.getNodes())
+              .filter(ProjectConfig.class)
+              .toSet(),
+          actionGraph,
+          options.getBasePathToAliasMap(),
+          options.getJavaPackageFinder(),
+          executionContext,
+          new FilesystemBackedBuildFileTree(
+              getProjectFilesystem(),
+              new ParserConfig(options.getBuckConfig()).getBuildFileName()),
+          getProjectFilesystem(),
+          options.getPathToDefaultAndroidManifest(),
+          options.getPathToPostProcessScript(),
+          new PythonBuckConfig(options.getBuckConfig()).getPythonInterpreter(),
+          getObjectMapper());
 
-    File tempDir = Files.createTempDir();
-    File tempFile = new File(tempDir, "project.json");
-    int exitCode;
-    try {
-      exitCode = project.createIntellijProject(
-          tempFile,
-          executionContext.getProcessExecutor(),
-          !passedInTargetsSet.isEmpty(),
-          console.getStdOut(),
-          console.getStdErr());
-      if (exitCode != 0) {
-        return exitCode;
-      }
-
-      List<String> additionalInitialTargets = ImmutableList.of();
-      if (options.shouldProcessAnnotations()) {
-        try {
-          additionalInitialTargets = getAnnotationProcessingTargets(fullGraph, passedInTargetsSet);
-        } catch (BuildTargetException | BuildFileParseException e) {
-          throw new HumanReadableException(e);
-        }
-      }
-
-      // Build initial targets.
-      if (options.hasInitialTargets() || !additionalInitialTargets.isEmpty()) {
-        BuildCommand buildCommand = new BuildCommand(getCommandRunnerParams());
-        BuildCommandOptions buildOptions =
-            options.createBuildCommandOptionsWithInitialTargets(additionalInitialTargets);
-
-
-        exitCode = buildCommand.runCommandWithOptions(buildOptions);
+      File tempDir = Files.createTempDir();
+      File tempFile = new File(tempDir, "project.json");
+      int exitCode;
+      try {
+        exitCode = project.createIntellijProject(
+            tempFile,
+            executionContext.getProcessExecutor(),
+            !passedInTargetsSet.isEmpty(),
+            console.getStdOut(),
+            console.getStdErr());
         if (exitCode != 0) {
           return exitCode;
         }
-      }
-    } finally {
-      // Either leave project.json around for debugging or delete it on exit.
-      if (console.getVerbosity().shouldPrintOutput()) {
-        getStdErr().printf("project.json was written to %s", tempFile.getAbsolutePath());
-      } else {
-        tempFile.delete();
-        tempDir.delete();
-      }
-    }
 
-    if (passedInTargetsSet.isEmpty()) {
-      String greenStar = console.getAnsi().asHighlightedSuccessText(" * ");
-      getStdErr().printf(
-          console.getAnsi().asHighlightedSuccessText("=== Did you know ===") + "\n" +
-              greenStar + "You can run `buck project <target>` to generate a minimal project " +
-              "just for that target.\n" +
-              greenStar + "This will make your IDE faster when working on large projects.\n" +
-              greenStar + "See buck project --help for more info.\n" +
-              console.getAnsi().asHighlightedSuccessText(
-                  "--=* Knowing is half the battle!") + "\n");
-    }
+        List<String> additionalInitialTargets = ImmutableList.of();
+        if (options.shouldProcessAnnotations()) {
+          try {
+            additionalInitialTargets = getAnnotationProcessingTargets(
+                fullGraph,
+                passedInTargetsSet);
+          } catch (BuildTargetException | BuildFileParseException e) {
+            throw new HumanReadableException(e);
+          }
+        }
 
-    return 0;
+        // Build initial targets.
+        if (options.hasInitialTargets() || !additionalInitialTargets.isEmpty()) {
+          BuildCommand buildCommand = new BuildCommand(getCommandRunnerParams());
+          BuildCommandOptions buildOptions =
+              options.createBuildCommandOptionsWithInitialTargets(additionalInitialTargets);
+
+
+          exitCode = buildCommand.runCommandWithOptions(buildOptions);
+          if (exitCode != 0) {
+            return exitCode;
+          }
+        }
+      } finally {
+        // Either leave project.json around for debugging or delete it on exit.
+        if (console.getVerbosity().shouldPrintOutput()) {
+          getStdErr().printf("project.json was written to %s", tempFile.getAbsolutePath());
+        } else {
+          tempFile.delete();
+          tempDir.delete();
+        }
+      }
+
+      if (passedInTargetsSet.isEmpty()) {
+        String greenStar = console.getAnsi().asHighlightedSuccessText(" * ");
+        getStdErr().printf(
+            console.getAnsi().asHighlightedSuccessText("=== Did you know ===") + "\n" +
+            greenStar + "You can run `buck project <target>` to generate a minimal project " +
+            "just for that target.\n" +
+            greenStar + "This will make your IDE faster when working on large projects.\n" +
+            greenStar + "See buck project --help for more info.\n" +
+            console.getAnsi().asHighlightedSuccessText(
+                "--=* Knowing is half the battle!") + "\n");
+      }
+
+      return 0;
+    }
   }
 
   ImmutableList<String> getAnnotationProcessingTargets(
@@ -323,8 +315,6 @@ public class ProjectCommand extends AbstractCommandRunner<ProjectCommandOptions>
     LOG.debug("Generating workspace for config targets %s", targets);
     Map<TargetNode<?>, ProjectGenerator> projectGenerators = new HashMap<>();
     ImmutableSet<TargetNode<?>> testTargetNodes = targetGraphAndTargets.getAssociatedTests();
-    ImmutableMultimap<BuildTarget, TargetNode<AppleTestDescription.Arg>> sourceTargetToTestNodes =
-        AppleBuildRules.getSourceTargetToTestNodesMap(testTargetNodes);
     ImmutableSet<TargetNode<AppleTestDescription.Arg>> groupableTests =
       options.getCombineTestBundles()
           ? AppleBuildRules.filterGroupableTests(testTargetNodes)
@@ -342,8 +332,8 @@ public class ProjectCommand extends AbstractCommandRunner<ProjectCommandOptions>
           targetGraphAndTargets.getTargetGraph(),
           castToXcodeWorkspaceTargetNode(workspaceNode),
           optionsBuilder.build(),
-          sourceTargetToTestNodes,
-          combinedProject);
+          combinedProject,
+          new ParserConfig(options.getBuckConfig()).getBuildFileName());
       generator.setGroupableTests(groupableTests);
       generator.generateWorkspaceAndDependentProjects(projectGenerators);
     }

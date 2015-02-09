@@ -19,16 +19,19 @@ package com.facebook.buck.cxx;
 import com.facebook.buck.model.BuildTarget;
 import com.facebook.buck.model.BuildTargets;
 import com.facebook.buck.model.Flavor;
+import com.facebook.buck.model.ImmutableFlavor;
 import com.facebook.buck.rules.BuildRule;
 import com.facebook.buck.rules.BuildRuleParams;
 import com.facebook.buck.rules.BuildRuleResolver;
 import com.facebook.buck.rules.BuildRuleType;
+import com.facebook.buck.rules.ImmutableBuildRuleType;
 import com.facebook.buck.rules.SourcePath;
 import com.facebook.buck.rules.SourcePathResolver;
 import com.facebook.buck.util.HumanReadableException;
 import com.facebook.buck.util.MoreIterables;
 import com.google.common.base.Optional;
 import com.google.common.base.Preconditions;
+import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSortedSet;
@@ -39,7 +42,7 @@ import java.nio.file.Path;
 
 public class CxxCompilableEnhancer {
 
-  private static final BuildRuleType COMPILE_TYPE = new BuildRuleType("compile");
+  private static final BuildRuleType COMPILE_TYPE = ImmutableBuildRuleType.of("compile");
 
   private CxxCompilableEnhancer() {}
 
@@ -103,17 +106,20 @@ public class CxxCompilableEnhancer {
       Flavor platform,
       String name,
       boolean pic) {
-    return BuildTargets.extendFlavoredBuildTarget(
-        target,
-        platform,
-        new Flavor(String.format(
-            "compile-%s%s",
-            pic ? "pic-" : "",
-            getOutputName(name)
-                .replace('/', '-')
-                .replace('.', '-')
-                .replace('+', '-')
-                .replace(' ', '-'))));
+    return BuildTarget
+        .builder(target)
+        .addFlavors(platform)
+        .addFlavors(
+            ImmutableFlavor.of(
+                String.format(
+                    "compile-%s%s",
+                    pic ? "pic-" : "",
+                    getOutputName(name)
+                        .replace('/', '-')
+                        .replace('.', '-')
+                        .replace('+', '-')
+                        .replace(' ', '-'))))
+        .build();
   }
 
   /**
@@ -141,7 +147,7 @@ public class CxxCompilableEnhancer {
 
     BuildTarget target = createCompileBuildTarget(
         params.getBuildTarget(),
-        platform.asFlavor(),
+        platform.getFlavor(),
         name,
         pic);
 
@@ -169,13 +175,15 @@ public class CxxCompilableEnhancer {
     //args.add("-x", source.getType().getLanguage());
 
     // If we're dealing with a C source that can be compiled, add the platform C compiler flags.
-    if (source.getType() == CxxSource.Type.C_CPP_OUTPUT) {
+    if (source.getType() == CxxSource.Type.C_CPP_OUTPUT ||
+        source.getType() == CxxSource.Type.OBJC_CPP_OUTPUT) {
       args.addAll(platform.getCflags());
     }
 
     // If we're dealing with a C++ source that can be compiled, add the platform C++ compiler
     // flags.
-    if (source.getType() == CxxSource.Type.CXX_CPP_OUTPUT) {
+    if (source.getType() == CxxSource.Type.CXX_CPP_OUTPUT ||
+        source.getType() == CxxSource.Type.OBJCXX_CPP_OUTPUT) {
       args.addAll(platform.getCxxflags());
     }
 
@@ -198,8 +206,8 @@ public class CxxCompilableEnhancer {
         params.copyWithChanges(
             COMPILE_TYPE,
             target,
-            dependencies.build(),
-            ImmutableSortedSet.<BuildRule>of()),
+            Suppliers.ofInstance(dependencies.build()),
+            Suppliers.ofInstance(ImmutableSortedSet.<BuildRule>of())),
         pathResolver,
         compiler,
         Optional.<CxxCompile.Plugin>absent(),

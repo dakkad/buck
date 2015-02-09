@@ -18,12 +18,14 @@ package com.facebook.buck.cli;
 
 import static org.junit.Assert.assertEquals;
 
+import com.facebook.buck.android.FakeAndroidDirectoryResolver;
 import com.facebook.buck.event.BuckEventBus;
 import com.facebook.buck.event.BuckEventBusFactory;
 import com.facebook.buck.java.FakeJavaPackageFinder;
 import com.facebook.buck.java.JavaLibraryBuilder;
 import com.facebook.buck.model.BuildTarget;
 import com.facebook.buck.model.BuildTargetFactory;
+import com.facebook.buck.parser.ParserConfig;
 import com.facebook.buck.rules.ArtifactCache;
 import com.facebook.buck.rules.FakeRepositoryFactory;
 import com.facebook.buck.rules.NoopArtifactCache;
@@ -31,19 +33,22 @@ import com.facebook.buck.rules.Repository;
 import com.facebook.buck.rules.TargetGraph;
 import com.facebook.buck.rules.TargetNode;
 import com.facebook.buck.rules.TestRepositoryBuilder;
-import com.facebook.buck.testutil.BuckTestConstant;
 import com.facebook.buck.testutil.FakeFileHashCache;
+import com.facebook.buck.testutil.FakeProjectFilesystem;
 import com.facebook.buck.testutil.TargetGraphFactory;
 import com.facebook.buck.testutil.TestConsole;
-import com.facebook.buck.android.FakeAndroidDirectoryResolver;
+import com.facebook.buck.util.HumanReadableException;
 import com.facebook.buck.util.environment.Platform;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jdk7.Jdk7Module;
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 
 import java.io.IOException;
 import java.nio.file.Paths;
@@ -53,12 +58,21 @@ public class AuditInputCommandTest {
   private TestConsole console;
   private AuditInputCommand auditInputCommand;
 
+  @Rule
+  public ExpectedException thrown = ExpectedException.none();
+
   @Before
   public void setUp() throws IOException, InterruptedException{
     console = new TestConsole();
-    Repository repository = new TestRepositoryBuilder().build();
+    FakeProjectFilesystem projectFilesystem = new FakeProjectFilesystem();
+    projectFilesystem.touch(Paths.get("src/com/facebook/AndroidLibraryTwo.java"));
+    projectFilesystem.touch(Paths.get("src/com/facebook/TestAndroidLibrary.java"));
+    projectFilesystem.touch(Paths.get("src/com/facebook/TestJavaLibrary.java"));
+    Repository repository = new TestRepositoryBuilder().setFilesystem(projectFilesystem).build();
     ArtifactCache artifactCache = new NoopArtifactCache();
     BuckEventBus eventBus = BuckEventBusFactory.newInstance();
+    ObjectMapper objectMapper = new ObjectMapper();
+    objectMapper.registerModule(new Jdk7Module());
 
     auditInputCommand = new AuditInputCommand(new CommandRunnerParams(
         console,
@@ -67,30 +81,29 @@ public class AuditInputCommandTest {
         new FakeAndroidDirectoryResolver(),
         new InstanceArtifactCacheFactory(artifactCache),
         eventBus,
-        BuckTestConstant.PYTHON_INTERPRETER,
-        BuckTestConstant.ALLOW_EMPTY_GLOBS,
+        new ParserConfig(new FakeBuckConfig()),
         Platform.detect(),
         ImmutableMap.copyOf(System.getenv()),
         new FakeJavaPackageFinder(),
-        new ObjectMapper(),
+        objectMapper,
         FakeFileHashCache.EMPTY_CACHE));
   }
 
-  private static final String EXPECTED_JSON = Joiner.on("").join(
-      "{",
-      "\"//:test-android-library\":",
-      "[",
-      "\"src/com/facebook/AndroidLibraryTwo.java\",",
-      "\"src/com/facebook/TestAndroidLibrary.java\"",
-      "],",
-      "\"//:test-java-library\":",
-      "[",
-      "\"src/com/facebook/TestJavaLibrary.java\"",
-      "]",
-      "}");
-
   @Test
   public void testJsonClassPathOutput() throws IOException {
+    final String expectedJson = Joiner.on("").join(
+        "{",
+        "\"//:test-android-library\":",
+        "[",
+        "\"src/com/facebook/AndroidLibraryTwo.java\",",
+        "\"src/com/facebook/TestAndroidLibrary.java\"",
+        "],",
+        "\"//:test-java-library\":",
+        "[",
+        "\"src/com/facebook/TestJavaLibrary.java\"",
+        "]",
+        "}");
+
     BuildTarget rootTarget = BuildTargetFactory.newInstance("//:test-java-library");
     TargetNode<?> rootNode = JavaLibraryBuilder
         .createBuilder(rootTarget)
@@ -109,8 +122,58 @@ public class AuditInputCommandTest {
     TargetGraph targetGraph = TargetGraphFactory.newInstance(nodes);
 
     auditInputCommand.printJsonInputs(targetGraph);
-    assertEquals(EXPECTED_JSON, console.getTextWrittenToStdOut());
+    assertEquals(expectedJson, console.getTextWrittenToStdOut());
     assertEquals("", console.getTextWrittenToStdErr());
   }
 
+  @Test
+  public void testNonExistentInputFileThrows() throws IOException {
+    thrown.expect(HumanReadableException.class);
+    thrown.expectMessage(
+      "Target //:test-java-library refers to non-existent input file: " +
+      "src/com/facebook/NonExistentFile.java");
+
+    BuildTarget rootTarget = BuildTargetFactory.newInstance("//:test-java-library");
+    TargetNode<?> rootNode = JavaLibraryBuilder
+        .createBuilder(rootTarget)
+        .addSrc(Paths.get("src/com/facebook/NonExistentFile.java"))
+        .build();
+
+    ImmutableSet<TargetNode<?>> nodes = ImmutableSet.<TargetNode<?>>of(rootNode);
+    TargetGraph targetGraph = TargetGraphFactory.newInstance(nodes);
+    auditInputCommand.printJsonInputs(targetGraph);
+  }
+
+  @Test
+  public void testJsonContainsRulesWithNoFiles() throws IOException {
+    final String expectedJson = Joiner.on("").join(
+        "{",
+        "\"//:test-exported-dep\":",
+        "[",
+        "],",
+        "\"//:test-java-library\":",
+        "[",
+        "\"src/com/facebook/TestJavaLibrary.java\"",
+        "]",
+        "}");
+
+    BuildTarget exportedTarget = BuildTargetFactory.newInstance("//:test-java-library");
+    TargetNode<?> exportedNode = JavaLibraryBuilder
+        .createBuilder(exportedTarget)
+        .addSrc(Paths.get("src/com/facebook/TestJavaLibrary.java"))
+        .build();
+
+    BuildTarget rootTarget = BuildTargetFactory.newInstance("//:test-exported-dep");
+    TargetNode<?> rootNode = JavaLibraryBuilder
+        .createBuilder(rootTarget)
+        .addExportedDep(exportedTarget)
+        .build();
+
+    ImmutableSet<TargetNode<?>> nodes = ImmutableSet.of(rootNode, exportedNode);
+    TargetGraph targetGraph = TargetGraphFactory.newInstance(nodes);
+
+    auditInputCommand.printJsonInputs(targetGraph);
+    assertEquals(expectedJson, console.getTextWrittenToStdOut());
+    assertEquals("", console.getTextWrittenToStdErr());
+  }
 }

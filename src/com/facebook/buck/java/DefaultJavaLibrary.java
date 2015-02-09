@@ -29,7 +29,6 @@ import com.facebook.buck.model.BuildTargets;
 import com.facebook.buck.model.HasBuildTarget;
 import com.facebook.buck.rules.AbiRule;
 import com.facebook.buck.rules.AbstractBuildRule;
-import com.facebook.buck.rules.AnnotationProcessingData;
 import com.facebook.buck.rules.BuildContext;
 import com.facebook.buck.rules.BuildDependencies;
 import com.facebook.buck.rules.BuildOutputInitializer;
@@ -38,6 +37,7 @@ import com.facebook.buck.rules.BuildRuleParams;
 import com.facebook.buck.rules.BuildableContext;
 import com.facebook.buck.rules.BuildableProperties;
 import com.facebook.buck.rules.ExportDependencies;
+import com.facebook.buck.rules.ImmutableSha1HashCode;
 import com.facebook.buck.rules.InitializableFromDisk;
 import com.facebook.buck.rules.OnDiskBuildInfo;
 import com.facebook.buck.rules.RuleKey;
@@ -107,7 +107,6 @@ public class DefaultJavaLibrary extends AbstractBuildRule
 
   private static final BuildableProperties OUTPUT_TYPE = new BuildableProperties(LIBRARY);
 
-  private final Javac javac;
   private final ImmutableSortedSet<SourcePath> srcs;
   private final ImmutableSortedSet<SourcePath> resources;
   private final Optional<Path> outputJar;
@@ -176,12 +175,9 @@ public class DefaultJavaLibrary extends AbstractBuildRule
       ImmutableSortedSet<BuildRule> exportedDeps,
       ImmutableSortedSet<BuildRule> providedDeps,
       ImmutableSet<Path> additionalClasspathEntries,
-      Javac javac,
       JavacOptions javacOptions,
       Optional<Path> resourcesRoot) {
     super(params, resolver);
-
-    this.javac = javac;
 
     // Exported deps are meant to be forwarded onto the CLASSPATH for dependents,
     // and so only make sense for java library types.
@@ -270,7 +266,7 @@ public class DefaultJavaLibrary extends AbstractBuildRule
       commands.add(new MkdirStep(pathToSrcsList.getParent()));
 
       Optional<Path> workingDirectory;
-      if (javacOptions.getJavaCompilerEnvironment().getJavacPath().isPresent()) {
+      if (getJavac().isUsingWorkspace()) {
         Path scratchDir = BuildTargets.getGenPath(target, "lib__%s____working_directory");
         commands.add(new MakeCleanDirectoryStep(scratchDir));
         workingDirectory = Optional.of(scratchDir);
@@ -279,7 +275,6 @@ public class DefaultJavaLibrary extends AbstractBuildRule
       }
 
       JavacStep javacStep = new JavacStep(
-          javac,
           outputDirectory,
           workingDirectory,
           getJavaSrcs(),
@@ -312,7 +307,7 @@ public class DefaultJavaLibrary extends AbstractBuildRule
     // Hash the ABI keys of all dependencies together with ABI key for the current rule.
     Hasher hasher = createHasherWithAbiKeyForDeps(depsForAbiKey);
     hasher.putUnencodedChars(abiKey.getHash());
-    return new Sha1HashCode(hasher.hash().toString());
+    return ImmutableSha1HashCode.of(hasher.hash().toString());
   }
 
   private Path getPathToAbiOutputDir() {
@@ -344,7 +339,8 @@ public class DefaultJavaLibrary extends AbstractBuildRule
    */
   @Override
   public Sha1HashCode getAbiKeyForDeps() {
-    return new Sha1HashCode(createHasherWithAbiKeyForDeps(getDepsForAbiKey()).hash().toString());
+    return ImmutableSha1HashCode.of(
+        createHasherWithAbiKeyForDeps(getDepsForAbiKey()).hash().toString());
   }
 
   /**
@@ -410,7 +406,7 @@ public class DefaultJavaLibrary extends AbstractBuildRule
         // out as "provided" because changing a dep from provided to transtitive should result in a
         // re-build (otherwise, we'd get a rule key match).
         .setReflectively("provided_deps", providedDeps);
-    return javacOptions.appendToRuleKey(builder);
+    return javacOptions.appendToRuleKey(builder, "javacOptions");
   }
 
   @Override
@@ -444,8 +440,8 @@ public class DefaultJavaLibrary extends AbstractBuildRule
   }
 
   @Override
-  public AnnotationProcessingData getAnnotationProcessingData() {
-    return javacOptions.getAnnotationProcessingData();
+  public AnnotationProcessingParams getAnnotationProcessingParams() {
+    return javacOptions.getAnnotationProcessingParams();
   }
 
   public Optional<Path> getProguardConfig() {
@@ -502,7 +498,7 @@ public class DefaultJavaLibrary extends AbstractBuildRule
 
     // Javac requires that the root directory for generated sources already exist.
     Path annotationGenFolder =
-        javacOptions.getAnnotationProcessingData().getGeneratedSourceFolderName();
+        javacOptions.getAnnotationProcessingParams().getGeneratedSourceFolderName();
     if (annotationGenFolder != null) {
       MakeCleanDirectoryStep mkdirGeneratedSources =
           new MakeCleanDirectoryStep(annotationGenFolder);
@@ -747,13 +743,8 @@ public class DefaultJavaLibrary extends AbstractBuildRule
   }
 
   @VisibleForTesting
-  public Optional<Path> getJavac() {
-    return javacOptions.getJavaCompilerEnvironment().getJavacPath();
-  }
-
-  @VisibleForTesting
-  public Optional<JavacVersion> getJavacVersion() {
-    return javacOptions.getJavaCompilerEnvironment().getJavacVersion();
+  public Javac getJavac() {
+    return javacOptions.getJavac();
   }
 
   @Override

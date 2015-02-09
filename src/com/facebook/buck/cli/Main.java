@@ -34,6 +34,7 @@ import com.facebook.buck.log.LogConfig;
 import com.facebook.buck.log.Logger;
 import com.facebook.buck.model.BuildId;
 import com.facebook.buck.parser.Parser;
+import com.facebook.buck.parser.ParserConfig;
 import com.facebook.buck.rules.BuildRule;
 import com.facebook.buck.rules.CachingBuildEngine;
 import com.facebook.buck.rules.KnownBuildRuleTypes;
@@ -66,6 +67,7 @@ import com.facebook.buck.util.environment.DefaultExecutionEnvironment;
 import com.facebook.buck.util.environment.ExecutionEnvironment;
 import com.facebook.buck.util.environment.Platform;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jdk7.Jdk7Module;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Optional;
 import com.google.common.base.Preconditions;
@@ -179,10 +181,7 @@ public final class Main {
       this.hashCache = new DefaultFileHashCache(repository.getFilesystem());
       this.parser = Parser.createParser(
           repositoryFactory,
-          repository.getBuckConfig().getPythonInterpreter(),
-          repository.getBuckConfig().getAllowEmptyGlobs(),
-          repository.getBuckConfig().enforceBuckPackageBoundary(),
-          repository.getBuckConfig().getTempFilePatterns(),
+          new ParserConfig(repository.getBuckConfig()),
           createRuleKeyBuilderFactory(hashCache));
 
       this.fileEventBus = new EventBus("file-change-events");
@@ -404,6 +403,8 @@ public final class Main {
     this.stdErr = stdErr;
     this.platform = Platform.detect();
     this.objectMapper = new ObjectMapper();
+    // Add support for serializing Path and other JDK 7 objects.
+    this.objectMapper.registerModule(new Jdk7Module());
     this.externalEventsListener = externalEventsListener;
   }
 
@@ -625,10 +626,7 @@ public final class Main {
       if (parser == null) {
         parser = Parser.createParser(
             repositoryFactory,
-            rootRepository.getBuckConfig().getPythonInterpreter(),
-            rootRepository.getBuckConfig().getAllowEmptyGlobs(),
-            rootRepository.getBuckConfig().enforceBuckPackageBoundary(),
-            rootRepository.getBuckConfig().getTempFilePatterns(),
+            new ParserConfig(rootRepository.getBuckConfig()),
             createRuleKeyBuilderFactory(fileHashCache));
       }
       JavaUtilsLoggingBuildListener.ensureLogFileIsWritten(rootRepository.getFilesystem());
@@ -645,7 +643,7 @@ public final class Main {
           new CommandRunnerParams(
               console,
               rootRepository,
-              rootRepository.androidDirectoryResolver,
+              rootRepository.getAndroidDirectoryResolver(),
               buildEngine,
               artifactCacheFactory,
               buildEventBus,
@@ -709,7 +707,7 @@ public final class Main {
     } else {
       env = ImmutableMap.copyOf(System.getenv());
     }
-    return EnvironmentFilter.filteredEnvironment(env);
+    return EnvironmentFilter.filteredEnvironment(env, Platform.detect());
   }
 
   private static void closeCreatedArtifactCaches(
@@ -811,7 +809,11 @@ public final class Main {
     ImmutableList.Builder<BuckEventListener> eventListenersBuilder =
         ImmutableList.<BuckEventListener>builder()
             .add(new JavaUtilsLoggingBuildListener())
-            .add(new ChromeTraceBuildListener(projectFilesystem, clock, config.getMaxTraces()))
+            .add(new ChromeTraceBuildListener(
+                projectFilesystem,
+                clock,
+                objectMapper,
+                config.getMaxTraces()))
             .add(consoleEventBusListener)
             .add(new LoggingBuildListener());
 
@@ -823,9 +825,7 @@ public final class Main {
 
 
 
-    JavacOptions javacOptions = new JavaBuckConfig(config).getDefaultJavacOptions(
-        new ProcessExecutor(
-            console));
+    JavacOptions javacOptions = new JavaBuckConfig(config).getDefaultJavacOptions();
 
     eventListenersBuilder.add(MissingSymbolsHandler.createListener(
             projectFilesystem,
@@ -882,7 +882,7 @@ public final class Main {
       @Override
       public Builder newInstance(BuildRule buildRule, SourcePathResolver resolver) {
         RuleKey.Builder builder = RuleKey.builder(buildRule, resolver, hashCache);
-        builder.set("buckVersionUid", BUCK_VERSION_UID);
+        builder.setReflectively("buckVersionUid", BUCK_VERSION_UID);
         return builder;
       }
     };

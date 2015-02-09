@@ -27,6 +27,7 @@ import com.facebook.buck.rules.BuildRuleParams;
 import com.facebook.buck.rules.BuildRuleResolver;
 import com.facebook.buck.rules.BuildRuleType;
 import com.facebook.buck.rules.Description;
+import com.facebook.buck.rules.ImmutableBuildRuleType;
 import com.facebook.buck.rules.ImplicitDepsInferringDescription;
 import com.facebook.buck.rules.Label;
 import com.facebook.buck.rules.SourcePathResolver;
@@ -34,6 +35,7 @@ import com.facebook.buck.util.HumanReadableException;
 import com.facebook.infer.annotation.SuppressFieldNotInitialized;
 import com.google.common.base.Optional;
 import com.google.common.base.Preconditions;
+import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSortedSet;
 
@@ -42,7 +44,7 @@ public class CxxTestDescription implements
     Flavored,
     ImplicitDepsInferringDescription<CxxTestDescription.Arg> {
 
-  private static final BuildRuleType TYPE = new BuildRuleType("cxx_test");
+  private static final BuildRuleType TYPE = ImmutableBuildRuleType.of("cxx_test");
   private static final CxxTestType DEFAULT_TEST_TYPE = CxxTestType.GTEST;
 
   private final CxxBuckConfig cxxBuckConfig;
@@ -78,8 +80,9 @@ public class CxxTestDescription implements
     // found.
     CxxPlatform cxxPlatform;
     try {
-      cxxPlatform = cxxPlatforms.getValue(
-          params.getBuildTarget().getFlavors()).or(defaultCxxPlatform);
+      cxxPlatform = cxxPlatforms
+          .getValue(ImmutableSet.copyOf(params.getBuildTarget().getFlavors()))
+          .or(defaultCxxPlatform);
     } catch (FlavorDomainException e) {
       throw new HumanReadableException("%s: %s", params.getBuildTarget(), e.getMessage());
     }
@@ -95,11 +98,12 @@ public class CxxTestDescription implements
     // CxxLink rule above which builds the test binary.
     BuildRuleParams testParams =
         params.copyWithDeps(
-            ImmutableSortedSet.<BuildRule>naturalOrder()
-                .addAll(params.getDeclaredDeps())
-                .add(cxxLink)
-                .build(),
-            params.getExtraDeps());
+            Suppliers.ofInstance(
+                ImmutableSortedSet.<BuildRule>naturalOrder()
+                    .addAll(params.getDeclaredDeps())
+                    .add(cxxLink)
+                    .build()),
+            Suppliers.ofInstance(params.getExtraDeps()));
 
     CxxTest test;
 
@@ -136,24 +140,24 @@ public class CxxTestDescription implements
   }
 
   @Override
-  public Iterable<String> findDepsForTargetFromConstructorArgs(
+  public Iterable<BuildTarget> findDepsForTargetFromConstructorArgs(
       BuildTarget buildTarget,
       Arg constructorArg) {
 
-    ImmutableSet.Builder<String> deps = ImmutableSet.builder();
+    ImmutableSet.Builder<BuildTarget> deps = ImmutableSet.builder();
 
     if (!constructorArg.lexSrcs.get().isEmpty()) {
-      deps.add(cxxBuckConfig.getLexDep().toString());
+      deps.add(cxxBuckConfig.getLexDep());
     }
 
     CxxTestType type = constructorArg.framework.or(getDefaultTestType());
     switch (type) {
       case GTEST: {
-        deps.add(cxxBuckConfig.getGtestDep().toString());
+        deps.add(cxxBuckConfig.getGtestDep());
         break;
       }
       case BOOST: {
-        deps.add(cxxBuckConfig.getBoostTestDep().toString());
+        deps.add(cxxBuckConfig.getBoostTestDep());
         break;
       }
       default: {

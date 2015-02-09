@@ -27,6 +27,7 @@ import com.facebook.buck.cxx.NativeLinkables;
 import com.facebook.buck.model.BuildTarget;
 import com.facebook.buck.model.BuildTargets;
 import com.facebook.buck.model.Flavor;
+import com.facebook.buck.model.ImmutableFlavor;
 import com.facebook.buck.rules.AbstractBuildRule;
 import com.facebook.buck.rules.BuildContext;
 import com.facebook.buck.rules.BuildRule;
@@ -35,6 +36,7 @@ import com.facebook.buck.rules.BuildRuleResolver;
 import com.facebook.buck.rules.BuildRuleType;
 import com.facebook.buck.rules.BuildableContext;
 import com.facebook.buck.rules.Description;
+import com.facebook.buck.rules.ImmutableBuildRuleType;
 import com.facebook.buck.rules.PathSourcePath;
 import com.facebook.buck.rules.RuleKey;
 import com.facebook.buck.rules.SourcePath;
@@ -53,6 +55,7 @@ import com.google.common.base.Joiner;
 import com.google.common.base.Optional;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Predicates;
+import com.google.common.base.Suppliers;
 import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableCollection;
 import com.google.common.collect.ImmutableList;
@@ -73,10 +76,11 @@ import java.util.regex.Pattern;
 
 public class NdkLibraryDescription implements Description<NdkLibraryDescription.Arg> {
 
-  public static final BuildRuleType TYPE = new BuildRuleType("ndk_library");
+  public static final BuildRuleType TYPE = ImmutableBuildRuleType.of("ndk_library");
 
-  private static final BuildRuleType MAKEFILE_TYPE = new BuildRuleType("ndk_library_makefile");
-  private static final Flavor MAKEFILE_FLAVOR = new Flavor("makefile");
+  private static final BuildRuleType MAKEFILE_TYPE =
+      ImmutableBuildRuleType.of("ndk_library_makefile");
+  private static final Flavor MAKEFILE_FLAVOR = ImmutableFlavor.of("makefile");
 
   private static final Pattern EXTENSIONS_REGEX =
       Pattern.compile(
@@ -168,7 +172,7 @@ public class NdkLibraryDescription implements Description<NdkLibraryDescription.
     for (Map.Entry<AndroidBinary.TargetCpuType, NdkCxxPlatform> entry : cxxPlatforms.entrySet()) {
       AndroidBinary.TargetCpuType targetCpuType = entry.getKey();
       String targetArchAbi = getTargetArchAbi(targetCpuType);
-      CxxPlatform cxxPlatform = entry.getValue();
+      CxxPlatform cxxPlatform = entry.getValue().getCxxPlatform();
 
       // Collect the preprocessor input for all C/C++ library deps.  We search *through* other
       // NDK library rules.
@@ -184,7 +188,7 @@ public class NdkLibraryDescription implements Description<NdkLibraryDescription.
       // it technically should be added to the top-level rule.
       deps.addAll(
           pathResolver.filterBuildRuleInputs(
-              cxxPreprocessorInput.getIncludes().nameToPathMap().values()));
+              cxxPreprocessorInput.getIncludes().getNameToPathMap().values()));
       deps.addAll(resolver.getAllRules(cxxPreprocessorInput.getRules()));
 
       // Add in the transitive preprocessor flags contributed by C/C++ library rules into the
@@ -237,14 +241,15 @@ public class NdkLibraryDescription implements Description<NdkLibraryDescription.
 
     outputLinesBuilder.add("include Android.mk");
 
-    BuildTarget makefileTarget = BuildTargets.extendFlavoredBuildTarget(
-        params.getBuildTarget(),
-        MAKEFILE_FLAVOR);
+    BuildTarget makefileTarget = BuildTarget
+        .builder(params.getBuildTarget())
+        .addFlavors(MAKEFILE_FLAVOR)
+        .build();
     BuildRuleParams makefileParams = params.copyWithChanges(
         MAKEFILE_TYPE,
         makefileTarget,
-        deps.build(),
-        ImmutableSortedSet.<BuildRule>of());
+        Suppliers.ofInstance(deps.build()),
+        Suppliers.ofInstance(ImmutableSortedSet.<BuildRule>of()));
     final Path makefilePath = getGeneratedMakefilePath(params.getBuildTarget());
     final String contents = Joiner.on(System.lineSeparator()).join(outputLinesBuilder.build());
 
@@ -258,8 +263,8 @@ public class NdkLibraryDescription implements Description<NdkLibraryDescription.
       @Override
       protected RuleKey.Builder appendDetailsToRuleKey(RuleKey.Builder builder) {
         return builder
-            .set("contents", contents)
-            .set("output", makefilePath.toString());
+            .setReflectively("contents", contents)
+            .setReflectively("output", makefilePath.toString());
       }
 
       @Override
@@ -318,10 +323,11 @@ public class NdkLibraryDescription implements Description<NdkLibraryDescription.
 
     return new NdkLibrary(
         params.copyWithExtraDeps(
-            ImmutableSortedSet.<BuildRule>naturalOrder()
-                .addAll(params.getExtraDeps())
-                .add(makefile)
-                .build()),
+            Suppliers.ofInstance(
+                ImmutableSortedSet.<BuildRule>naturalOrder()
+                    .addAll(params.getExtraDeps())
+                    .add(makefile)
+                    .build())),
         new SourcePathResolver(resolver),
         getGeneratedMakefilePath(params.getBuildTarget()),
         srcs.build(),

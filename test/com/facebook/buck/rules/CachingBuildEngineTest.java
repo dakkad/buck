@@ -177,7 +177,7 @@ public class CachingBuildEngineTest extends EasyMockSupport {
         .putByte(RuleKey.Builder.SEPARATOR)
         .putBytes("/dev/null".getBytes())
         .putByte(RuleKey.Builder.SEPARATOR)
-        .putBytes("/dev/null".getBytes())
+        .putBytes("ae8c0f860a0ecad94ecede79b69460434eddbfbc".getBytes())
         .putByte(RuleKey.Builder.SEPARATOR)
         .putByte(RuleKey.Builder.SEPARATOR)
 
@@ -544,7 +544,7 @@ public class CachingBuildEngineTest extends EasyMockSupport {
         .andReturn(CacheResult.DIR_HIT);
 
     BuckEventBus buckEventBus = BuckEventBusFactory.newInstance();
-    BuildContext buildContext = BuildContext.builder()
+    BuildContext buildContext = ImmutableBuildContext.builder()
         .setActionGraph(RuleMap.createGraphFromSingleRule(buildRule))
         .setStepRunner(stepRunner)
         .setProjectFilesystem(projectFilesystem)
@@ -607,7 +607,7 @@ public class CachingBuildEngineTest extends EasyMockSupport {
     ArtifactCache artifactCache = createMock(ArtifactCache.class);
     BuckEventBus buckEventBus = BuckEventBusFactory.newInstance();
     StepRunner stepRunner = createSameThreadStepRunner(buckEventBus);
-    BuildContext buildContext = BuildContext.builder()
+    BuildContext buildContext = ImmutableBuildContext.builder()
         .setActionGraph(RuleMap.createGraphFromSingleRule(buildRule))
         .setStepRunner(stepRunner)
         .setProjectFilesystem(projectFilesystem)
@@ -648,7 +648,7 @@ public class CachingBuildEngineTest extends EasyMockSupport {
 
   // TODO(mbolin): Test what happens when the cache's methods throw an exception.
 
-  private static BuildRule createRule(
+  private BuildRule createRule(
       SourcePathResolver resolver,
       ImmutableSet<BuildRule> deps,
       Iterable<Path> inputs,
@@ -659,7 +659,8 @@ public class CachingBuildEngineTest extends EasyMockSupport {
     ImmutableSortedSet<BuildRule> sortedDeps = ImmutableSortedSet.copyOf(comparator, deps);
 
     final FileHashCache fileHashCache = FakeFileHashCache.createFromStrings(ImmutableMap.of(
-          "/dev/null", "ae8c0f860a0ecad94ecede79b69460434eddbfbc"));
+            "/dev/null", "ae8c0f860a0ecad94ecede79b69460434eddbfbc"));
+
     BuildRuleParams buildRuleParams = new FakeBuildRuleParamsBuilder(buildTarget)
         .setDeps(sortedDeps)
         .setType(JavaLibraryDescription.TYPE)
@@ -824,7 +825,7 @@ public class CachingBuildEngineTest extends EasyMockSupport {
 
     @Override
     public Sha1HashCode getAbiKeyForDeps() {
-      return new Sha1HashCode(ABI_KEY_FOR_DEPS_HASH);
+      return ImmutableSha1HashCode.of(ABI_KEY_FOR_DEPS_HASH);
     }
   }
 

@@ -20,70 +20,91 @@ import com.facebook.buck.android.NoAndroidSdkException;
 import com.facebook.buck.event.BuckEvent;
 import com.facebook.buck.event.BuckEventBus;
 import com.facebook.buck.event.ThrowableConsoleEvent;
+import com.facebook.buck.io.MorePaths;
 import com.facebook.buck.io.ProjectFilesystem;
 import com.facebook.buck.java.JavaPackageFinder;
 import com.facebook.buck.model.BuildId;
 import com.facebook.buck.android.AndroidPlatformTarget;
 import com.facebook.buck.util.Ansi;
 import com.facebook.buck.util.Console;
+import com.facebook.buck.util.ClassLoaderCache;
 import com.facebook.buck.util.ProcessExecutor;
 import com.facebook.buck.util.Verbosity;
 import com.facebook.buck.util.environment.Platform;
+import com.facebook.buck.util.immutables.BuckStyleImmutable;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Optional;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+
+import org.immutables.value.Value;
+
+import java.io.Closeable;
+import java.io.File;
+import java.io.IOException;
 
 import java.io.PrintStream;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 
 import javax.annotation.Nullable;
 
-public class ExecutionContext {
+@Value.Immutable(builder = false)
+@BuckStyleImmutable
+public abstract class ExecutionContext implements Closeable {
 
-  private final Verbosity verbosity;
-  private final ProjectFilesystem projectFilesystem;
-  private final Console console;
-  private final Optional<AndroidPlatformTarget> androidPlatformTarget;
-  private final Optional<TargetDevice> targetDevice;
-  private final long defaultTestTimeoutMillis;
-  private final boolean isCodeCoverageEnabled;
-  private final boolean isDebugEnabled;
-  private final ProcessExecutor processExecutor;
-  private final BuckEventBus eventBus;
-  private final Platform platform;
-  private final ImmutableMap<String, String> environment;
-  private final JavaPackageFinder javaPackageFinder;
-  private final ObjectMapper objectMapper;
+  @Value.Parameter
+  public abstract ProjectFilesystem getProjectFilesystem();
 
-  private ExecutionContext(
-      ProjectFilesystem projectFilesystem,
-      Console console,
-      Optional<AndroidPlatformTarget> androidPlatformTarget,
-      Optional<TargetDevice> targetDevice,
-      long defaultTestTimeoutMillis,
-      boolean isCodeCoverageEnabled,
-      boolean isDebugEnabled,
-      ProcessExecutor processExecutor,
-      BuckEventBus eventBus,
-      Platform platform,
-      ImmutableMap<String, String> environment,
-      JavaPackageFinder javaPackageFinder,
-      ObjectMapper objectMapper) {
-    this.verbosity = console.getVerbosity();
-    this.projectFilesystem = projectFilesystem;
-    this.console = console;
-    this.androidPlatformTarget = androidPlatformTarget;
-    this.targetDevice = targetDevice;
-    this.defaultTestTimeoutMillis = defaultTestTimeoutMillis;
-    this.isCodeCoverageEnabled = isCodeCoverageEnabled;
-    this.isDebugEnabled = isDebugEnabled;
-    this.processExecutor = processExecutor;
-    this.eventBus = eventBus;
-    this.platform = platform;
-    this.environment = environment;
-    this.javaPackageFinder = javaPackageFinder;
-    this.objectMapper = objectMapper;
+  @Value.Parameter
+  public abstract Console getConsole();
+
+  /**
+   * Returns an {@link AndroidPlatformTarget} if the user specified one via {@code local.properties}
+   * or some other mechanism. If the user failed to specify one, {@link Optional#absent()} will be
+   * returned.
+   */
+  @Value.Parameter
+  public abstract Optional<AndroidPlatformTarget> getAndroidPlatformTargetOptional();
+
+  @Value.Parameter
+  public abstract Optional<TargetDevice> getTargetDeviceOptional();
+
+  @Value.Parameter
+  public abstract long getDefaultTestTimeoutMillis();
+
+  @Value.Parameter
+  public abstract boolean isCodeCoverageEnabled();
+
+  @Value.Parameter
+  public abstract boolean isDebugEnabled();
+
+  @Value.Parameter
+  public abstract ProcessExecutor getProcessExecutor();
+
+  @Value.Parameter
+  public abstract BuckEventBus getBuckEventBus();
+
+  @Value.Parameter
+  public abstract Platform getPlatform();
+
+  @Value.Parameter
+  public abstract ImmutableMap<String, String> getEnvironment();
+
+  @Value.Parameter
+  public abstract JavaPackageFinder getJavaPackageFinder();
+
+  @Value.Parameter
+  public abstract ObjectMapper getObjectMapper();
+
+  @Value.Parameter
+  public abstract ClassLoaderCache getClassLoaderCache();
+
+
+  @Value.Derived
+  public Verbosity getVerbosity() {
+    return getConsole().getVerbosity();
   }
 
   /**
@@ -92,77 +113,47 @@ public class ExecutionContext {
    */
   public ExecutionContext createSubContext(PrintStream newStdout, PrintStream newStderr) {
     Console console = new Console(
-        this.console.getVerbosity(),
+        this.getConsole().getVerbosity(),
         newStdout,
         newStderr,
-        this.console.getAnsi());
+        this.getConsole().getAnsi());
 
-    return new ExecutionContext(
-        getProjectFilesystem(),
-        console,
-        getAndroidPlatformTargetOptional(),
-        getTargetDeviceOptional(),
-        getDefaultTestTimeoutMillis(),
-        isCodeCoverageEnabled(),
-        isDebugEnabled,
-        new ProcessExecutor(console),
-        eventBus,
-        platform,
-        this.environment,
-        this.javaPackageFinder,
-        this.objectMapper);
+    return ImmutableExecutionContext.copyOf(this)
+        .withConsole(console)
+        .withProcessExecutor(new ProcessExecutor(console))
+        .withClassLoaderCache(getClassLoaderCache().addRef());
   }
 
   public void logError(Throwable error, String msg, Object... formatArgs) {
-    eventBus.post(ThrowableConsoleEvent.create(error, msg, formatArgs));
+    getBuckEventBus().post(ThrowableConsoleEvent.create(error, msg, formatArgs));
   }
 
   public void postEvent(BuckEvent event) {
-    eventBus.post(event);
-  }
-
-  public Verbosity getVerbosity() {
-    return verbosity;
-  }
-
-  public ProjectFilesystem getProjectFilesystem() {
-    return projectFilesystem;
+    getBuckEventBus().post(event);
   }
 
   public Path getProjectDirectoryRoot() {
-    return projectFilesystem.getRootPath();
-  }
-
-  public Console getConsole() {
-    return console;
+    return getProjectFilesystem().getRootPath();
   }
 
   public PrintStream getStdErr() {
-    return console.getStdErr();
+    return getConsole().getStdErr();
   }
 
   public PrintStream getStdOut() {
-    return console.getStdOut();
+    return getConsole().getStdOut();
   }
 
   public Ansi getAnsi() {
-    return console.getAnsi();
+    return getConsole().getAnsi();
   }
 
-  public BuckEventBus getBuckEventBus() {
-    return eventBus;
+  public String getPathToAdbExecutable() throws NoAndroidSdkException {
+    return getAndroidPlatformTarget().getAdbExecutable().toString();
   }
 
-  public Platform getPlatform() {
-    return platform;
-  }
-
-  public JavaPackageFinder getJavaPackageFinder() {
-    return javaPackageFinder;
-  }
-
-  public ObjectMapper getObjectMapper() {
-    return objectMapper;
+  public static Builder builder() {
+    return new Builder();
   }
 
   /**
@@ -176,56 +167,40 @@ public class ExecutionContext {
    * @throws NoAndroidSdkException if no AndroidPlatformTarget is available
    */
   public AndroidPlatformTarget getAndroidPlatformTarget() throws NoAndroidSdkException {
-    if (androidPlatformTarget.isPresent()) {
-      return androidPlatformTarget.get();
+    if (getAndroidPlatformTargetOptional().isPresent()) {
+      return getAndroidPlatformTargetOptional().get();
     } else {
       throw new NoAndroidSdkException();
     }
   }
 
   /**
-   * Returns an {@link AndroidPlatformTarget} if the user specified one via {@code local.properties}
-   * or some other mechanism. If the user failed to specify one, {@link Optional#absent()} will be
-   * returned.
+   * Attempts to resolve an executable in a cross-platform way.
+   * @param base The folder you expect to find the executable in.
+   * @param executable The name of the executable you wish to find.
+   * @return The {@link Path} to the executable is resolved, or {@link Optional#absent()}.
    */
-  public Optional<AndroidPlatformTarget> getAndroidPlatformTargetOptional() {
-    return androidPlatformTarget;
+  public Optional<Path> resolveExecutable(Path base, String executable) {
+    String possibleExtensions = getEnvironment().get("PATHEXT");
+    ImmutableList.Builder<String> extensions = ImmutableList.builder();
+    if (possibleExtensions != null) {
+      for (String extension : possibleExtensions.split(File.pathSeparator)) {
+        extensions.add(extension);
+      }
+    }
+    return MorePaths.searchPathsForExecutable(
+        Paths.get(executable),
+        ImmutableList.of(base),
+        extensions.build());
   }
 
-  public Optional<TargetDevice> getTargetDeviceOptional() {
-    return targetDevice;
-  }
-
-  public long getDefaultTestTimeoutMillis() {
-    return defaultTestTimeoutMillis;
-  }
-
-  public boolean isCodeCoverageEnabled() {
-    return isCodeCoverageEnabled;
-  }
-
-  public boolean isDebugEnabled() {
-    return isDebugEnabled;
-  }
-
-  public String getPathToAdbExecutable() throws NoAndroidSdkException {
-    return getAndroidPlatformTarget().getAdbExecutable().toString();
-  }
-
-  public ProcessExecutor getProcessExecutor() {
-    return processExecutor;
-  }
-
-  public static Builder builder() {
-    return new Builder();
-  }
-
-  public ImmutableMap<String, String> getEnvironment() {
-    return environment;
+  @Override
+  public void close() throws IOException {
+    getClassLoaderCache().close();
   }
 
   public BuildId getBuildId() {
-    return eventBus.getBuildId();
+    return getBuckEventBus().getBuildId();
   }
 
   public static class Builder {
@@ -243,11 +218,12 @@ public class ExecutionContext {
     @Nullable private ImmutableMap<String, String> environment = null;
     @Nullable private JavaPackageFinder javaPackageFinder = null;
     @Nullable private ObjectMapper objectMapper = null;
+    private ClassLoaderCache classLoaderCache = new ClassLoaderCache();
 
     private Builder() {}
 
     public ExecutionContext build() {
-      return new ExecutionContext(
+      return ImmutableExecutionContext.of(
           Preconditions.checkNotNull(projectFilesystem),
           Preconditions.checkNotNull(console),
           androidPlatformTarget,
@@ -260,7 +236,8 @@ public class ExecutionContext {
           Preconditions.checkNotNull(platform),
           Preconditions.checkNotNull(environment),
           Preconditions.checkNotNull(javaPackageFinder),
-          Preconditions.checkNotNull(objectMapper));
+          Preconditions.checkNotNull(objectMapper),
+          Preconditions.checkNotNull(classLoaderCache));
     }
 
     public Builder setExecutionContext(ExecutionContext executionContext) {
@@ -348,6 +325,11 @@ public class ExecutionContext {
 
     public Builder setObjectMapper(ObjectMapper objectMapper) {
       this.objectMapper = objectMapper;
+      return this;
+    }
+
+    public Builder setClassLoaderCache(ClassLoaderCache classLoaderCache) {
+      this.classLoaderCache = classLoaderCache;
       return this;
     }
   }

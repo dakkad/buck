@@ -18,6 +18,8 @@ package com.facebook.buck.cxx;
 
 import com.facebook.buck.android.AndroidPackageable;
 import com.facebook.buck.android.AndroidPackageableCollector;
+import com.facebook.buck.model.Pair;
+import com.facebook.buck.python.ImmutablePythonPackageComponents;
 import com.facebook.buck.python.PythonPackageComponents;
 import com.facebook.buck.rules.BuildRule;
 import com.facebook.buck.rules.BuildRuleParams;
@@ -26,7 +28,6 @@ import com.facebook.buck.rules.BuildTargetSourcePath;
 import com.facebook.buck.rules.PathSourcePath;
 import com.facebook.buck.rules.SourcePath;
 import com.facebook.buck.rules.SourcePathResolver;
-import com.facebook.buck.model.Pair;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
@@ -94,7 +95,7 @@ public class PrebuiltCxxLibrary extends AbstractCxxLibrary {
         CxxDescriptionEnhancer.requireBuildRule(
             params,
             ruleResolver,
-            cxxPlatform.asFlavor(),
+            cxxPlatform.getFlavor(),
             CxxDescriptionEnhancer.SHARED_FLAVOR);
 
     return new BuildTargetSourcePath(sharedLibrary.getBuildTarget());
@@ -121,7 +122,7 @@ public class PrebuiltCxxLibrary extends AbstractCxxLibrary {
     linkerArgsBuilder.addAll(
         CxxDescriptionEnhancer.getPlatformFlags(
             platformLinkerFlags,
-            cxxPlatform.asFlavor().toString()));
+            cxxPlatform.getFlavor().toString()));
     if (!headerOnly) {
       if (provided || type == Linker.LinkableDepType.SHARED) {
         SourcePath sharedLibrary = requireSharedLibrary(cxxPlatform);
@@ -156,7 +157,7 @@ public class PrebuiltCxxLibrary extends AbstractCxxLibrary {
     }
     ImmutableMap<Path, SourcePath> nativeLibraries = nativeLibrariesBuilder.build();
 
-    return new PythonPackageComponents(
+    return ImmutablePythonPackageComponents.of(
         /* modules */ ImmutableMap.<Path, SourcePath>of(),
         /* resources */ ImmutableMap.<Path, SourcePath>of(),
         nativeLibraries);

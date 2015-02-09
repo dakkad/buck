@@ -23,7 +23,6 @@ import com.facebook.buck.android.FilterResourcesStep.ResourceFilter;
 import com.facebook.buck.android.ResourcesFilter.ResourceCompressionMode;
 import com.facebook.buck.dalvik.ZipSplitter.DexSplitStrategy;
 import com.facebook.buck.java.JavaLibrary;
-import com.facebook.buck.java.Javac;
 import com.facebook.buck.java.JavacOptions;
 import com.facebook.buck.java.Keystore;
 import com.facebook.buck.model.BuildTarget;
@@ -36,6 +35,7 @@ import com.facebook.buck.rules.BuildRuleType;
 import com.facebook.buck.rules.BuildRules;
 import com.facebook.buck.rules.Description;
 import com.facebook.buck.rules.Hint;
+import com.facebook.buck.rules.ImmutableBuildRuleType;
 import com.facebook.buck.rules.SourcePath;
 import com.facebook.buck.rules.SourcePathResolver;
 import com.facebook.buck.rules.coercer.BuildConfigFields;
@@ -47,6 +47,7 @@ import com.facebook.buck.util.HumanReadableException;
 import com.facebook.infer.annotation.SuppressFieldNotInitialized;
 import com.google.common.base.Optional;
 import com.google.common.base.Preconditions;
+import com.google.common.base.Suppliers;
 import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -56,10 +57,12 @@ import com.google.common.collect.ImmutableSortedSet;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class AndroidBinaryDescription implements Description<AndroidBinaryDescription.Arg> {
 
-  public static final BuildRuleType TYPE = new BuildRuleType("android_binary");
+  public static final BuildRuleType TYPE = ImmutableBuildRuleType.of("android_binary");
 
   /**
    * By default, assume we have 5MB of linear alloc,
@@ -74,17 +77,16 @@ public class AndroidBinaryDescription implements Description<AndroidBinaryDescri
               "exe", new ExecutableMacroExpander(BUILD_TARGET_PARSER),
               "location", new LocationMacroExpander(BUILD_TARGET_PARSER)));
 
-  private final Javac javac;
+  private static final Pattern COUNTRY_LOCALE_PATTERN = Pattern.compile("([a-z]{2})-[A-Z]{2}");
+
   private final JavacOptions javacOptions;
   private final ProGuardConfig proGuardConfig;
   private final ImmutableMap<TargetCpuType, NdkCxxPlatform> nativePlatforms;
 
   public AndroidBinaryDescription(
-      Javac javac,
       JavacOptions javacOptions,
       ProGuardConfig proGuardConfig,
       ImmutableMap<TargetCpuType, NdkCxxPlatform> nativePlatforms) {
-    this.javac = javac;
     this.javacOptions = javacOptions;
     this.proGuardConfig = proGuardConfig;
     this.nativePlatforms = nativePlatforms;
@@ -164,6 +166,7 @@ public class AndroidBinaryDescription implements Description<AndroidBinaryDescri
         resolver,
         compressionMode,
         resourceFilter,
+        addFallbackLocales(args.locales.or(ImmutableSet.<String>of())),
         args.manifest,
         packageType,
         ImmutableSet.copyOf(args.cpuFilters.get()),
@@ -173,7 +176,6 @@ public class AndroidBinaryDescription implements Description<AndroidBinaryDescri
         dexSplitMode,
         ImmutableSet.copyOf(args.noDx.or(ImmutableSet.<BuildTarget>of())),
         /* resourcesToExclude */ ImmutableSet.<BuildTarget>of(),
-        javac,
         javacOptions,
         exopackageModes,
         (Keystore) keystore,
@@ -184,7 +186,7 @@ public class AndroidBinaryDescription implements Description<AndroidBinaryDescri
         graphEnhancer.createAdditionalBuildables();
 
     return new AndroidBinary(
-        params.copyWithExtraDeps(result.finalDeps()),
+        params.copyWithExtraDeps(Suppliers.ofInstance(result.getFinalDeps())),
         new SourcePathResolver(resolver),
         proGuardConfig.getProguardJarOverride(),
         proGuardConfig.getProguardMaxHeapSize(),
@@ -229,7 +231,9 @@ public class AndroidBinaryDescription implements Description<AndroidBinaryDescri
         args.primaryDexPatterns.or(ImmutableList.<String>of()),
         args.primaryDexClassesFile,
         args.primaryDexScenarioFile,
-        args.primaryDexScenarioOverflowAllowed.or(false));
+        args.primaryDexScenarioOverflowAllowed.or(false),
+        args.secondaryDexHeadClassesFile,
+        args.secondaryDexTailClassesFile);
   }
 
   private PackageType getPackageType(Arg args) {
@@ -244,6 +248,18 @@ public class AndroidBinaryDescription implements Description<AndroidBinaryDescri
       return ResourceCompressionMode.DISABLED;
     }
     return ResourceCompressionMode.valueOf(args.resourceCompression.get().toUpperCase());
+  }
+
+  private ImmutableSet<String> addFallbackLocales(ImmutableSet<String> locales) {
+    ImmutableSet.Builder<String> allLocales = ImmutableSet.builder();
+    for (String locale : locales) {
+      allLocales.add(locale);
+      Matcher matcher = COUNTRY_LOCALE_PATTERN.matcher(locale);
+      if (matcher.matches()) {
+        allLocales.add(matcher.group(1));
+      }
+    }
+    return allLocales.build();
   }
 
   @SuppressFieldNotInitialized
@@ -270,8 +286,11 @@ public class AndroidBinaryDescription implements Description<AndroidBinaryDescri
     public Optional<SourcePath> primaryDexClassesFile;
     public Optional<SourcePath> primaryDexScenarioFile;
     public Optional<Boolean> primaryDexScenarioOverflowAllowed;
+    public Optional<SourcePath> secondaryDexHeadClassesFile;
+    public Optional<SourcePath> secondaryDexTailClassesFile;
     public Optional<Long> linearAllocHardLimit;
     public Optional<List<String>> resourceFilter;
+    public Optional<ImmutableSet<String>> locales;
     public Optional<Boolean> buildStringSourceMap;
     public Optional<Set<TargetCpuType>> cpuFilters;
     public Optional<ImmutableSortedSet<BuildTarget>> preprocessJavaClassesDeps;

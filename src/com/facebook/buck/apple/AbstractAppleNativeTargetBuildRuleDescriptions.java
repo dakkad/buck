@@ -24,11 +24,13 @@ import com.facebook.buck.model.BuildTarget;
 import com.facebook.buck.model.BuildTargets;
 import com.facebook.buck.model.Flavor;
 import com.facebook.buck.model.HasBuildTarget;
+import com.facebook.buck.model.ImmutableFlavor;
 import com.facebook.buck.model.Pair;
 import com.facebook.buck.rules.BuildRule;
 import com.facebook.buck.rules.BuildRuleParams;
 import com.facebook.buck.rules.BuildRuleResolver;
 import com.facebook.buck.rules.BuildRuleType;
+import com.facebook.buck.rules.ImmutableBuildRuleType;
 import com.facebook.buck.rules.SourcePath;
 import com.facebook.buck.rules.SourcePathResolver;
 import com.facebook.buck.rules.SymlinkTree;
@@ -40,6 +42,7 @@ import com.google.common.base.Optional;
 import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
 import com.google.common.base.Splitter;
+import com.google.common.base.Suppliers;
 import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -50,6 +53,7 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
 
 import java.io.IOException;
+import java.nio.file.Paths;
 import java.nio.file.Path;
 import java.util.Iterator;
 import java.util.Map;
@@ -59,9 +63,9 @@ import java.util.Map;
  */
 public class AbstractAppleNativeTargetBuildRuleDescriptions {
 
-  public static final Flavor HEADERS = new Flavor("headers");
+  public static final Flavor HEADERS = ImmutableFlavor.of("headers");
 
-  private static final BuildRuleType HEADERS_RULE_TYPE = new BuildRuleType("headers");
+  private static final BuildRuleType HEADERS_RULE_TYPE = ImmutableBuildRuleType.of("headers");
 
   /** Utility class: do not instantiate. */
   private AbstractAppleNativeTargetBuildRuleDescriptions() {}
@@ -113,8 +117,8 @@ public class AbstractAppleNativeTargetBuildRuleDescriptions {
     BuildRuleParams headerRuleParams = params.copyWithChanges(
         HEADERS_RULE_TYPE,
         headersTarget,
-        /* declaredDeps */ ImmutableSortedSet.<BuildRule>of(),
-        params.getExtraDeps());
+        /* declaredDeps */ Suppliers.ofInstance(ImmutableSortedSet.<BuildRule>of()),
+        Suppliers.ofInstance(params.getExtraDeps()));
 
     TargetSources targetSources = TargetSources.ofAppleSources(resolver, args.srcs.get());
     ImmutableSortedMap<SourcePath, String> perFileFlags =
@@ -164,8 +168,8 @@ public class AbstractAppleNativeTargetBuildRuleDescriptions {
     }
 
     BuildRuleParams headerParams = params.copyWithDeps(
-        /* declaredDeps */ ImmutableSortedSet.<BuildRule>of(),
-        params.getExtraDeps());
+        /* declaredDeps */ Suppliers.ofInstance(ImmutableSortedSet.<BuildRule>of()),
+        Suppliers.ofInstance(params.getExtraDeps()));
     Path root = getPathToHeaders(params.getBuildTarget());
     return new SymlinkTree(headerParams, pathResolver, root, ImmutableMap.copyOf(headersToCopy));
   }
@@ -188,7 +192,8 @@ public class AbstractAppleNativeTargetBuildRuleDescriptions {
         FluentIterable
             .from(params.getDeclaredDeps())
             .transform(HasBuildTarget.TO_TARGET)
-            .transform(params.getTargetGraph().get()));
+            .transform(params.getTargetGraph().get())
+            .append(params.getTargetGraph().get(params.getBuildTarget())));
     try {
       traversal.traverse(startNodes);
     } catch (CycleException | IOException | InterruptedException e) {
@@ -196,8 +201,8 @@ public class AbstractAppleNativeTargetBuildRuleDescriptions {
     }
 
     BuildRuleParams compilationDatabaseParams = params.copyWithDeps(
-        /* declaredDeps */ traversal.deps.build(),
-        params.getExtraDeps());
+        /* declaredDeps */ Suppliers.ofInstance(traversal.deps.build()),
+        Suppliers.ofInstance(params.getExtraDeps()));
 
     return new CompilationDatabase(
         compilationDatabaseParams,
@@ -283,8 +288,8 @@ public class AbstractAppleNativeTargetBuildRuleDescriptions {
           BuildRule newBuildRule = node.getDescription().createBuildRule(
               new BuildRuleParams(
                   targetForHeaders,
-                  ImmutableSortedSet.<BuildRule>of(),
-                  ImmutableSortedSet.<BuildRule>of(),
+                  Suppliers.ofInstance(ImmutableSortedSet.<BuildRule>of()),
+                  Suppliers.ofInstance(ImmutableSortedSet.<BuildRule>of()),
                   node.getRuleFactoryParams().getProjectFilesystem(),
                   node.getRuleFactoryParams().getRuleKeyBuilderFactory(),
                   node.getType(),
@@ -320,14 +325,31 @@ public class AbstractAppleNativeTargetBuildRuleDescriptions {
     }
 
     return Optional.of(
-        BuildTargets.getGenPath(targetNode.getBuildTarget(), "%s" + headerMapType.getSuffix()));
+        BuildTargets.getGenPath(
+          targetNode.getBuildTarget().getUnflavoredTarget(),
+          "%s" + headerMapType.getSuffix()));
+  }
+
+  private static Path translateAppleSdkPaths(
+      Path path,
+      AppleSdkPaths appleSdkPaths) {
+    if (path.startsWith("$SDKROOT")) {
+      path = appleSdkPaths.getSdkPath().resolve(
+          path.subpath(1, path.getNameCount()));
+    } else if (path.startsWith("$DEVELOPER_DIR")) {
+      path = appleSdkPaths.getDeveloperPath().resolve(
+          path.subpath(1, path.getNameCount()));
+    }
+
+    return path;
   }
 
   public static void populateCxxConstructorArg(
       CxxConstructorArg output,
       AppleNativeTargetDescriptionArg arg,
       BuildTarget buildTarget,
-      TargetSources targetSources) {
+      TargetSources targetSources,
+      final Optional<AppleSdkPaths> appleSdkPaths) {
     output.srcs = Optional.of(
         Either.<ImmutableList<SourcePath>, ImmutableMap<String, SourcePath>>ofLeft(
             ImmutableList.copyOf(targetSources.getSrcPaths())));
@@ -341,6 +363,25 @@ public class AbstractAppleNativeTargetBuildRuleDescriptions {
     output.preprocessorFlags = Optional.of(ImmutableList.<String>of());
     output.langPreprocessorFlags = Optional.of(
         ImmutableMap.<CxxSource.Type, ImmutableList<String>>of());
+    if (appleSdkPaths.isPresent()) {
+      output.frameworkSearchPaths = arg.frameworks.transform(
+          new Function<ImmutableSortedSet<String>, ImmutableList<Path>>() {
+            @Override
+            public ImmutableList<Path> apply(ImmutableSortedSet<String> frameworkPaths) {
+                ImmutableSet.Builder<Path> frameworksSearchPathsBuilder = ImmutableSet.builder();
+                for (String frameworkPath : frameworkPaths) {
+                  Path parentDirectory = Paths.get(frameworkPath).getParent();
+                  if (parentDirectory != null) {
+                    frameworksSearchPathsBuilder.add(
+                        translateAppleSdkPaths(parentDirectory, appleSdkPaths.get()));
+                  }
+                }
+                return ImmutableList.copyOf(frameworksSearchPathsBuilder.build());
+            }
+          });
+    } else {
+      output.frameworkSearchPaths = Optional.of(ImmutableList.<Path>of());
+    }
     output.lexSrcs = Optional.of(ImmutableList.<SourcePath>of());
     output.yaccSrcs = Optional.of(ImmutableList.<SourcePath>of());
     output.deps = arg.deps;

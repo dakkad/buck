@@ -17,9 +17,9 @@ package com.facebook.buck.java;
 
 import com.facebook.buck.io.ProjectFilesystem;
 import com.facebook.buck.model.BuildTarget;
-import com.facebook.buck.rules.AnnotationProcessingData;
 import com.facebook.buck.rules.BuildRule;
 import com.facebook.buck.rules.RuleKey;
+import com.facebook.buck.rules.RuleKeyAppendable;
 import com.facebook.buck.util.BuckConstant;
 import com.facebook.buck.util.HumanReadableException;
 import com.google.common.base.Preconditions;
@@ -44,7 +44,7 @@ import javax.annotation.Nullable;
  * threading the information through buck in a more descriptive package rather than passing all
  * the components separately.
  */
-public class AnnotationProcessingParams implements AnnotationProcessingData {
+public class AnnotationProcessingParams implements RuleKeyAppendable {
   public static final AnnotationProcessingParams EMPTY = new AnnotationProcessingParams(
       /* owner target */ null,
       /* project filesystem */ null,
@@ -95,52 +95,46 @@ public class AnnotationProcessingParams implements AnnotationProcessingData {
             ownerTarget.getShortNameAndFlavorPostfix()));
   }
 
-  @Override
   public boolean isEmpty() {
     return searchPathElements.isEmpty() && names.isEmpty() && parameters.isEmpty();
   }
 
-  @Override
   public ImmutableSortedSet<Path> getSearchPathElements() {
     return searchPathElements;
   }
 
-  @Override
   public ImmutableSortedSet<String> getNames() {
     return names;
   }
 
-  @Override
   public ImmutableSortedSet<String> getParameters() {
     return parameters;
   }
 
   @Override
-  public RuleKey.Builder appendToRuleKey(RuleKey.Builder builder) {
+  public RuleKey.Builder appendToRuleKey(RuleKey.Builder builder, String key) {
     if (!isEmpty()) {
       // searchPathElements is not needed here since it comes from rules, which is appended below.
       String owner = (ownerTarget == null) ? null : ownerTarget.getFullyQualifiedName();
-      builder.set("owner", owner)
-          .set("names", names)
-          .set("parameters", parameters)
-          .set("processOnly", processOnly);
+      builder.setReflectively(key + ".owner", owner)
+          .setReflectively(key + ".names", names)
+          .setReflectively(key + ".parameters", parameters)
+          .setReflectively(key + ".processOnly", processOnly);
 
       ImmutableList.Builder<String> ruleKeyStrings = ImmutableList.builder();
       for (BuildRule rule : rules) {
         ruleKeyStrings.add(rule.getRuleKey().toString());
       }
-      builder.set("annotationProcessorRuleKeys", ruleKeyStrings.build());
+      builder.setReflectively(key + ".annotationProcessorRuleKeys", ruleKeyStrings.build());
     }
 
     return builder;
   }
 
-  @Override
   public boolean getProcessOnly() {
     return processOnly;
   }
 
-  @Override
   @Nullable
   public Path getGeneratedSourceFolderName() {
     if ((ownerTarget != null) && !isEmpty()) {
@@ -196,23 +190,16 @@ public class AnnotationProcessingParams implements AnnotationProcessingData {
       }
 
       Set<Path> searchPathElements = Sets.newHashSet();
-      ImmutableSortedSet.Builder<BuildRule> rules = ImmutableSortedSet.naturalOrder();
 
       for (BuildRule rule : this.rules) {
-        String type = rule.getType().getName();
-
-        rules.add(rule);
-
-        // We're using raw strings here to avoid circular dependencies.
-        // TODO(simons): don't use raw strings.
-        HasClasspathEntries hasClasspathEntries = getRuleAsHasClasspathEntries(rule);
-        if ("java_binary".equals(type) || "prebuilt_jar".equals(type)) {
+        if (rule.getClass().isAnnotationPresent(BuildsAnnotationProcessor.class)) {
           Path pathToOutput = rule.getPathToOutputFile();
           if (pathToOutput != null) {
             searchPathElements.add(pathToOutput);
           }
-        } else if (hasClasspathEntries != null) {
-          searchPathElements.addAll(hasClasspathEntries.getTransitiveClasspathEntries().values());
+        } else if (rule instanceof HasClasspathEntries) {
+          searchPathElements.addAll(
+              ((HasClasspathEntries) rule).getTransitiveClasspathEntries().values());
         } else {
           throw new HumanReadableException(
               "%1$s: Error adding '%2$s' to annotation_processing_deps: " +
@@ -228,16 +215,8 @@ public class AnnotationProcessingParams implements AnnotationProcessingData {
           searchPathElements,
           names,
           parameters,
-          rules.build(),
+          ImmutableSortedSet.copyOf(this.rules),
           processOnly);
-    }
-
-    @Nullable
-    private HasClasspathEntries getRuleAsHasClasspathEntries(BuildRule rule) {
-      if (rule instanceof HasClasspathEntries) {
-        return (HasClasspathEntries) rule;
-      }
-      return null;
     }
   }
 }

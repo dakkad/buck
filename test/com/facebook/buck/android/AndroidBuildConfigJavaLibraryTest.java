@@ -16,7 +16,6 @@
 
 package com.facebook.buck.android;
 
-import static com.facebook.buck.java.JavaCompilationConstants.DEFAULT_JAVAC;
 import static com.facebook.buck.java.JavaCompilationConstants.DEFAULT_JAVAC_OPTIONS;
 import static org.junit.Assert.assertEquals;
 
@@ -27,6 +26,7 @@ import com.facebook.buck.rules.BuildRuleResolver;
 import com.facebook.buck.rules.FakeBuildRuleParamsBuilder;
 import com.facebook.buck.rules.SourcePath;
 import com.facebook.buck.rules.coercer.BuildConfigFields;
+import com.facebook.buck.rules.coercer.ImmutableBuildConfigFields;
 import com.google.common.base.Optional;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -50,7 +50,6 @@ public class AndroidBuildConfigJavaLibraryTest {
                 Collections.singleton("String foo = \"bar\"")),
             /* valuesFile */ Optional.<SourcePath>absent(),
             /* useConstantExpressions */ false,
-            DEFAULT_JAVAC,
             DEFAULT_JAVAC_OPTIONS,
             buildRuleResolver);
 
@@ -61,9 +60,9 @@ public class AndroidBuildConfigJavaLibraryTest {
         ImmutableMap.of(
             "com.example.buck",
             BuildConfigFields.fromFields(
-                ImmutableList.of(
-                    new BuildConfigFields.Field("String", "foo", "\"bar\"")))),
-        collection.buildConfigs());
+                ImmutableList.<BuildConfigFields.Field>of(
+                    ImmutableBuildConfigFields.Field.of("String", "foo", "\"bar\"")))),
+        collection.getBuildConfigs());
   }
 
   @Test
@@ -79,7 +78,6 @@ public class AndroidBuildConfigJavaLibraryTest {
             /* values */ fields,
             /* valuesFile */ Optional.<SourcePath>absent(),
             /* useConstantExpressions */ false,
-            DEFAULT_JAVAC,
             DEFAULT_JAVAC_OPTIONS,
             buildRuleResolver);
     AndroidBuildConfig buildConfig = buildConfigJavaLibrary.getAndroidBuildConfig();

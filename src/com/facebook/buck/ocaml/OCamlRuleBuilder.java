@@ -24,13 +24,14 @@ import com.facebook.buck.cxx.NativeLinkable;
 import com.facebook.buck.cxx.NativeLinkableInput;
 import com.facebook.buck.cxx.NativeLinkables;
 import com.facebook.buck.model.BuildTarget;
-import com.facebook.buck.model.BuildTargets;
 import com.facebook.buck.model.Flavor;
+import com.facebook.buck.model.ImmutableFlavor;
 import com.facebook.buck.rules.AbstractBuildRule;
 import com.facebook.buck.rules.BuildRule;
 import com.facebook.buck.rules.BuildRuleParams;
 import com.facebook.buck.rules.BuildRuleResolver;
 import com.facebook.buck.rules.BuildRuleType;
+import com.facebook.buck.rules.ImmutableBuildRuleType;
 import com.facebook.buck.rules.SourcePath;
 import com.facebook.buck.rules.SourcePathResolver;
 import com.facebook.buck.rules.coercer.OCamlSource;
@@ -47,6 +48,7 @@ import com.google.common.base.Optional;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
+import com.google.common.base.Suppliers;
 import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -63,9 +65,9 @@ import java.nio.file.Path;
  */
 public class OCamlRuleBuilder {
 
-  public static final BuildRuleType TYPE = new BuildRuleType("ocaml_library");
-  private static final Flavor OCAML_STATIC_FLAVOR = new Flavor("static");
-  private static final Flavor OCAML_LINK_BINARY_FLAVOR = new Flavor("binary");
+  public static final BuildRuleType TYPE = ImmutableBuildRuleType.of("ocaml_library");
+  private static final Flavor OCAML_STATIC_FLAVOR = ImmutableFlavor.of("static");
+  private static final Flavor OCAML_LINK_BINARY_FLAVOR = ImmutableFlavor.of("binary");
 
   private OCamlRuleBuilder() {
   }
@@ -105,12 +107,12 @@ public class OCamlRuleBuilder {
 
   @VisibleForTesting
   protected static BuildTarget createStaticLibraryBuildTarget(BuildTarget target) {
-    return BuildTargets.extendFlavoredBuildTarget(target, OCAML_STATIC_FLAVOR);
+    return BuildTarget.builder(target).addFlavors(OCAML_STATIC_FLAVOR).build();
   }
 
   @VisibleForTesting
   protected static BuildTarget createOCamlLinkTarget(BuildTarget target) {
-    return BuildTargets.extendFlavoredBuildTarget(target, OCAML_LINK_BINARY_FLAVOR);
+    return BuildTarget.builder(target).addFlavors(OCAML_LINK_BINARY_FLAVOR).build();
   }
 
   public static AbstractBuildRule createBuildRule(
@@ -192,8 +194,9 @@ public class OCamlRuleBuilder {
     final BuildRuleParams compileParams = params.copyWithChanges(
         NativeLinkable.NATIVE_LINKABLE_TYPE,
         buildTarget,
-        /* declaredDeps */ ImmutableSortedSet.copyOf(pathResolver.filterBuildRuleInputs(allInputs)),
-        /* extraDeps */ ImmutableSortedSet.<BuildRule>of());
+        /* declaredDeps */ Suppliers.ofInstance(
+            ImmutableSortedSet.copyOf(pathResolver.filterBuildRuleInputs(allInputs))),
+        /* extraDeps */ Suppliers.ofInstance(ImmutableSortedSet.<BuildRule>of()));
 
     ImmutableList.Builder<String> flagsBuilder = ImmutableList.<String>builder();
     flagsBuilder.addAll(argFlags);
@@ -227,11 +230,12 @@ public class OCamlRuleBuilder {
     if (isLibrary) {
       return new OCamlStaticLibrary(
           params.copyWithDeps(
-              ImmutableSortedSet.<BuildRule>naturalOrder()
-                  .addAll(params.getDeclaredDeps())
-                  .add(ocamlLibraryBuild)
-                  .build(),
-              params.getExtraDeps()),
+              Suppliers.ofInstance(
+                  ImmutableSortedSet.<BuildRule>naturalOrder()
+                      .addAll(params.getDeclaredDeps())
+                      .add(ocamlLibraryBuild)
+                      .build()),
+              Suppliers.ofInstance(params.getExtraDeps())),
           pathResolver,
           compileParams,
           linkerFlags,
@@ -241,11 +245,12 @@ public class OCamlRuleBuilder {
     } else {
       return new OCamlBinary(
           params.copyWithDeps(
-              ImmutableSortedSet.<BuildRule>naturalOrder()
-                  .addAll(params.getDeclaredDeps())
-                  .add(ocamlLibraryBuild)
-                  .build(),
-              params.getExtraDeps()),
+              Suppliers.ofInstance(
+                  ImmutableSortedSet.<BuildRule>naturalOrder()
+                      .addAll(params.getDeclaredDeps())
+                      .add(ocamlLibraryBuild)
+                      .build()),
+              Suppliers.ofInstance(params.getExtraDeps())),
           pathResolver,
           ocamlLibraryBuild.getPathToOutputFile());
     }
@@ -295,8 +300,9 @@ public class OCamlRuleBuilder {
     final BuildRuleParams compileParams = params.copyWithChanges(
         NativeLinkable.NATIVE_LINKABLE_TYPE,
         buildTarget,
-        /* declaredDeps */ ImmutableSortedSet.copyOf(pathResolver.filterBuildRuleInputs(allInputs)),
-        /* extraDeps */ ImmutableSortedSet.<BuildRule>of());
+        /* declaredDeps */ Suppliers.ofInstance(
+            ImmutableSortedSet.copyOf(pathResolver.filterBuildRuleInputs(allInputs))),
+        /* extraDeps */ Suppliers.ofInstance(ImmutableSortedSet.<BuildRule>of()));
 
     ImmutableList.Builder<String> flagsBuilder = ImmutableList.<String>builder();
     flagsBuilder.addAll(argFlags);
@@ -341,11 +347,12 @@ public class OCamlRuleBuilder {
     if (isLibrary) {
       return new OCamlStaticLibrary(
           params.copyWithDeps(
-              ImmutableSortedSet.<BuildRule>naturalOrder()
-                  .addAll(params.getDeclaredDeps())
-                  .addAll(ocamlLibraryBuild)
-                  .build(),
-              params.getExtraDeps()),
+              Suppliers.ofInstance(
+                  ImmutableSortedSet.<BuildRule>naturalOrder()
+                      .addAll(params.getDeclaredDeps())
+                      .addAll(ocamlLibraryBuild)
+                      .build()),
+              Suppliers.ofInstance(params.getExtraDeps())),
           pathResolver,
           compileParams,
           linkerFlags,
@@ -355,11 +362,12 @@ public class OCamlRuleBuilder {
     } else {
       return new OCamlBinary(
           params.copyWithDeps(
-              ImmutableSortedSet.<BuildRule>naturalOrder()
-                  .addAll(params.getDeclaredDeps())
-                  .addAll(ocamlLibraryBuild)
-                  .build(),
-              params.getExtraDeps()),
+              Suppliers.ofInstance(
+                  ImmutableSortedSet.<BuildRule>naturalOrder()
+                      .addAll(params.getDeclaredDeps())
+                      .addAll(ocamlLibraryBuild)
+                      .build()),
+              Suppliers.ofInstance(params.getExtraDeps())),
           pathResolver,
           Preconditions.checkNotNull(ocamlLibraryBuild.get(0).getPathToOutputFile()));
     }

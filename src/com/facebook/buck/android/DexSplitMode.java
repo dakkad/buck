@@ -18,6 +18,7 @@ package com.facebook.buck.android;
 
 import com.facebook.buck.dalvik.ZipSplitter;
 import com.facebook.buck.rules.RuleKey;
+import com.facebook.buck.rules.RuleKeyAppendable;
 import com.facebook.buck.rules.SourcePath;
 import com.facebook.buck.util.Optionals;
 import com.google.common.base.Optional;
@@ -33,7 +34,7 @@ import javax.annotation.concurrent.Immutable;
  * Bundles together some information about whether and how we should split up dex files.
  */
 @Immutable
-class DexSplitMode {
+class DexSplitMode implements RuleKeyAppendable {
   public static final DexSplitMode NO_SPLIT = new DexSplitMode(
       /* shouldSplitDex */ false,
       ZipSplitter.DexSplitStrategy.MAXIMIZE_PRIMARY_DEX_SIZE,
@@ -43,7 +44,9 @@ class DexSplitMode {
       /* primaryDexPatterns */ ImmutableSet.<String>of(),
       /* primaryDexClassesFile */ Optional.<SourcePath>absent(),
       /* primaryDexScenarioFile */ Optional.<SourcePath>absent(),
-      /* isPrimaryDexScenarioOverflowAllowed */ false);
+      /* isPrimaryDexScenarioOverflowAllowed */ false,
+      /* secondaryDexHeadClassesFile */ Optional.<SourcePath>absent(),
+      /* secondaryDexTailClassesFile */ Optional.<SourcePath>absent());
 
   private final boolean shouldSplitDex;
   private final DexStore dexStore;
@@ -87,6 +90,34 @@ class DexSplitMode {
   private final boolean isPrimaryDexScenarioOverflowAllowed;
 
   /**
+   * File that whitelists the class files that should be in the first secondary
+   * dexes.
+   * <p>
+   * Values in this file must match JAR entries (without the .class suffix),
+   * so they should contain path separators.
+   * For example:
+   * <pre>
+   * java/util/Map$Entry
+   * </pre>
+   */
+  private final Optional<SourcePath> secondaryDexHeadClassesFile;
+
+  /**
+   * File that whitelists the class files that should be in the last secondary
+   * dexes.
+   * <p>
+   * Values in this file must match JAR entries (without the .class suffix),
+   * so they should contain path separators.
+   * For example:
+   * <pre>
+   * java/util/Map$Entry
+   * </pre>
+   */
+  private final Optional<SourcePath> secondaryDexTailClassesFile;
+
+
+
+  /**
    *
    * @param primaryDexPatterns Set of substrings that, when matched, will cause individual input
    *     class or resource files to be placed into the primary jar (and thus the primary dex
@@ -100,6 +131,10 @@ class DexSplitMode {
    * @param isPrimaryDexScenarioOverflowAllowed A boolean indicating whether to fail the build if
    *     any classes required by primaryDexScenarioFile cannot fit (false) or to allow the build to
    *     to proceed on a best-effort basis (true).
+   * @param secondaryDexHeadClassesFile Path to a file containing a list of classes that are put
+   *     in the first secondary dexes.
+   * @param secondaryDexTailClassesFile Path to a file containing a list of classes that are put
+   *     in the last secondary dexes.
    * @param useLinearAllocSplitDex If true, {@link com.facebook.buck.dalvik.DalvikAwareZipSplitter}
    *     will be used. Also, {@code linearAllocHardLimit} must have a positive value in this case.
    */
@@ -112,7 +147,9 @@ class DexSplitMode {
       Collection<String> primaryDexPatterns,
       Optional<SourcePath> primaryDexClassesFile,
       Optional<SourcePath> primaryDexScenarioFile,
-      boolean isPrimaryDexScenarioOverflowAllowed) {
+      boolean isPrimaryDexScenarioOverflowAllowed,
+      Optional<SourcePath> secondaryDexHeadClassesFile,
+      Optional<SourcePath> secondaryDexTailClassesFile) {
     this.shouldSplitDex = shouldSplitDex;
     this.dexSplitStrategy = dexSplitStrategy;
     this.dexStore = dexStore;
@@ -122,6 +159,9 @@ class DexSplitMode {
     this.primaryDexClassesFile = primaryDexClassesFile;
     this.primaryDexScenarioFile = primaryDexScenarioFile;
     this.isPrimaryDexScenarioOverflowAllowed = isPrimaryDexScenarioOverflowAllowed;
+    this.secondaryDexHeadClassesFile = secondaryDexHeadClassesFile;
+    this.secondaryDexTailClassesFile = secondaryDexTailClassesFile;
+
   }
 
   public DexStore getDexStore() {
@@ -160,6 +200,13 @@ class DexSplitMode {
   public boolean isPrimaryDexScenarioOverflowAllowed() {
     return isPrimaryDexScenarioOverflowAllowed;
   }
+  public Optional<SourcePath> getSecondaryDexHeadClassesFile() {
+    return secondaryDexHeadClassesFile;
+  }
+  public Optional<SourcePath> getSecondaryDexTailClassesFile() {
+    return secondaryDexTailClassesFile;
+  }
+
 
   /**
    * @return All {@link SourcePath}s referenced by this object, for use in
@@ -169,18 +216,21 @@ class DexSplitMode {
     ImmutableList.Builder<SourcePath> paths = ImmutableList.builder();
     Optionals.addIfPresent(primaryDexClassesFile, paths);
     Optionals.addIfPresent(primaryDexScenarioFile, paths);
+    Optionals.addIfPresent(secondaryDexHeadClassesFile, paths);
+    Optionals.addIfPresent(secondaryDexTailClassesFile, paths);
     return paths.build();
   }
 
-  public RuleKey.Builder appendToRuleKey(String prefix, RuleKey.Builder builder) {
-    builder.set(prefix + ".shouldSplitDex", shouldSplitDex);
-    builder.set(prefix + ".dexStore", dexStore.name());
-    builder.set(prefix + ".dexSplitStrategy", dexSplitStrategy.name());
-    builder.set(prefix + ".useLinearAllocSplitDex", useLinearAllocSplitDex);
-    builder.set(prefix + ".primaryDexPatterns", primaryDexPatterns);
-    builder.set(prefix + ".linearAllocHardLimit", linearAllocHardLimit);
-    builder.set(
-        prefix + ".isPrimaryDexScenarioOverflowAllowed",
+  @Override
+  public RuleKey.Builder appendToRuleKey(RuleKey.Builder builder, String key) {
+    builder.setReflectively(key + ".shouldSplitDex", shouldSplitDex);
+    builder.setReflectively(key + ".dexStore", dexStore.name());
+    builder.setReflectively(key + ".dexSplitStrategy", dexSplitStrategy.name());
+    builder.setReflectively(key + ".useLinearAllocSplitDex", useLinearAllocSplitDex);
+    builder.setReflectively(key + ".primaryDexPatterns", primaryDexPatterns);
+    builder.setReflectively(key + ".linearAllocHardLimit", linearAllocHardLimit);
+    builder.setReflectively(
+        key + ".isPrimaryDexScenarioOverflowAllowed",
         isPrimaryDexScenarioOverflowAllowed);
     return builder;
   }

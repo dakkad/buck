@@ -39,6 +39,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSortedSet;
 
 import java.nio.file.Path;
+import java.util.Map;
 
 public class PythonBinary extends AbstractBuildRule implements BinaryBuildRule {
 
@@ -90,6 +91,7 @@ public class PythonBinary extends AbstractBuildRule implements BinaryBuildRule {
   @Override
   public ImmutableList<String> getExecutableCommand(ProjectFilesystem projectFilesystem) {
     return ImmutableList.of(
+        pythonEnvironment.getPythonPath().toString(),
         Preconditions.checkNotNull(
             projectFilesystem.getAbsolutifier().apply(getBinPath())).toString());
   }
@@ -97,19 +99,18 @@ public class PythonBinary extends AbstractBuildRule implements BinaryBuildRule {
   @Override
   public RuleKey.Builder appendDetailsToRuleKey(RuleKey.Builder builder) {
     builder
-        .set("packageType", "pex")
-        .set("pythonVersion", pythonEnvironment.getPythonVersion().toString())
-        .set("mainModule", main.toString());
+        .setReflectively("packageType", "pex")
+        .setReflectively("pythonVersion", pythonEnvironment.getPythonVersion().toString())
+        .setReflectively("mainModule", main.toString());
 
     // Hash all the input components here so we can detect changes in both input file content
     // and module name mappings.
-    for (ImmutableMap.Entry<String, ImmutableMap<Path, SourcePath>> part : ImmutableMap.of(
+    for (ImmutableMap.Entry<String, Map<Path, SourcePath>> part : ImmutableMap.of(
         "module", components.getModules(),
         "resource", components.getResources(),
         "nativeLibraries", components.getNativeLibraries()).entrySet()) {
       for (Path name : ImmutableSortedSet.copyOf(part.getValue().keySet())) {
-        Path src = getResolver().getPath(part.getValue().get(name));
-        builder.setInput(part.getKey() + ":" + name, src);
+        builder.setReflectively(part.getKey() + ":" + name, part.getValue().get(name));
       }
     }
 
