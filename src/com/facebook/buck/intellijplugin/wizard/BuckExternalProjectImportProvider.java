@@ -54,8 +54,8 @@ public class BuckExternalProjectImportProvider extends AbstractExternalProjectIm
   @Override
   public ModuleWizardStep[] createSteps(WizardContext context) {
     // TODO(dka) Consider adding project JDK step where buck takes over as jdk / compiler
-    return ArrayUtil.append(ArrayUtil.append(super.createSteps(context),
-        new BuckProjectImportStep(context)),
+    return ArrayUtil.append(super.createSteps(context),
+        //new BuckProjectImportStep(context)),
         new ProjectJdkStep(context));
   }
 }

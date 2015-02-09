@@ -17,8 +17,6 @@
 package com.facebook.buck.intellijplugin;
 
 import com.facebook.buck.intellijplugin.settings.BuckExecutionSettings;
-import com.intellij.openapi.application.Application;
-import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.externalSystem.model.DataNode;
 import com.intellij.openapi.externalSystem.model.ExternalSystemException;
@@ -29,19 +27,9 @@ import com.intellij.openapi.externalSystem.model.project.ProjectData;
 import com.intellij.openapi.externalSystem.model.task.ExternalSystemTaskId;
 import com.intellij.openapi.externalSystem.model.task.ExternalSystemTaskNotificationListener;
 import com.intellij.openapi.externalSystem.service.project.ExternalSystemProjectResolver;
-import com.intellij.openapi.module.Module;
-import com.intellij.openapi.module.ModuleManager;
 import com.intellij.openapi.module.ModuleTypeId;
-import com.intellij.openapi.project.Project;
-import com.intellij.openapi.project.ProjectManager;
-import com.intellij.openapi.roots.ModuleRootManager;
-import com.intellij.openapi.roots.ProjectRootManager;
-import com.intellij.openapi.util.InvalidDataException;
-import com.intellij.openapi.vfs.VirtualFile;
-import org.jdom.JDOMException;
+import com.intellij.util.PathUtil;
 import org.jetbrains.annotations.Nullable;
-
-import java.io.IOException;
 
 /**
  * Buck project resolver which identifies projects.
@@ -54,80 +42,52 @@ public class BuckProjectResolver implements ExternalSystemProjectResolver<BuckEx
   @Nullable
   @Override
   public DataNode<ProjectData> resolveProjectInfo(
-      ExternalSystemTaskId externalSystemTaskId, String projectPath, boolean isPreview,
+      ExternalSystemTaskId externalSystemTaskId, String projectPath,
+      boolean isPreview,
       BuckExecutionSettings executionSettings,
       ExternalSystemTaskNotificationListener notificationListener)
       throws ExternalSystemException, IllegalArgumentException,
       IllegalStateException {
 
-    LOG.info("Attempting to resolve external project information for " + projectPath);
-
-    //if (!BaseDirectoryResolver.hasIntellijProject(projectPath)) {
-      // run some init
-    //  runBuckProject();
-    //}
-
-    // See https://confluence.jetbrains.com/display/IDEADEV/Structure+of+IntelliJ+IDEA+Project
-
-    // Load the project from the working directory
-    Project project;
-    try {
-
-      project = ProjectManager.getInstance()
-          .loadAndOpenProject(projectPath);
-    } catch (JDOMException | InvalidDataException | IOException e) {
-      throw new ExternalSystemException("Failed to load prior buck project", e);
-    }
-
-    ProjectRootManager projectRootManager = ProjectRootManager.getInstance(project);
-    VirtualFile[] moduleContentRoots = projectRootManager.getContentRootsFromAllModules();
-    ModuleManager moduleManager = ModuleManager.getInstance(project);
-
-    Module[] modules = moduleManager.getModules();
-
-    String projectName = project.getName();
+    LOG.info(
+        "Attempting to resolve external project information for " + projectPath);
 
     ProjectData projectData = new ProjectData(
         BuckPlugin.PROJECT_SYSTEM_ID,
-        projectName,
+        getProjectName(projectPath),
         projectPath + BUCK_WORKING_DIRECTORY,
         projectPath);
 
     DataNode<ProjectData> projectDataNode = new DataNode<ProjectData>(
         ProjectKeys.PROJECT, projectData, null);
 
-    for (Module module : modules) {
-      ModuleRootManager moduleRootManager = ModuleRootManager.getInstance(module);
-      ModuleData moduleData = new ModuleData(
-          module.getName(),
-          BuckPlugin.PROJECT_SYSTEM_ID,
-          ModuleTypeId.JAVA_MODULE,
-          module.getName(),
-          module.getModuleFilePath(),
-          projectPath);
-      DataNode<ModuleData> moduleDataNode =
-          projectDataNode.createChild(ProjectKeys.MODULE, moduleData);
-      for (VirtualFile root : moduleRootManager.getContentRoots()) {
-        ContentRootData rootData = new ContentRootData(BuckPlugin.PROJECT_SYSTEM_ID,
-            root.getCanonicalPath());
-        moduleDataNode.createChild(ProjectKeys.CONTENT_ROOT, rootData);
-      }
-    }
 
-    // TODO(dka) Check out public static final Topic<ModuleListener> MODULES =
-    // new Topic<ModuleListener>("modules added or removed from project",
-    // ModuleListener.class);
-
-    ContentRootData contentRoot = new ContentRootData(BuckPlugin.PROJECT_SYSTEM_ID,
+    ModuleData moduleData = new ModuleData(
+        getModuleName(projectPath),
+        BuckPlugin.PROJECT_SYSTEM_ID,
+        ModuleTypeId.JAVA_MODULE,
+        getModuleName(projectPath),
+        getModulePath(projectPath),
         projectPath);
-    //projectDataNode.addChild();
+    DataNode<ModuleData> moduleDataNode =
+        projectDataNode.createChild(ProjectKeys.MODULE, moduleData);
+    ContentRootData rootData = new ContentRootData(BuckPlugin.PROJECT_SYSTEM_ID,
+        "src/");
+    moduleDataNode.createChild(ProjectKeys.CONTENT_ROOT, rootData);
     return projectDataNode;
   }
 
-  private void runBuckProject() {
-    // TODO(dka) Do some work!
-    Application application = ApplicationManager.getApplication();
-    //ExecutionEnvironment environment = ExecutionManager.getInstance(project);
+  private String getModulePath(String projectPath) {
+    return projectPath + "/buck";
+  }
+
+  private String getModuleName(String projectPath) {
+    return "buck";
+  }
+
+
+  private String getProjectName(String projectPath) {
+    return PathUtil.getParentPath(projectPath);
   }
 
   @Override
