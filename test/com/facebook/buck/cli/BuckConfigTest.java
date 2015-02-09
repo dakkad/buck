@@ -41,13 +41,11 @@ import com.google.common.base.Optional;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Iterables;
 
 import org.easymock.EasyMock;
 import org.junit.Rule;
 import org.junit.Test;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.Reader;
 import java.io.StringReader;
@@ -55,8 +53,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Iterator;
 import java.util.Map;
-
-import javax.annotation.Nullable;
 
 public class BuckConfigTest {
 
@@ -124,7 +120,10 @@ public class BuckConfigTest {
         "[alias]",
         "fb4a   =   //java/com/example:fbandroid",
         "katana =   //java/com/example:fbandroid"));
-    BuckConfig config1 = createWithDefaultFilesystem(reader1, parser);
+    BuckConfig config1 = BuckConfigTestUtils.createWithDefaultFilesystem(
+        temporaryFolder,
+        reader1,
+        parser);
     assertEquals(
         ImmutableMap.of(Paths.get("java/com/example"), "fb4a"),
         config1.getBasePathToAliasMap());
@@ -138,7 +137,10 @@ public class BuckConfigTest {
         "[alias]",
         "katana =   //java/com/example:fbandroid",
         "fb4a   =   //java/com/example:fbandroid"));
-    BuckConfig config2 = createWithDefaultFilesystem(reader2, parser);
+    BuckConfig config2 = BuckConfigTestUtils.createWithDefaultFilesystem(
+        temporaryFolder,
+        reader2,
+        parser);
     assertEquals(
         ImmutableMap.of(Paths.get("java/com/example"), "katana"),
         config2.getBasePathToAliasMap());
@@ -149,7 +151,10 @@ public class BuckConfigTest {
         config2.getEntriesForSection("alias"));
 
     Reader noAliasesReader = new StringReader("");
-    BuckConfig noAliasesConfig = createWithDefaultFilesystem(noAliasesReader, parser);
+    BuckConfig noAliasesConfig = BuckConfigTestUtils.createWithDefaultFilesystem(
+        temporaryFolder,
+        noAliasesReader,
+        parser);
     assertEquals(ImmutableMap.of(), noAliasesConfig.getBasePathToAliasMap());
     assertEquals(ImmutableMap.of(), noAliasesConfig.getEntriesForSection("alias"));
   }
@@ -164,7 +169,7 @@ public class BuckConfigTest {
 
     try {
       BuildTargetParser parser = new BuildTargetParser();
-      createWithDefaultFilesystem(reader, parser);
+      BuckConfigTestUtils.createWithDefaultFilesystem(temporaryFolder, reader, parser);
       fail("Should have thrown HumanReadableException.");
     } catch (HumanReadableException e) {
       assertEquals(":fb4a must start with //", e.getHumanReadableErrorMessage());
@@ -181,7 +186,7 @@ public class BuckConfigTest {
 
     // BuckConfig should allow nonexistent targets without throwing.
     BuildTargetParser parser = new BuildTargetParser();
-    createWithDefaultFilesystem(reader, parser);
+    BuckConfigTestUtils.createWithDefaultFilesystem(temporaryFolder, reader, parser);
   }
 
   @Test
@@ -191,7 +196,10 @@ public class BuckConfigTest {
         "[alias]",
         "foo = //java/com/example:foo",
         "bar = //java/com/example:bar"));
-    BuckConfig config = createWithDefaultFilesystem(reader, parser);
+    BuckConfig config = BuckConfigTestUtils.createWithDefaultFilesystem(
+        temporaryFolder,
+        reader,
+        parser);
     assertEquals("//java/com/example:foo", config.getBuildTargetForAlias("foo"));
     assertEquals("//java/com/example:bar", config.getBuildTargetForAlias("bar"));
     assertNull(
@@ -200,7 +208,10 @@ public class BuckConfigTest {
     assertNull(config.getBuildTargetForAlias("baz"));
 
     Reader noAliasesReader = new StringReader("");
-    BuckConfig noAliasesConfig = createWithDefaultFilesystem(noAliasesReader, parser);
+    BuckConfig noAliasesConfig = BuckConfigTestUtils.createWithDefaultFilesystem(
+        temporaryFolder,
+        noAliasesReader,
+        parser);
     assertNull(noAliasesConfig.getBuildTargetForAlias("foo"));
     assertNull(noAliasesConfig.getBuildTargetForAlias("bar"));
     assertNull(noAliasesConfig.getBuildTargetForAlias("baz"));
@@ -212,10 +223,9 @@ public class BuckConfigTest {
   @Test
   public void testEmptyConfig() {
     BuckConfig emptyConfig = new FakeBuckConfig();
-    assertEquals(ImmutableMap.of(), emptyConfig.getEntriesForSection("alias"));
+    assertEquals(ImmutableMap.<String, String>of(), emptyConfig.getEntriesForSection("alias"));
     assertNull(emptyConfig.getBuildTargetForAlias("fb4a"));
-    assertEquals(ImmutableMap.of(), emptyConfig.getBasePathToAliasMap());
-    assertEquals(0, Iterables.size(emptyConfig.getDefaultIncludes()));
+    assertEquals(ImmutableMap.<Path, String>of(), emptyConfig.getBasePathToAliasMap());
   }
 
   @Test
@@ -255,7 +265,10 @@ public class BuckConfigTest {
         "# Do not delete these: automation builds require these aliases to exist!",
         "automation_foo = foo_codename",
         "automation_bar = bar"));
-    BuckConfig config = createWithDefaultFilesystem(reader, parser);
+    BuckConfig config = BuckConfigTestUtils.createWithDefaultFilesystem(
+        temporaryFolder,
+        reader,
+        parser);
     assertEquals("//java/com/example:foo", config.getBuildTargetForAlias("foo"));
     assertEquals("//java/com/example:bar", config.getBuildTargetForAlias("bar"));
     assertEquals("//java/com/example:foo", config.getBuildTargetForAlias("foo_codename"));
@@ -273,7 +286,7 @@ public class BuckConfigTest {
         "foo = //java/com/example:foo",
         "bar = food"));
     try {
-      createWithDefaultFilesystem(reader, parser);
+      BuckConfigTestUtils.createWithDefaultFilesystem(temporaryFolder, reader, parser);
       fail("Should have thrown HumanReadableException.");
     } catch (HumanReadableException e) {
       assertEquals("No alias for: food.", e.getHumanReadableErrorMessage());
@@ -289,7 +302,7 @@ public class BuckConfigTest {
         "foo = //java/com/example:foo",
         "foo = //java/com/example:foo"));
     try {
-      createWithDefaultFilesystem(reader, parser);
+      BuckConfigTestUtils.createWithDefaultFilesystem(temporaryFolder, reader, parser);
       fail("Should have thrown HumanReadableException.");
     } catch (HumanReadableException e) {
       assertEquals(
@@ -306,7 +319,10 @@ public class BuckConfigTest {
     Reader reader = new StringReader(Joiner.on('\n').join(
         "[test]",
         "excluded_labels = windows, linux"));
-    BuckConfig config = createWithDefaultFilesystem(reader, null);
+    BuckConfig config = BuckConfigTestUtils.createWithDefaultFilesystem(
+        temporaryFolder,
+        reader,
+        null);
 
     assertEquals(
         ImmutableList.of("windows", "linux"),
@@ -325,7 +341,7 @@ public class BuckConfigTest {
     Reader reader = new StringReader(Joiner.on('\n').join(
         "[project]",
         "ignore = .git, foo, bar/, baz//, a/b/c"));
-    BuckConfig config = BuckConfig.createFromReader(
+    BuckConfig config = BuckConfigTestUtils.createFromReader(
         reader,
         filesystem,
         parser,
@@ -359,7 +375,7 @@ public class BuckConfigTest {
     Reader reader = new StringReader(Joiner.on('\n').join(
         "[cache]",
         "dir = cache_dir"));
-    BuckConfig config = BuckConfig.createFromReader(
+    BuckConfig config = BuckConfigTestUtils.createFromReader(
         reader,
         filesystem,
         parser,
@@ -423,7 +439,10 @@ public class BuckConfigTest {
     Reader reader = new StringReader(Joiner.on('\n').join(
         "[test]",
         "timeout = 54321"));
-    BuckConfig config = createWithDefaultFilesystem(reader, null);
+    BuckConfig config = BuckConfigTestUtils.createWithDefaultFilesystem(
+        temporaryFolder,
+        reader,
+        null);
     assertEquals(54321L, config.getDefaultTestTimeoutMillis());
   }
 
@@ -434,21 +453,12 @@ public class BuckConfigTest {
     Reader reader = new StringReader(Joiner.on('\n').join(
         "[log]",
         "max_traces = 42"));
-    BuckConfig config = createWithDefaultFilesystem(reader, null);
+    BuckConfig config = BuckConfigTestUtils.createWithDefaultFilesystem(
+        temporaryFolder,
+        reader,
+        null);
     assertEquals(42, config.getMaxTraces());
   }
-
-  @Test
-  public void testGetAllowEmptyGlobs() throws IOException {
-    assertTrue(new FakeBuckConfig().getAllowEmptyGlobs());
-
-    Reader reader = new StringReader(Joiner.on('\n').join(
-        "[build]",
-        "allow_empty_globs = false"));
-    BuckConfig config = createWithDefaultFilesystem(reader, null);
-    assertFalse(config.getAllowEmptyGlobs());
-  }
-
 
   @Test
   public void testOverride() throws IOException {
@@ -475,129 +485,6 @@ public class BuckConfigTest {
     // We don't test "auto" on Linux, because the behavior would depend on how the test was run.
     assertTrue(linuxConfig.createAnsi(Optional.of("always")).isAnsiTerminal());
     assertFalse(linuxConfig.createAnsi(Optional.of("never")).isAnsiTerminal());
-  }
-
-  @Test
-  public void whenToolsPythonIsExecutableFileThenItIsUsed() throws IOException {
-    File configPythonFile = temporaryFolder.newFile("python");
-    assertTrue("Should be able to set file executable", configPythonFile.setExecutable(true));
-    FakeBuckConfig config = new FakeBuckConfig(ImmutableMap.<String, Map<String, String>>builder()
-        .put("tools", ImmutableMap.of("python", configPythonFile.getAbsolutePath()))
-        .build());
-    assertEquals(
-        "Should return path to temp file.",
-        configPythonFile.getAbsolutePath(), config.getPythonInterpreter());
-  }
-
-  @Test(expected = HumanReadableException.class)
-  public void whenToolsPythonDoesNotExistThenItIsNotUsed() throws IOException {
-    String invalidPath = temporaryFolder.getRoot().getAbsolutePath() + "DoesNotExist";
-    FakeBuckConfig config = new FakeBuckConfig(ImmutableMap.<String, Map<String, String>>builder()
-        .put("tools", ImmutableMap.of("python", invalidPath))
-        .build());
-    config.getPythonInterpreter();
-    fail("Should throw exception as python config is invalid.");
-  }
-
-  @Test(expected = HumanReadableException.class)
-  public void whenToolsPythonIsNonExecutableFileThenItIsNotUsed() throws IOException {
-    File configPythonFile = temporaryFolder.newFile("python");
-    assertTrue("Should be able to set file non-executable", configPythonFile.setExecutable(false));
-    FakeBuckConfig config = new FakeBuckConfig(ImmutableMap.<String, Map<String, String>>builder()
-        .put("tools", ImmutableMap.of("python", configPythonFile.getAbsolutePath()))
-        .build());
-    config.getPythonInterpreter();
-    fail("Should throw exception as python config is invalid.");
-  }
-
-  @Test(expected = HumanReadableException.class)
-  public void whenToolsPythonIsExecutableDirectoryThenItIsNotUsed() throws IOException {
-    File configPythonFile = temporaryFolder.newFolder("python");
-    assertTrue("Should be able to set file executable", configPythonFile.setExecutable(true));
-    FakeBuckConfig config = new FakeBuckConfig(ImmutableMap.<String, Map<String, String>>builder()
-        .put("tools", ImmutableMap.of("python", configPythonFile.getAbsolutePath()))
-        .build());
-    config.getPythonInterpreter();
-    fail("Should throw exception as python config is invalid.");
-  }
-
-  @Test
-  public void whenPythonOnPathIsExecutableFileThenItIsUsed() throws IOException {
-    File python = temporaryFolder.newFile("python");
-    assertTrue("Should be able to set file executable", python.setExecutable(true));
-    FakeBuckConfig config = new FakeBuckEnvironment(ImmutableMap.<String, Map<String, String>>of(),
-        ImmutableMap.<String, String>builder()
-            .put("PATH", temporaryFolder.getRoot().getAbsolutePath())
-            .put("PATHEXT", "")
-            .build(),
-        ImmutableMap.<String, String>of());
-    config.getPythonInterpreter();
-  }
-
-  @Test
-  public void whenPythonPlusExtensionOnPathIsExecutableFileThenItIsUsed() throws IOException {
-    File python = temporaryFolder.newFile("python.exe");
-    assertTrue("Should be able to set file executable", python.setExecutable(true));
-    FakeBuckConfig config = new FakeBuckEnvironment(ImmutableMap.<String, Map<String, String>>of(),
-        ImmutableMap.<String, String>builder()
-            .put("PATH", temporaryFolder.getRoot().getAbsolutePath())
-            .put("PATHEXT", ".exe")
-            .build(),
-        ImmutableMap.<String, String>of());
-    config.getPythonInterpreter();
-  }
-
-  @Test
-  public void whenPython2OnPathThenItIsUsed() throws IOException {
-    File python = temporaryFolder.newFile("python");
-    assertTrue("Should be able to set file executable", python.setExecutable(true));
-    File python2 = temporaryFolder.newFile("python2");
-    assertTrue("Should be able to set file executable", python2.setExecutable(true));
-    FakeBuckConfig config = new FakeBuckEnvironment(ImmutableMap.<String, Map<String, String>>of(),
-        ImmutableMap.<String, String>builder()
-            .put("PATH", temporaryFolder.getRoot().getAbsolutePath())
-            .put("PATHEXT", "")
-            .build(),
-        ImmutableMap.<String, String>of());
-    assertEquals(
-        "Should return path to python2.",
-        python2.getAbsolutePath(),
-        config.getPythonInterpreter());
-  }
-
-  @Test(expected = HumanReadableException.class)
-  public void whenPythonOnPathNotFoundThenThrow() throws IOException {
-    FakeBuckConfig config = new FakeBuckEnvironment(ImmutableMap.<String, Map<String, String>>of(),
-        ImmutableMap.<String, String>builder()
-            .put("PATH", temporaryFolder.getRoot().getAbsolutePath())
-            .put("PATHEXT", "")
-            .build(),
-        ImmutableMap.<String, String>of());
-    config.getPythonInterpreter();
-    fail("Should throw an exception when Python isn't found.");
-  }
-
-  @Test
-  public void whenMultiplePythonExecutablesOnPathFirstIsUsed() throws IOException {
-    File pythonA = temporaryFolder.newFile("python");
-    assertTrue("Should be able to set file executable", pythonA.setExecutable(true));
-    DebuggableTemporaryFolder temporaryFolder2 = new DebuggableTemporaryFolder();
-    temporaryFolder2.create();
-    File pythonB = temporaryFolder2.newFile("python");
-    assertTrue("Should be able to set file executable", pythonB.setExecutable(true));
-    String path = temporaryFolder.getRoot().getAbsolutePath() +
-        File.pathSeparator +
-        temporaryFolder2.getRoot().getAbsolutePath();
-    FakeBuckConfig config = new FakeBuckEnvironment(ImmutableMap.<String, Map<String, String>>of(),
-        ImmutableMap.<String, String>builder()
-            .put("PATH", path)
-            .put("PATHEXT", "")
-            .build(),
-        ImmutableMap.<String, String>of());
-    assertEquals(
-        "Should return the first path",
-        config.getPythonInterpreter(),
-        pythonA.getAbsolutePath());
   }
 
   @Test
@@ -640,20 +527,6 @@ public class BuckConfigTest {
     config.getEnum("section", "field", TestEnum.class);
   }
 
-  private BuckConfig createWithDefaultFilesystem(Reader reader, @Nullable BuildTargetParser parser)
-      throws IOException {
-    ProjectFilesystem projectFilesystem = new ProjectFilesystem(temporaryFolder.getRootPath());
-    if (parser == null) {
-      parser = new BuildTargetParser();
-    }
-    return BuckConfig.createFromReader(
-        reader,
-        projectFilesystem,
-        parser,
-        Platform.detect(),
-        ImmutableMap.copyOf(System.getenv()));
-  }
-
   private BuckConfig createFromText(String... lines) throws IOException {
     ProjectFilesystem projectFilesystem = new FakeProjectFilesystem() {
       @Override
@@ -663,7 +536,7 @@ public class BuckConfigTest {
     };
     BuildTargetParser parser = new BuildTargetParser();
     StringReader reader = new StringReader(Joiner.on('\n').join(lines));
-    return BuckConfig.createFromReader(
+    return BuckConfigTestUtils.createFromReader(
         reader,
         projectFilesystem,
         parser,

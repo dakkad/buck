@@ -16,8 +16,6 @@
 
 package com.facebook.buck.java;
 
-import static com.facebook.buck.java.JavaCompilationConstants.DEFAULT_JAVAC;
-import static com.facebook.buck.java.JavaCompilationConstants.DEFAULT_JAVAC_ENV;
 import static com.facebook.buck.java.JavaCompilationConstants.DEFAULT_JAVAC_OPTIONS;
 import static com.facebook.buck.util.BuckConstant.BIN_PATH;
 import static org.easymock.EasyMock.createNiceMock;
@@ -56,6 +54,8 @@ import com.facebook.buck.rules.FakeBuildRule;
 import com.facebook.buck.rules.FakeBuildRuleParamsBuilder;
 import com.facebook.buck.rules.FakeBuildableContext;
 import com.facebook.buck.rules.FakeRuleKeyBuilderFactory;
+import com.facebook.buck.rules.ImmutableBuildContext;
+import com.facebook.buck.rules.ImmutableSha1HashCode;
 import com.facebook.buck.rules.NoopArtifactCache;
 import com.facebook.buck.rules.RuleKey;
 import com.facebook.buck.rules.RuleKeyBuilderFactory;
@@ -365,7 +365,7 @@ public class DefaultJavaLibraryTest {
         new SourcePathResolver(new BuildRuleResolver())) {
       @Override
       public Sha1HashCode getAbiKey() {
-        return new Sha1HashCode(Strings.repeat("cafebabe", 5));
+        return ImmutableSha1HashCode.of(Strings.repeat("cafebabe", 5));
       }
 
       @Override
@@ -660,7 +660,7 @@ public class DefaultJavaLibraryTest {
     hasher.putUnencodedChars(javaAbiRuleKeyHash);
 
     assertEquals(
-        new Sha1HashCode(hasher.hash().toString()),
+        ImmutableSha1HashCode.of(hasher.hash().toString()),
         ((AbiRule) defaultJavaLibary).getAbiKeyForDeps());
   }
 
@@ -727,7 +727,7 @@ public class DefaultJavaLibraryTest {
 
     // This differs from the EMPTY_ABI_KEY in that the value of that comes from the SHA1 of an empty
     // jar file, whereas this is constructed from the empty set of values.
-    Sha1HashCode noAbiDeps = new Sha1HashCode(Hashing.sha1().newHasher().hash().toString());
+    Sha1HashCode noAbiDeps = ImmutableSha1HashCode.of(Hashing.sha1().newHasher().hash().toString());
     assertEquals(
         "The ABI of the deps of //:consumer_no_export should be the empty ABI.",
         noAbiDeps,
@@ -969,7 +969,6 @@ public class DefaultJavaLibraryTest {
         exportedDeps,
         /* providedDeps */ ImmutableSortedSet.<BuildRule>of(),
         /* additionalClasspathEntries */ ImmutableSet.<Path>of(),
-        DEFAULT_JAVAC,
         DEFAULT_JAVAC_OPTIONS,
         /* resourcesRoot */ Optional.<Path>absent()) {
       @Override
@@ -977,7 +976,7 @@ public class DefaultJavaLibraryTest {
         if (partialAbiHash == null) {
           return super.getAbiKey();
         } else {
-          return createTotalAbiKey(new Sha1HashCode(partialAbiHash));
+          return createTotalAbiKey(ImmutableSha1HashCode.of(partialAbiHash));
         }
       }
     };
@@ -1163,6 +1162,38 @@ public class DefaultJavaLibraryTest {
   }
 
   @Test
+  public void testWhenJavacJarIsProvidedAJavacInMemoryStepIsAdded() {
+    BuildRuleResolver ruleResolver = new BuildRuleResolver();
+
+    BuildTarget libraryOneTarget = BuildTargetFactory.newInstance("//:libone");
+    Path javacJarPath = Paths.get("java/src/com/libone/JavacJar.jar");
+    BuildRule rule = JavaLibraryBuilder
+        .createBuilder(libraryOneTarget)
+        .addSrc(Paths.get("java/src/com/libone/Bar.java"))
+        .setJavacJar(javacJarPath)
+        .build(ruleResolver);
+    DefaultJavaLibrary buildable = (DefaultJavaLibrary) rule;
+
+    ImmutableList.Builder<Step> stepsBuilder = ImmutableList.builder();
+    buildable.createCommandsForJavac(
+        buildable.getPathToOutputFile(),
+        ImmutableSet.copyOf(buildable.getTransitiveClasspathEntries().values()),
+        ImmutableSet.copyOf(buildable.getDeclaredClasspathEntries().values()),
+        buildable.getJavacOptions(),
+        BuildDependencies.FIRST_ORDER_ONLY,
+        Optional.<JavacStep.SuggestBuildRules>absent(),
+        stepsBuilder,
+        libraryOneTarget);
+
+    List<Step> steps = stepsBuilder.build();
+    assertEquals(steps.size(), 3);
+    assertTrue(((JavacStep) steps.get(2)).getJavac() instanceof Jsr199Javac);
+    Jsr199Javac jsrJavac = ((Jsr199Javac) (((JavacStep) steps.get(2)).getJavac()));
+    assertTrue(jsrJavac.getJavacJar().isPresent());
+    assertEquals(jsrJavac.getJavacJar().get(), javacJarPath);
+  }
+
+  @Test
   public void testAddPostprocessClassesCommands() {
     ImmutableList<String> postprocessClassesCommands = ImmutableList.of("tool arg1", "tool2");
     Path outputDirectory = BIN_PATH.resolve("android/java/lib__java__classes");
@@ -1252,7 +1283,7 @@ public class DefaultJavaLibraryTest {
     }
 
     // TODO(mbolin): Create a utility that populates a BuildContext.Builder with fakes.
-    return BuildContext.builder()
+    return ImmutableBuildContext.builder()
         .setActionGraph(RuleMap.createGraphFromSingleRule(javaLibrary))
         .setStepRunner(EasyMock.createMock(StepRunner.class))
         .setProjectFilesystem(projectFilesystem)
@@ -1261,7 +1292,9 @@ public class DefaultJavaLibraryTest {
         .setArtifactCache(new NoopArtifactCache())
         .setBuildDependencies(BuildDependencies.TRANSITIVE)
         .setJavaPackageFinder(EasyMock.createMock(JavaPackageFinder.class))
-        .setAndroidBootclasspathForAndroidPlatformTarget(Optional.of(platformTarget))
+        .setAndroidBootclasspathSupplier(
+            BuildContext.getAndroidBootclasspathSupplierForAndroidPlatformTarget(
+                Optional.of(platformTarget)))
         .setEventBus(BuckEventBusFactory.newInstance())
         .build();
   }
@@ -1362,9 +1395,8 @@ public class DefaultJavaLibraryTest {
       tmp.newFile(src);
 
       AnnotationProcessingParams params = annotationProcessingParamsBuilder.build();
-      JavacOptions.Builder options = JavacOptions.builder(DEFAULT_JAVAC_OPTIONS)
-          .setJavaCompilerEnvironment(DEFAULT_JAVAC_ENV)
-          .setAnnotationProcessingData(params);
+      ImmutableJavacOptions.Builder options = JavacOptions.builder(DEFAULT_JAVAC_OPTIONS)
+          .setAnnotationProcessingParams(params);
 
       BuildRuleParams buildRuleParams = new FakeBuildRuleParamsBuilder(buildTarget)
           .setProjectFilesystem(projectFilesystem)
@@ -1381,7 +1413,6 @@ public class DefaultJavaLibraryTest {
           /* exportedDeps */ ImmutableSortedSet.<BuildRule>of(),
           /* providedDeps */ ImmutableSortedSet.<BuildRule>of(),
           /* additionalClasspathEntries */ ImmutableSet.<Path>of(),
-          DEFAULT_JAVAC,
           options.build(),
           /* resourcesRoot */ Optional.<Path>absent(),
           /* manifestFile */ Optional.<SourcePath>absent(),
@@ -1411,7 +1442,7 @@ public class DefaultJavaLibraryTest {
 
     @Override
     public Sha1HashCode getAbiKey() {
-      return new Sha1HashCode(abiKeyHash);
+      return ImmutableSha1HashCode.of(abiKeyHash);
     }
   }
 }

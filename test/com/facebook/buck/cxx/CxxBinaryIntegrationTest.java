@@ -50,24 +50,24 @@ public class CxxBinaryIntegrationTest {
         this, "simple", tmp);
     workspace.setUp();
 
-    CxxPlatform cxxPlatform = new DefaultCxxPlatform(new FakeBuckConfig());
+    CxxPlatform cxxPlatform = DefaultCxxPlatforms.build(new FakeBuckConfig());
     BuildTarget target = BuildTargetFactory.newInstance("//foo:simple");
     BuildTarget binaryTarget = CxxDescriptionEnhancer.createCxxLinkTarget(target);
     String sourceName = "simple.cpp";
     String sourceFull = "foo/" + sourceName;
     BuildTarget preprocessTarget = CxxPreprocessables.createPreprocessBuildTarget(
         target,
-        cxxPlatform.asFlavor(),
+        cxxPlatform.getFlavor(),
         CxxSource.Type.CXX,
         /* pic */ false,
         sourceName);
     BuildTarget compileTarget = CxxCompilableEnhancer.createCompileBuildTarget(
         target,
-        cxxPlatform.asFlavor(),
+        cxxPlatform.getFlavor(),
         sourceName,
         /* pic */ false);
     BuildTarget headerSymlinkTreeTarget =
-        CxxDescriptionEnhancer.createHeaderSymlinkTreeTarget(target, cxxPlatform.asFlavor());
+        CxxDescriptionEnhancer.createHeaderSymlinkTreeTarget(target, cxxPlatform.getFlavor());
 
     // Do a clean build, verify that it succeeds, and check that all expected targets built
     // successfully.
@@ -167,7 +167,7 @@ public class CxxBinaryIntegrationTest {
         this, "simple", tmp);
     workspace.setUp();
 
-    CxxPlatform cxxPlatform = new DefaultCxxPlatform(new FakeBuckConfig());
+    CxxPlatform cxxPlatform = DefaultCxxPlatforms.build(new FakeBuckConfig());
     BuildTarget target = BuildTargetFactory.newInstance("//foo:simple_with_header");
     BuildTarget binaryTarget = CxxDescriptionEnhancer.createCxxLinkTarget(target);
     String sourceName = "simple_with_header.cpp";
@@ -175,17 +175,17 @@ public class CxxBinaryIntegrationTest {
     String headerFull = "foo/" + headerName;
     BuildTarget preprocessTarget = CxxPreprocessables.createPreprocessBuildTarget(
         target,
-        cxxPlatform.asFlavor(),
+        cxxPlatform.getFlavor(),
         CxxSource.Type.CXX,
         /* pic */ false,
         sourceName);
     BuildTarget compileTarget = CxxCompilableEnhancer.createCompileBuildTarget(
         target,
-        cxxPlatform.asFlavor(),
+        cxxPlatform.getFlavor(),
         sourceName,
         /* pic */ false);
     BuildTarget headerSymlinkTreeTarget =
-        CxxDescriptionEnhancer.createHeaderSymlinkTreeTarget(target, cxxPlatform.asFlavor());
+        CxxDescriptionEnhancer.createHeaderSymlinkTreeTarget(target, cxxPlatform.getFlavor());
 
     // Do a clean build, verify that it succeeds, and check that all expected targets built
     // successfully.
@@ -245,23 +245,23 @@ public class CxxBinaryIntegrationTest {
     workspace.setUp();
 
     // Setup variables pointing to the sources and targets of the top-level binary rule.
-    CxxPlatform cxxPlatform = new DefaultCxxPlatform(new FakeBuckConfig());
+    CxxPlatform cxxPlatform = DefaultCxxPlatforms.build(new FakeBuckConfig());
     BuildTarget target = BuildTargetFactory.newInstance("//foo:binary_with_dep");
     BuildTarget binaryTarget = CxxDescriptionEnhancer.createCxxLinkTarget(target);
     String sourceName = "foo.cpp";
     BuildTarget preprocessTarget = CxxPreprocessables.createPreprocessBuildTarget(
         target,
-        cxxPlatform.asFlavor(),
+        cxxPlatform.getFlavor(),
         CxxSource.Type.CXX,
         /* pic */ false,
         sourceName);
     BuildTarget compileTarget = CxxCompilableEnhancer.createCompileBuildTarget(
         target,
-        cxxPlatform.asFlavor(),
+        cxxPlatform.getFlavor(),
         sourceName,
         /* pic */ false);
     BuildTarget headerSymlinkTreeTarget =
-        CxxDescriptionEnhancer.createHeaderSymlinkTreeTarget(target, cxxPlatform.asFlavor());
+        CxxDescriptionEnhancer.createHeaderSymlinkTreeTarget(target, cxxPlatform.getFlavor());
 
     // Setup variables pointing to the sources and targets of the library dep.
     BuildTarget depTarget = BuildTargetFactory.newInstance("//foo:library_with_header");
@@ -272,20 +272,20 @@ public class CxxBinaryIntegrationTest {
     BuildTarget depPreprocessTarget =
         CxxPreprocessables.createPreprocessBuildTarget(
             depTarget,
-            cxxPlatform.asFlavor(),
+            cxxPlatform.getFlavor(),
             CxxSource.Type.CXX,
             /* pic */ false,
             depSourceName);
     BuildTarget depCompileTarget =
         CxxCompilableEnhancer.createCompileBuildTarget(
             depTarget,
-            cxxPlatform.asFlavor(),
+            cxxPlatform.getFlavor(),
             depSourceName,
             /* pic */ false);
     BuildTarget depHeaderSymlinkTreeTarget =
-        CxxDescriptionEnhancer.createHeaderSymlinkTreeTarget(depTarget, cxxPlatform.asFlavor());
+        CxxDescriptionEnhancer.createHeaderSymlinkTreeTarget(depTarget, cxxPlatform.getFlavor());
     BuildTarget depArchiveTarget =
-        CxxDescriptionEnhancer.createStaticLibraryBuildTarget(depTarget, cxxPlatform.asFlavor());
+        CxxDescriptionEnhancer.createStaticLibraryBuildTarget(depTarget, cxxPlatform.getFlavor());
 
     // Do a clean build, verify that it succeeds, and check that all expected targets built
     // successfully.
@@ -403,7 +403,7 @@ public class CxxBinaryIntegrationTest {
   @Test
   public void resolveHeadersBehindSymlinkTreesInPreprocessedOutput() throws IOException {
     BuckConfig buckConfig = new FakeBuckConfig();
-    CxxPlatform cxxPlatform = new DefaultCxxPlatform(buckConfig);
+    CxxPlatform cxxPlatform = DefaultCxxPlatforms.build(buckConfig);
 
     ProjectWorkspace workspace = TestDataHelper.createProjectWorkspaceForScenario(
         this, "resolved", tmp);
@@ -419,7 +419,7 @@ public class CxxBinaryIntegrationTest {
     BuildTarget ppTarget =
         CxxPreprocessables.createPreprocessBuildTarget(
             target,
-            cxxPlatform.asFlavor(),
+            cxxPlatform.getFlavor(),
             CxxSource.Type.CXX,
             /* pic */ false,
             "bin.cpp");

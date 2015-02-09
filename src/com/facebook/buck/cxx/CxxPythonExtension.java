@@ -16,6 +16,7 @@
 
 package com.facebook.buck.cxx;
 
+import com.facebook.buck.python.ImmutablePythonPackageComponents;
 import com.facebook.buck.python.PythonPackagable;
 import com.facebook.buck.python.PythonPackageComponents;
 import com.facebook.buck.rules.BuildRule;
@@ -51,10 +52,10 @@ public class CxxPythonExtension extends NoopBuildRule implements PythonPackagabl
         CxxDescriptionEnhancer.requireBuildRule(
             params,
             ruleResolver,
-            cxxPlatform.asFlavor(),
+            cxxPlatform.getFlavor(),
             CxxDescriptionEnhancer.SHARED_FLAVOR);
     SourcePath output = new BuildTargetSourcePath(extension.getBuildTarget());
-    return new PythonPackageComponents(
+    return ImmutablePythonPackageComponents.of(
         ImmutableMap.of(module, output),
         ImmutableMap.<Path, SourcePath>of(),
         ImmutableMap.<Path, SourcePath>of());

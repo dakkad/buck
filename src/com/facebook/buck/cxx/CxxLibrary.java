@@ -19,6 +19,7 @@ package com.facebook.buck.cxx;
 import com.facebook.buck.android.AndroidPackageable;
 import com.facebook.buck.android.AndroidPackageableCollector;
 import com.facebook.buck.model.Pair;
+import com.facebook.buck.python.ImmutablePythonPackageComponents;
 import com.facebook.buck.python.PythonPackageComponents;
 import com.facebook.buck.rules.BuildRule;
 import com.facebook.buck.rules.BuildRuleParams;
@@ -74,7 +75,7 @@ public class CxxLibrary extends AbstractCxxLibrary {
     BuildRule rule = CxxDescriptionEnhancer.requireBuildRule(
         params,
         ruleResolver,
-        cxxPlatform.asFlavor(),
+        cxxPlatform.getFlavor(),
         CxxDescriptionEnhancer.HEADER_SYMLINK_TREE_FLAVOR);
     Preconditions.checkState(rule instanceof SymlinkTree);
     SymlinkTree symlinkTree = (SymlinkTree) rule;
@@ -103,7 +104,7 @@ public class CxxLibrary extends AbstractCxxLibrary {
     linkerArgsBuilder.addAll(
         CxxDescriptionEnhancer.getPlatformFlags(
             platformLinkerFlags,
-            cxxPlatform.asFlavor().toString()));
+            cxxPlatform.getFlavor().toString()));
     if (type == Linker.LinkableDepType.SHARED) {
       Path sharedLibraryPath = CxxDescriptionEnhancer.getSharedLibraryPath(
           getBuildTarget(),
@@ -111,18 +112,18 @@ public class CxxLibrary extends AbstractCxxLibrary {
       libraryRule = CxxDescriptionEnhancer.requireBuildRule(
           params,
           ruleResolver,
-          cxxPlatform.asFlavor(),
+          cxxPlatform.getFlavor(),
           CxxDescriptionEnhancer.SHARED_FLAVOR);
       linkerArgsBuilder.add(sharedLibraryPath.toString());
     } else {
       libraryRule = CxxDescriptionEnhancer.requireBuildRule(
           params,
           ruleResolver,
-          cxxPlatform.asFlavor(),
+          cxxPlatform.getFlavor(),
           CxxDescriptionEnhancer.STATIC_FLAVOR);
       Path staticLibraryPath = CxxDescriptionEnhancer.getStaticLibraryPath(
           getBuildTarget(),
-          cxxPlatform.asFlavor());
+          cxxPlatform.getFlavor());
       if (linkWhole) {
         Linker linker = cxxPlatform.getLd();
         linkerArgsBuilder.addAll(linker.linkWhole(staticLibraryPath.toString()));
@@ -144,9 +145,9 @@ public class CxxLibrary extends AbstractCxxLibrary {
     BuildRule sharedLibraryBuildRule = CxxDescriptionEnhancer.requireBuildRule(
         params,
         ruleResolver,
-        cxxPlatform.asFlavor(),
+        cxxPlatform.getFlavor(),
         CxxDescriptionEnhancer.SHARED_FLAVOR);
-    return new PythonPackageComponents(
+    return ImmutablePythonPackageComponents.of(
         /* modules */ ImmutableMap.<Path, SourcePath>of(),
         /* resources */ ImmutableMap.<Path, SourcePath>of(),
         /* nativeLibraries */ ImmutableMap.<Path, SourcePath>of(
@@ -171,7 +172,7 @@ public class CxxLibrary extends AbstractCxxLibrary {
     BuildRule sharedLibraryBuildRule = CxxDescriptionEnhancer.requireBuildRule(
         params,
         ruleResolver,
-        cxxPlatform.asFlavor(),
+        cxxPlatform.getFlavor(),
         CxxDescriptionEnhancer.SHARED_FLAVOR);
     return ImmutableMap.<String, SourcePath>of(
         sharedLibrarySoname,

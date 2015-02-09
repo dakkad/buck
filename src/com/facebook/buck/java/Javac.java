@@ -17,6 +17,7 @@
 package com.facebook.buck.java;
 
 import com.facebook.buck.model.BuildTarget;
+import com.facebook.buck.rules.RuleKeyAppendable;
 import com.facebook.buck.step.ExecutionContext;
 import com.facebook.buck.util.Escaper;
 import com.google.common.base.CharMatcher;
@@ -27,7 +28,7 @@ import com.google.common.collect.ImmutableSet;
 
 import java.nio.file.Path;
 
-public interface Javac {
+public interface Javac extends RuleKeyAppendable {
 
   /**
    * An escaper for arguments written to @argfiles.
@@ -37,6 +38,8 @@ public interface Javac {
           Escaper.Quoter.DOUBLE,
           CharMatcher.anyOf("#\"'").or(CharMatcher.WHITESPACE));
   String SRC_ZIP = ".src.zip";
+
+  JavacVersion getVersion();
 
   int buildWithClasspath(
       ExecutionContext context,
@@ -53,4 +56,7 @@ public interface Javac {
       Optional<Path> pathToSrcsList);
 
   String getShortName();
+
+  boolean isUsingWorkspace();
+
 }

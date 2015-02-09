@@ -16,17 +16,18 @@
 
 package com.facebook.buck.android;
 
-import com.facebook.buck.java.Javac;
+import com.facebook.buck.java.AnnotationProcessingParams;
 import com.facebook.buck.java.JavacOptions;
 import com.facebook.buck.model.BuildTarget;
 import com.facebook.buck.model.Flavor;
-import com.facebook.buck.rules.AnnotationProcessingData;
+import com.facebook.buck.model.ImmutableFlavor;
 import com.facebook.buck.rules.BuildRule;
 import com.facebook.buck.rules.BuildRuleParams;
 import com.facebook.buck.rules.BuildRuleResolver;
 import com.facebook.buck.rules.BuildRuleType;
 import com.facebook.buck.rules.SourcePathResolver;
 import com.google.common.base.Optional;
+import com.google.common.base.Suppliers;
 import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSortedSet;
@@ -38,28 +39,25 @@ public class AndroidLibraryGraphEnhancer {
     TRANSITIVE,
   }
 
-  private static final Flavor DUMMY_R_DOT_JAVA_FLAVOR = new Flavor("dummy_r_dot_java");
+  private static final Flavor DUMMY_R_DOT_JAVA_FLAVOR = ImmutableFlavor.of("dummy_r_dot_java");
 
   private final BuildTarget dummyRDotJavaBuildTarget;
   private final BuildRuleParams originalBuildRuleParams;
-  private final Javac javac;
   private final JavacOptions javacOptions;
   private final ResourceDependencyMode resourceDependencyMode;
 
   public AndroidLibraryGraphEnhancer(
       BuildTarget buildTarget,
       BuildRuleParams buildRuleParams,
-      Javac javac,
       JavacOptions javacOptions,
       ResourceDependencyMode resourceDependencyMode) {
     this.dummyRDotJavaBuildTarget = BuildTarget.builder(buildTarget)
-        .addFlavor(DUMMY_R_DOT_JAVA_FLAVOR)
+        .addFlavors(DUMMY_R_DOT_JAVA_FLAVOR)
         .build();
     this.originalBuildRuleParams = buildRuleParams;
     // Override javacoptions because DummyRDotJava doesn't require annotation processing.
-    this.javac = javac;
     this.javacOptions = JavacOptions.builder(javacOptions)
-        .setAnnotationProcessingData(AnnotationProcessingData.EMPTY)
+        .setAnnotationProcessingParams(AnnotationProcessingParams.EMPTY)
         .build();
     this.resourceDependencyMode = resourceDependencyMode;
   }
@@ -104,14 +102,13 @@ public class AndroidLibraryGraphEnhancer {
     BuildRuleParams dummyRDotJavaParams = originalBuildRuleParams.copyWithChanges(
         BuildRuleType.DUMMY_R_DOT_JAVA,
         dummyRDotJavaBuildTarget,
-        actualDeps.build(),
-        /* extraDeps */ ImmutableSortedSet.<BuildRule>of());
+        Suppliers.ofInstance(actualDeps.build()),
+        /* extraDeps */ Suppliers.ofInstance(ImmutableSortedSet.<BuildRule>of()));
 
     DummyRDotJava dummyRDotJava = new DummyRDotJava(
         dummyRDotJavaParams,
         new SourcePathResolver(ruleResolver),
         androidResourceDeps,
-        javac,
         javacOptions);
     ruleResolver.addToIndex(dummyRDotJava);
     return Optional.of(dummyRDotJava);

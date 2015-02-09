@@ -22,7 +22,7 @@ import static org.junit.Assert.assertTrue;
 
 import com.facebook.buck.cli.FakeBuckConfig;
 import com.facebook.buck.cxx.CxxPlatform;
-import com.facebook.buck.cxx.DefaultCxxPlatform;
+import com.facebook.buck.cxx.DefaultCxxPlatforms;
 import com.facebook.buck.model.BuildTarget;
 import com.facebook.buck.model.BuildTargetFactory;
 import com.facebook.buck.model.Flavor;
@@ -47,7 +47,7 @@ public class PythonTestDescriptionTest {
 
   private static final Path PEX_PATH = Paths.get("pex");
   private static final Optional<Path> TEST_MAIN = Optional.of(Paths.get("main"));
-  private static final CxxPlatform CXX_PLATFORM = new DefaultCxxPlatform(new FakeBuckConfig());
+  private static final CxxPlatform CXX_PLATFORM = DefaultCxxPlatforms.build(new FakeBuckConfig());
   private static final FlavorDomain<CxxPlatform> CXX_PLATFORMS =
       new FlavorDomain<>("platform", ImmutableMap.<Flavor, CxxPlatform>of());
 
@@ -60,7 +60,7 @@ public class PythonTestDescriptionTest {
     PythonTestDescription desc = new PythonTestDescription(
         PEX_PATH,
         TEST_MAIN,
-        new PythonEnvironment(Paths.get("fake_python"), new PythonVersion("Python 2.7")),
+        new PythonEnvironment(Paths.get("fake_python"), ImmutablePythonVersion.of("Python 2.7")),
         CXX_PLATFORM,
         CXX_PLATFORMS);
     PythonTestDescription.Arg arg = desc.createUnpopulatedConstructorArg();
@@ -95,7 +95,7 @@ public class PythonTestDescriptionTest {
     PythonTestDescription desc = new PythonTestDescription(
         PEX_PATH,
         TEST_MAIN,
-        new PythonEnvironment(Paths.get("python"), new PythonVersion("2.5")),
+        new PythonEnvironment(Paths.get("python"), ImmutablePythonVersion.of("2.5")),
         CXX_PLATFORM,
         CXX_PLATFORMS);
     PythonTestDescription.Arg arg = desc.createUnpopulatedConstructorArg();

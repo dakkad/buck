@@ -54,9 +54,11 @@ RULES_SRCS = [
   'AndroidPrebuiltAarGraphEnhancer.java',
   'AndroidResource.java',
   'AndroidResourceDescription.java',
+  'AndroidResourceHelper.java',
   'AndroidTransitiveDependencyGraph.java',
   'ApkGenrule.java',
   'ApkGenruleDescription.java',
+  'AssembleDirectories.java',
   'ComputeExopackageDepsAbi.java',
   'CopyNativeLibraries.java',
   'DexProducedFromJavaLibrary.java',
@@ -173,7 +175,7 @@ java_library(
   visibility = ['PUBLIC'],
 )
 
-java_library(
+java_immutables_library(
   name = 'steps',
   srcs = glob(['*.java'],
               excludes = EXCEPTION_SRCS + PACKAGEABLE_SOURCES + RULES_SRCS + SPLIT_DEX_SRCS + UTILS_SRCS),

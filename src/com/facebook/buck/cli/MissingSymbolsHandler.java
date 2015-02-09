@@ -27,6 +27,7 @@ import com.facebook.buck.json.DefaultProjectBuildFileParserFactory;
 import com.facebook.buck.json.ProjectBuildFileParserFactory;
 import com.facebook.buck.model.BuildId;
 import com.facebook.buck.model.BuildTarget;
+import com.facebook.buck.parser.ParserConfig;
 import com.facebook.buck.rules.BuildEvent;
 import com.facebook.buck.rules.Description;
 import com.facebook.buck.util.Console;
@@ -45,12 +46,15 @@ public class MissingSymbolsHandler {
 
   private final Console console;
   private final JavaSymbolFinder javaSymbolFinder;
+  private final String buildFileName;
 
   private MissingSymbolsHandler(
       Console console,
-      JavaSymbolFinder javaSymbolFinder) {
+      JavaSymbolFinder javaSymbolFinder,
+      String buildFileName) {
     this.console = console;
     this.javaSymbolFinder = javaSymbolFinder;
+    this.buildFileName = buildFileName;
   }
 
   public static MissingSymbolsHandler create(
@@ -62,11 +66,11 @@ public class MissingSymbolsHandler {
       JavacOptions javacOptions,
       ImmutableMap<String, String> environment) {
     SrcRootsFinder srcRootsFinder = new SrcRootsFinder(projectFilesystem);
+    ParserConfig parserConfig = new ParserConfig(config);
     ProjectBuildFileParserFactory projectBuildFileParserFactory =
         new DefaultProjectBuildFileParserFactory(
             projectFilesystem,
-            config.getPythonInterpreter(),
-            config.getAllowEmptyGlobs(),
+            parserConfig,
             descriptions);
     JavaSymbolFinder javaSymbolFinder = new JavaSymbolFinder(
         projectFilesystem,
@@ -79,7 +83,8 @@ public class MissingSymbolsHandler {
         environment);
     return new MissingSymbolsHandler(
         console,
-        javaSymbolFinder);
+        javaSymbolFinder,
+        parserConfig.getBuildFileName());
   }
 
   /**
@@ -200,7 +205,7 @@ public class MissingSymbolsHandler {
    */
   private String formatTarget(BuildTarget buildTarget) {
     return String.format("%s (:%s)",
-        buildTarget.getBuildFilePath(),
+        buildTarget.getBasePath().resolve(buildFileName),
         buildTarget.getShortName());
   }
 

@@ -16,18 +16,11 @@
 
 package com.facebook.buck.apple;
 
-import static com.facebook.buck.apple.xcode.ProjectGeneratorTestUtils.createDescriptionArgWithDefaults;
+import static com.facebook.buck.apple.ProjectGeneratorTestUtils.createDescriptionArgWithDefaults;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-import com.facebook.buck.cli.BuckConfig;
-import com.facebook.buck.cli.FakeBuckConfig;
-import com.facebook.buck.cxx.CxxBuckConfig;
-import com.facebook.buck.cxx.CxxLibraryDescription;
-import com.facebook.buck.cxx.CxxPlatform;
-import com.facebook.buck.cxx.DefaultCxxPlatform;
 import com.facebook.buck.model.BuildTarget;
-import com.facebook.buck.model.FlavorDomain;
 import com.facebook.buck.rules.BuildRule;
 import com.facebook.buck.rules.BuildRuleParams;
 import com.facebook.buck.rules.BuildRuleResolver;
@@ -38,31 +31,13 @@ import com.facebook.buck.rules.TargetNode;
 import com.facebook.buck.rules.coercer.Either;
 import com.facebook.buck.testutil.TargetGraphFactory;
 import com.google.common.base.Optional;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSortedSet;
 import com.google.common.collect.Iterables;
 
-import org.junit.Before;
 import org.junit.Test;
 
-import java.io.IOException;
-
 public class AppleBuildRulesTest {
-
-  private AppleLibraryDescription appleLibraryDescription;
-
-  @Before
-  public void setUp() throws IOException {
-    BuckConfig buckConfig = new FakeBuckConfig();
-    CxxPlatform cxxPlatform = new DefaultCxxPlatform(buckConfig);
-    FlavorDomain<CxxPlatform> cxxPlatforms = new FlavorDomain<>(
-        "C/C++ Platform",
-        ImmutableMap.of(cxxPlatform.asFlavor(), cxxPlatform));
-    appleLibraryDescription = new AppleLibraryDescription(
-        new AppleConfig(buckConfig),
-        new CxxLibraryDescription(new CxxBuckConfig(buckConfig), cxxPlatforms));
-  }
 
   @Test
   public void testAppleLibraryIsXcodeTargetBuildRuleType() throws Exception {
@@ -83,8 +58,7 @@ public class AppleBuildRulesTest {
         .setExtension(Either.<AppleBundleExtension, String>ofLeft(AppleBundleExtension.XCTEST))
         .setContacts(Optional.of(ImmutableSortedSet.<String>of()))
         .setLabels(Optional.of(ImmutableSortedSet.<Label>of()))
-        .setDeps(Optional.of(ImmutableSortedSet.<BuildTarget>of()))
-        .setSourceUnderTest(Optional.of(ImmutableSortedSet.<BuildTarget>of()));
+        .setDeps(Optional.of(ImmutableSortedSet.<BuildTarget>of()));
     BuildRule testRule = appleTestBuilder.build(resolver);
 
     assertTrue(AppleBuildRules.isXcodeTargetTestBuildRule(testRule));
@@ -97,9 +71,10 @@ public class AppleBuildRulesTest {
             .setType(AppleLibraryDescription.TYPE)
             .build();
     AppleNativeTargetDescriptionArg arg =
-        createDescriptionArgWithDefaults(appleLibraryDescription);
+        createDescriptionArgWithDefaults(FakeAppleRuleDescriptions.LIBRARY_DESCRIPTION);
     BuildRule libraryRule =
-        appleLibraryDescription.createBuildRule(params, new BuildRuleResolver(), arg);
+        FakeAppleRuleDescriptions.LIBRARY_DESCRIPTION.createBuildRule(
+            params, new BuildRuleResolver(), arg);
 
     assertFalse(AppleBuildRules.isXcodeTargetTestBuildRule(libraryRule));
   }

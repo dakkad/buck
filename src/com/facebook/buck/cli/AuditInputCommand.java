@@ -17,25 +17,33 @@
 package com.facebook.buck.cli;
 
 import com.facebook.buck.graph.AbstractBottomUpTraversal;
+import com.facebook.buck.log.Logger;
 import com.facebook.buck.json.BuildFileParseException;
 import com.facebook.buck.model.BuildTarget;
 import com.facebook.buck.model.BuildTargetException;
 import com.facebook.buck.parser.BuildTargetPatternParser;
+import com.facebook.buck.parser.ParserConfig;
 import com.facebook.buck.rules.TargetGraph;
 import com.facebook.buck.rules.TargetNode;
+import com.facebook.buck.util.HumanReadableException;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Function;
 import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Multimap;
+import com.google.common.collect.ImmutableSortedSet;
 import com.google.common.collect.Sets;
-import com.google.common.collect.TreeMultimap;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Set;
+import java.util.SortedMap;
+import java.util.SortedSet;
+import java.util.TreeMap;
+import java.util.TreeSet;
 
 public class AuditInputCommand extends AbstractCommandRunner<AuditCommandOptions> {
+
+  private static final Logger LOG = Logger.get(AuditInputCommand.class);
 
   public AuditInputCommand(CommandRunnerParams params) {
     super(params);
@@ -72,11 +80,13 @@ public class AuditInputCommand extends AbstractCommandRunner<AuditCommandOptions
                    })
         .toSet();
 
+    LOG.debug("Getting input for targets: %s", targets);
+
     TargetGraph graph;
     try {
       graph = getParser().buildTargetGraphForBuildTargets(
           targets,
-          options.getDefaultIncludes(),
+          new ParserConfig(options.getBuckConfig()),
           getBuckEventBus(),
           console,
           environment,
@@ -94,16 +104,33 @@ public class AuditInputCommand extends AbstractCommandRunner<AuditCommandOptions
 
   @VisibleForTesting
   int printJsonInputs(TargetGraph graph) throws IOException {
-    final Multimap<String, String> targetInputs = TreeMultimap.create();
+    final SortedMap<String, ImmutableSortedSet<Path>> targetToInputs =
+        new TreeMap<>();
 
     new AbstractBottomUpTraversal<TargetNode<?>, Void>(graph) {
 
       @Override
       public void visit(TargetNode<?> node) {
+        LOG.debug(
+            "Looking at inputs for %s",
+            node.getBuildTarget().getFullyQualifiedName());
+
+        SortedSet<Path> targetInputs = new TreeSet<>();
         for (Path input : node.getInputs()) {
-          // TODO(user) remove `toString` once Jackson supports serializing Path instances
-          targetInputs.put(node.getBuildTarget().getFullyQualifiedName(), input.toString());
+          LOG.debug("Walking input %s", input);
+          try {
+            if (!getProjectFilesystem().exists(input)) {
+              throw new HumanReadableException(
+                  "Target %s refers to non-existent input file: %s", node, input);
+            }
+            targetInputs.addAll(getProjectFilesystem().getFilesUnderPath(input));
+          } catch (IOException e) {
+            throw new RuntimeException(e);
+          }
         }
+        targetToInputs.put(
+            node.getBuildTarget().getFullyQualifiedName(),
+            ImmutableSortedSet.copyOf(targetInputs));
       }
 
       @Override
@@ -113,10 +140,9 @@ public class AuditInputCommand extends AbstractCommandRunner<AuditCommandOptions
 
     }.traverse();
 
-    // Note: using `asMap` here ensures that the keys are sorted
     getObjectMapper().writeValue(
         console.getStdOut(),
-        targetInputs.asMap());
+        targetToInputs);
 
     return 0;
   }
@@ -132,10 +158,29 @@ public class AuditInputCommand extends AbstractCommandRunner<AuditCommandOptions
       @Override
       public void visit(TargetNode<?> node) {
         for (Path input : node.getInputs()) {
-          boolean isNewInput = inputs.add(input);
-          if (isNewInput) {
-            getStdOut().println(input);
+          LOG.debug("Walking input %s", input);
+          try {
+            if (!getProjectFilesystem().exists(input)) {
+              throw new HumanReadableException(
+                  "Target %s refers to non-existent input file: %s",
+                  node,
+                  input);
+            }
+            ImmutableSortedSet<Path> nodeContents = ImmutableSortedSet.copyOf(
+                getProjectFilesystem().getFilesUnderPath(input));
+            for (Path path : nodeContents) {
+              putInput(path);
+            }
+          } catch (IOException e) {
+            throw new RuntimeException(e);
           }
+        }
+      }
+
+      private void putInput(Path input) {
+        boolean isNewInput = inputs.add(input);
+        if (isNewInput) {
+          getStdOut().println(input);
         }
       }
 

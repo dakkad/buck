@@ -50,9 +50,11 @@ public class CxxLexYaccIntegrationTest {
   @Before
   public void setUp() {
     SourcePathResolver pathResolver = new SourcePathResolver(new BuildRuleResolver());
-    DefaultCxxPlatform cxxBuckConfig = new DefaultCxxPlatform(new FakeBuckConfig());
-    assumeExists(pathResolver.getPath(cxxBuckConfig.getLex()));
-    assumeExists(pathResolver.getPath(cxxBuckConfig.getYacc()));
+    CxxPlatform cxxBuckConfig = DefaultCxxPlatforms.build(new FakeBuckConfig());
+    assumeTrue(cxxBuckConfig.getLex().isPresent());
+    assumeTrue(cxxBuckConfig.getYacc().isPresent());
+    assumeExists(pathResolver.getPath(cxxBuckConfig.getLex().get()));
+    assumeExists(pathResolver.getPath(cxxBuckConfig.getYacc().get()));
   }
 
   @Test
@@ -61,7 +63,7 @@ public class CxxLexYaccIntegrationTest {
         this, "lexyacc", tmp);
     workspace.setUp();
 
-    CxxPlatform cxxPlatform = new DefaultCxxPlatform(new FakeBuckConfig());
+    CxxPlatform cxxPlatform = DefaultCxxPlatforms.build(new FakeBuckConfig());
     BuildTarget target = BuildTargetFactory.newInstance("//foo:main");
     BuildTarget binaryTarget = CxxDescriptionEnhancer.createCxxLinkTarget(target);
     String sourceName = "main.cpp";
@@ -70,28 +72,28 @@ public class CxxLexYaccIntegrationTest {
     BuildTarget yaccTarget = CxxDescriptionEnhancer.createYaccBuildTarget(target, yaccSourceName);
     BuildTarget yaccPreprocessTarget = CxxPreprocessables.createPreprocessBuildTarget(
         target,
-        cxxPlatform.asFlavor(),
+        cxxPlatform.getFlavor(),
         CxxSource.Type.CXX,
         /* pic */ false,
         yaccSourceName + ".cc");
     BuildTarget yaccCompileTarget = CxxCompilableEnhancer.createCompileBuildTarget(
         target,
-        cxxPlatform.asFlavor(),
+        cxxPlatform.getFlavor(),
         yaccSourceName + ".cc",
         /* pic */ false);
     BuildTarget preprocessTarget = CxxPreprocessables.createPreprocessBuildTarget(
         target,
-        cxxPlatform.asFlavor(),
+        cxxPlatform.getFlavor(),
         CxxSource.Type.CXX,
         /* pic */ false,
         sourceName);
     BuildTarget compileTarget = CxxCompilableEnhancer.createCompileBuildTarget(
         target,
-        cxxPlatform.asFlavor(),
+        cxxPlatform.getFlavor(),
         sourceName,
         /* pic */ false);
     BuildTarget headerSymlinkTreeTarget =
-        CxxDescriptionEnhancer.createHeaderSymlinkTreeTarget(target, cxxPlatform.asFlavor());
+        CxxDescriptionEnhancer.createHeaderSymlinkTreeTarget(target, cxxPlatform.getFlavor());
 
     // Do a clean build, verify that it succeeds, and check that all expected targets built
     // successfully.

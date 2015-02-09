@@ -27,6 +27,7 @@ import com.facebook.buck.rules.BuildRuleParams;
 import com.facebook.buck.rules.BuildRuleResolver;
 import com.facebook.buck.rules.BuildRuleType;
 import com.facebook.buck.rules.Description;
+import com.facebook.buck.rules.ImmutableBuildRuleType;
 import com.facebook.buck.rules.ImplicitDepsInferringDescription;
 import com.facebook.buck.rules.SourcePath;
 import com.facebook.buck.rules.SourcePathResolver;
@@ -57,7 +58,7 @@ public class CxxPythonExtensionDescription implements
           ImmutableMap.of(
               CxxDescriptionEnhancer.SHARED_FLAVOR, Type.EXTENSION));
 
-  public static final BuildRuleType TYPE = new BuildRuleType("cxx_python_extension");
+  public static final BuildRuleType TYPE = ImmutableBuildRuleType.of("cxx_python_extension");
 
   private final CxxBuckConfig cxxBuckConfig;
   private final FlavorDomain<CxxPlatform> cxxPlatforms;
@@ -124,7 +125,7 @@ public class CxxPythonExtensionDescription implements
     SymlinkTree headerSymlinkTree = CxxDescriptionEnhancer.createHeaderSymlinkTreeBuildRule(
         params,
         ruleResolver,
-        cxxPlatform.asFlavor(),
+        cxxPlatform.getFlavor(),
         ImmutableMap.<Path, SourcePath>builder()
             .putAll(headers)
             .putAll(lexYaccSources.getCxxHeaders())
@@ -135,7 +136,8 @@ public class CxxPythonExtensionDescription implements
         CxxPreprocessorFlags.fromArgs(
             args.preprocessorFlags,
             args.langPreprocessorFlags),
-        headerSymlinkTree);
+        headerSymlinkTree,
+        ImmutableList.<Path>of());
 
     ImmutableMap<String, CxxSource> allSources =
         ImmutableMap.<String, CxxSource>builder()
@@ -163,7 +165,7 @@ public class CxxPythonExtensionDescription implements
 
     // Setup the rules to link the shared library.
     String extensionName = getExtensionName(params.getBuildTarget());
-    Path extensionPath = getExtensionPath(params.getBuildTarget(), cxxPlatform.asFlavor());
+    Path extensionPath = getExtensionPath(params.getBuildTarget(), cxxPlatform.getFlavor());
     return CxxLinkableEnhancer.createCxxLinkableBuildRule(
         cxxPlatform,
         params,
@@ -174,9 +176,9 @@ public class CxxPythonExtensionDescription implements
             .addAll(
                 CxxDescriptionEnhancer.getPlatformFlags(
                     args.platformLinkerFlags.get(),
-                    cxxPlatform.asFlavor().toString()))
+                    cxxPlatform.getFlavor().toString()))
             .build(),
-        getExtensionTarget(params.getBuildTarget(), cxxPlatform.asFlavor()),
+        getExtensionTarget(params.getBuildTarget(), cxxPlatform.getFlavor()),
         Linker.LinkType.SHARED,
         Optional.of(extensionName),
         extensionPath,
@@ -197,8 +199,10 @@ public class CxxPythonExtensionDescription implements
     Optional<Map.Entry<Flavor, Type>> type;
     Optional<Map.Entry<Flavor, CxxPlatform>> platform;
     try {
-      type = LIBRARY_TYPE.getFlavorAndValue(params.getBuildTarget().getFlavors());
-      platform = cxxPlatforms.getFlavorAndValue(params.getBuildTarget().getFlavors());
+      type = LIBRARY_TYPE.getFlavorAndValue(
+          ImmutableSet.copyOf(params.getBuildTarget().getFlavors()));
+      platform = cxxPlatforms.getFlavorAndValue(
+          ImmutableSet.copyOf(params.getBuildTarget().getFlavors()));
     } catch (FlavorDomainException e) {
       throw new HumanReadableException("%s: %s", params.getBuildTarget(), e.getMessage());
     }
@@ -229,15 +233,15 @@ public class CxxPythonExtensionDescription implements
   }
 
   @Override
-  public Iterable<String> findDepsForTargetFromConstructorArgs(
+  public Iterable<BuildTarget> findDepsForTargetFromConstructorArgs(
       BuildTarget buildTarget,
       Arg constructorArg) {
-    ImmutableSet.Builder<String> deps = ImmutableSet.builder();
+    ImmutableSet.Builder<BuildTarget> deps = ImmutableSet.builder();
 
-    deps.add(cxxBuckConfig.getPythonDep().toString());
+    deps.add(cxxBuckConfig.getPythonDep());
 
     if (constructorArg.lexSrcs.isPresent() && !constructorArg.lexSrcs.get().isEmpty()) {
-      deps.add(cxxBuckConfig.getLexDep().toString());
+      deps.add(cxxBuckConfig.getLexDep());
     }
 
     return deps.build();

@@ -19,6 +19,7 @@ package com.facebook.buck.java;
 
 import com.facebook.buck.io.ProjectFilesystem;
 import com.facebook.buck.model.BuildTarget;
+import com.facebook.buck.rules.RuleKey;
 import com.facebook.buck.step.ExecutionContext;
 import com.facebook.buck.util.HumanReadableException;
 import com.facebook.buck.util.ProcessExecutor;
@@ -39,8 +40,20 @@ public class ExternalJavac implements Javac {
 
   private final Path pathToJavac;
 
+  private static final JavacVersion VERSION = new JavacVersion() {
+      @Override
+      public String getVersionString() {
+        return "external";
+      }
+    };
+
   public ExternalJavac(Path pathToJavac) {
     this.pathToJavac = pathToJavac;
+  }
+
+  @Override
+  public JavacVersion getVersion() {
+    return VERSION;
   }
 
   @Override
@@ -66,6 +79,21 @@ public class ExternalJavac implements Javac {
   @Override
   public String getShortName() {
     return pathToJavac.toString();
+  }
+
+  @Override
+  public boolean isUsingWorkspace() {
+    return true;
+  }
+
+  @Override
+  public RuleKey.Builder appendToRuleKey(RuleKey.Builder builder, String key) {
+    return builder.setReflectively(key + ".javac", pathToJavac)
+        .setReflectively(key + ".javac.version", getVersion().toString());
+  }
+
+  public Path getPath() {
+    return pathToJavac;
   }
 
   @Override

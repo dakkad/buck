@@ -118,7 +118,7 @@ public class CopyNativeLibraries extends AbstractBuildRule {
             .putAll(filteredNativeLibraries)
             .build();
     for (Map.Entry<Pair<TargetCpuType, String>, SourcePath> entry : sortedLibs.entrySet()) {
-      builder.setInput(
+      builder.setReflectively(
           String.format("lib(%s, %s)", entry.getKey().getFirst(), entry.getKey().getSecond()),
           entry.getValue());
     }
@@ -135,7 +135,7 @@ public class CopyNativeLibraries extends AbstractBuildRule {
     final Path pathToNativeLibs = getPathToNativeLibsDir();
     steps.add(new MakeCleanDirectoryStep(pathToNativeLibs));
 
-    for (Path nativeLibDir : nativeLibDirectories) {
+    for (Path nativeLibDir : nativeLibDirectories.asList().reverse()) {
       copyNativeLibrary(nativeLibDir, pathToNativeLibs, cpuFilters, steps);
     }
 

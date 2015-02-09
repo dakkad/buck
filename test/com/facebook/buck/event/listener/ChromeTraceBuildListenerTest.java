@@ -41,9 +41,9 @@ import com.facebook.buck.rules.BuildRuleEvent;
 import com.facebook.buck.rules.BuildRuleResolver;
 import com.facebook.buck.rules.BuildRuleStatus;
 import com.facebook.buck.rules.BuildRuleSuccess;
-import com.facebook.buck.rules.BuildRuleType;
 import com.facebook.buck.rules.CacheResult;
 import com.facebook.buck.rules.FakeBuildRule;
+import com.facebook.buck.rules.ImmutableBuildRuleType;
 import com.facebook.buck.rules.RuleKey;
 import com.facebook.buck.rules.SourcePathResolver;
 import com.facebook.buck.step.ExecutionContext;
@@ -102,6 +102,7 @@ public class ChromeTraceBuildListenerTest {
     ChromeTraceBuildListener listener = new ChromeTraceBuildListener(
         projectFilesystem,
         new FakeClock(1409702151000000000L),
+        new ObjectMapper(),
         Locale.US,
         TimeZone.getTimeZone("America/Los_Angeles"),
         /* tracesToKeep */ 3);
@@ -128,9 +129,12 @@ public class ChromeTraceBuildListenerTest {
   public void testBuildJson() throws IOException {
     ProjectFilesystem projectFilesystem = new ProjectFilesystem(tmpDir.getRoot().toPath());
 
+    ObjectMapper mapper = new ObjectMapper();
+
     ChromeTraceBuildListener listener = new ChromeTraceBuildListener(
         projectFilesystem,
         new FakeClock(1409702151000000000L),
+        mapper,
         Locale.US,
         TimeZone.getTimeZone("America/Los_Angeles"),
         /* tracesToKeep */ 42);
@@ -138,7 +142,7 @@ public class ChromeTraceBuildListenerTest {
     BuildTarget target = BuildTargetFactory.newInstance("//fake:rule");
 
     FakeBuildRule rule = new FakeBuildRule(
-        new BuildRuleType("fakeRule"),
+        ImmutableBuildRuleType.of("fake_rule"),
         target,
         new SourcePathResolver(new BuildRuleResolver()),
         ImmutableSortedSet.<BuildRule>of()
@@ -192,8 +196,6 @@ public class ChromeTraceBuildListenerTest {
     listener.outputTrace(new BuildId("BUILD_ID"));
 
     File resultFile = new File(tmpDir.getRoot(), BuckConstant.BUCK_TRACE_DIR + "/build.trace");
-
-    ObjectMapper mapper = new ObjectMapper();
 
     List<ChromeTraceEvent> resultMap = mapper.readValue(
         resultFile,
@@ -295,6 +297,7 @@ public class ChromeTraceBuildListenerTest {
     ChromeTraceBuildListener listener = new ChromeTraceBuildListener(
         projectFilesystem,
         new FakeClock(1409702151000000000L),
+        new ObjectMapper(),
         Locale.US,
         TimeZone.getTimeZone("America/Los_Angeles"),
         /* tracesToKeep */ 3);
@@ -319,6 +322,7 @@ public class ChromeTraceBuildListenerTest {
     ChromeTraceBuildListener listener = new ChromeTraceBuildListener(
         projectFilesystem,
         new FakeClock(1409702151000000000L),
+        new ObjectMapper(),
         Locale.US,
         TimeZone.getTimeZone("America/Los_Angeles"),
         /* tracesToKeep */ 1);

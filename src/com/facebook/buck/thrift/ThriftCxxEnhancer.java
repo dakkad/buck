@@ -24,6 +24,7 @@ import com.facebook.buck.model.BuildTarget;
 import com.facebook.buck.model.BuildTargets;
 import com.facebook.buck.model.Flavor;
 import com.facebook.buck.model.FlavorDomain;
+import com.facebook.buck.model.ImmutableFlavor;
 import com.facebook.buck.rules.BuildRule;
 import com.facebook.buck.rules.BuildRuleParams;
 import com.facebook.buck.rules.BuildRuleResolver;
@@ -33,6 +34,7 @@ import com.facebook.buck.rules.coercer.Either;
 import com.facebook.buck.util.HumanReadableException;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Optional;
+import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
@@ -43,8 +45,8 @@ import java.nio.file.Path;
 
 public class ThriftCxxEnhancer implements ThriftLanguageSpecificEnhancer {
 
-  private static final Flavor CPP_FLAVOR = new Flavor("cpp");
-  private static final Flavor CPP2_FLAVOR = new Flavor("cpp2");
+  private static final Flavor CPP_FLAVOR = ImmutableFlavor.of("cpp");
+  private static final Flavor CPP2_FLAVOR = ImmutableFlavor.of("cpp2");
 
   private final ThriftBuckConfig thriftBuckConfig;
   private final CxxLibraryDescription cxxLibraryDescription;
@@ -197,8 +199,8 @@ public class ThriftCxxEnhancer implements ThriftLanguageSpecificEnhancer {
 
     // Create language specific build params by using the deps we formed above.
     BuildRuleParams langParams = params.copyWithDeps(
-        allDeps,
-        ImmutableSortedSet.<BuildRule>of());
+        Suppliers.ofInstance(allDeps),
+        Suppliers.ofInstance(ImmutableSortedSet.<BuildRule>of()));
 
     // Construct the C/C++ library description argument to pass to the
     CxxLibraryDescription.Arg langArgs = cxxLibraryDescription.createEmptyConstructorArg();

@@ -95,7 +95,7 @@ public class ParserIntegrationTest {
     try {
       workspace.runBuckCommand("build", "//:A");
     } catch (HumanReadableException e) {
-      assertEquals(e.getHumanReadableErrorMessage(), "Cycle found: //:F -> //:C -> //:E -> //:F");
+      assertEquals("Cycle found: //:C -> //:E -> //:F -> //:C", e.getHumanReadableErrorMessage());
       return;
     }
     fail("An exception should have been thrown because of a circular dependency.");
@@ -118,8 +118,8 @@ public class ParserIntegrationTest {
     assertThat(
         "error message for failure to return results from glob is incorrect",
         result.getStderr(),
-        containsString("glob() returned no results. If this is expected, set allow_empty_globs " +
-          "to true in Buck configuration"));
+        containsString("returned no results.  (allow_empty_globs is set to false in the Buck " +
+                "configuration)"));
   }
 
   /**
@@ -135,5 +135,18 @@ public class ParserIntegrationTest {
 
     ProjectWorkspace.ProcessResult result = workspace.runBuckCommand("build", "//:root_module");
     result.assertSuccess("buck build should ignore empty glob results by default");
+  }
+
+  @Test
+  public void testBuildFileName() throws IOException {
+    ProjectWorkspace workspace = TestDataHelper.createProjectWorkspaceForScenario(
+        this,
+        "build_file_name",
+        temporaryFolder);
+    workspace.setUp();
+
+    ProjectWorkspace.ProcessResult result = workspace.runBuckCommand("targets", "//:root");
+    result.assertSuccess("buck should parse build files with a different name");
+    assertEquals("//:root\n", result.getStdout());
   }
 }

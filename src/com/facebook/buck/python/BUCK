@@ -5,11 +5,12 @@ java_library(
   name = 'config',
   srcs = CONFIG_SRCS,
   deps = [
-    ':support',
-    '//third-party/java/guava:guava',
     '//src/com/facebook/buck/cli:config',
+    '//src/com/facebook/buck/io:io',
     '//src/com/facebook/buck/util:exceptions',
     '//src/com/facebook/buck/util:io',
+    '//third-party/java/guava:guava',
+    ':support',
   ],
   visibility = ['PUBLIC'],
 )
@@ -18,7 +19,7 @@ SUPPORT_SRCS = [
   'PythonEnvironment.java',
   'PythonVersion.java',
 ]
-java_library(
+java_immutables_library(
   name = 'support',
   srcs = SUPPORT_SRCS,
   deps = [
@@ -28,7 +29,7 @@ java_library(
 )
 
 
-java_library(
+java_immutables_library(
   name = 'rules',
   srcs = glob(['*.java'], excludes=CONFIG_SRCS + SUPPORT_SRCS),
   deps = [

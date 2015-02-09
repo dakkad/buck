@@ -44,7 +44,7 @@ public class CxxTestDescriptionTest {
             "cxx",
             ImmutableMap.of("gtest_dep", gtest.toString())));
     CxxBuckConfig cxxBuckConfig = new CxxBuckConfig(buckConfig);
-    DefaultCxxPlatform cxxPlatform = new DefaultCxxPlatform(buckConfig);
+    CxxPlatform cxxPlatform = DefaultCxxPlatforms.build(buckConfig);
     CxxTestDescription desc = new CxxTestDescription(
         cxxBuckConfig,
         cxxPlatform,
@@ -54,9 +54,10 @@ public class CxxTestDescriptionTest {
     CxxTestDescription.Arg constructorArg = desc.createUnpopulatedConstructorArg();
     constructorArg.framework = Optional.of(CxxTestType.GTEST);
     constructorArg.lexSrcs = Optional.of(ImmutableList.<SourcePath>of());
-    Iterable<String> implicit = desc.findDepsForTargetFromConstructorArgs(target, constructorArg);
+    Iterable<BuildTarget> implicit = desc
+        .findDepsForTargetFromConstructorArgs(target, constructorArg);
 
-    assertTrue(Iterables.contains(implicit, gtest.toString()));
+    assertTrue(Iterables.contains(implicit, gtest));
   }
 
 }

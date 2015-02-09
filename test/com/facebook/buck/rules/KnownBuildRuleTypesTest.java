@@ -19,23 +19,27 @@ package com.facebook.buck.rules;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertTrue;
 
 import com.facebook.buck.android.AndroidLibrary;
 import com.facebook.buck.android.AndroidLibraryDescription;
+import com.facebook.buck.android.FakeAndroidDirectoryResolver;
 import com.facebook.buck.cli.FakeBuckConfig;
 import com.facebook.buck.java.DefaultJavaLibrary;
+import com.facebook.buck.java.ExternalJavac;
 import com.facebook.buck.java.JavaLibraryDescription;
-import com.facebook.buck.java.JavacVersion;
+import com.facebook.buck.java.Javac;
+import com.facebook.buck.java.Jsr199Javac;
 import com.facebook.buck.model.BuildTarget;
 import com.facebook.buck.model.BuildTargetFactory;
 import com.facebook.buck.parser.NoSuchBuildTargetException;
+import com.facebook.buck.python.ImmutablePythonVersion;
 import com.facebook.buck.python.PythonEnvironment;
-import com.facebook.buck.python.PythonVersion;
 import com.facebook.buck.testutil.FakeProjectFilesystem;
 import com.facebook.buck.testutil.integration.DebuggableTemporaryFolder;
-import com.facebook.buck.android.FakeAndroidDirectoryResolver;
 import com.facebook.buck.util.FakeProcess;
 import com.facebook.buck.util.FakeProcessExecutor;
+import com.facebook.buck.util.ImmutableProcessExecutorParams;
 import com.facebook.buck.util.ProcessExecutor;
 import com.facebook.buck.util.ProcessExecutorParams;
 import com.google.common.base.Optional;
@@ -43,7 +47,6 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSortedSet;
-import com.google.common.collect.Lists;
 
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
@@ -64,7 +67,7 @@ public class KnownBuildRuleTypesTest {
   @Rule public DebuggableTemporaryFolder temporaryFolder = new DebuggableTemporaryFolder();
 
   private static final PythonEnvironment DUMMY_PYTHON_ENVIRONMENT =
-      new PythonEnvironment(Paths.get("fake_python"), new PythonVersion("Python 2.7"));
+      new PythonEnvironment(Paths.get("fake_python"), ImmutablePythonVersion.of("Python 2.7"));
 
   private static final String FAKE_XCODE_DEV_PATH = "/Fake/Path/To/Xcode.app/Contents/Developer";
 
@@ -72,7 +75,7 @@ public class KnownBuildRuleTypesTest {
 
   private static class TestDescription implements Description<Object> {
 
-    public static final BuildRuleType TYPE = new BuildRuleType("known_rule_test");
+    public static final BuildRuleType TYPE = ImmutableBuildRuleType.of("known_rule_test");
 
     private final String value;
 
@@ -114,6 +117,8 @@ public class KnownBuildRuleTypesTest {
     arg.resources = Optional.of(ImmutableSortedSet.<SourcePath>of());
     arg.source = Optional.absent();
     arg.target = Optional.absent();
+    arg.javac = Optional.absent();
+    arg.javacJar = Optional.absent();
     arg.extraArguments = Optional.absent();
     arg.proguardConfig = Optional.absent();
     arg.annotationProcessorDeps = Optional.of(ImmutableSortedSet.<BuildTarget>of());
@@ -140,7 +145,7 @@ public class KnownBuildRuleTypesTest {
   }
 
   @Test
-  public void whenJavacIsNotSetInBuckConfigConfiguredRulesCreateJavaLibraryRuleWithAbsentJavac()
+  public void whenJavacIsNotSetInBuckConfigConfiguredRulesCreateJavaLibraryRuleWithJsr199Javac()
       throws IOException, NoSuchBuildTargetException, InterruptedException {
     FakeBuckConfig buckConfig = new FakeBuckConfig();
 
@@ -150,7 +155,9 @@ public class KnownBuildRuleTypesTest {
         new FakeAndroidDirectoryResolver(),
         DUMMY_PYTHON_ENVIRONMENT).build();
     DefaultJavaLibrary libraryRule = createJavaLibrary(buildRuleTypes);
-    assertEquals(Optional.<String> absent(), libraryRule.getJavac());
+
+    Javac javac = libraryRule.getJavac();
+    assertTrue(javac.getClass().toString(), javac instanceof Jsr199Javac);
   }
 
   @Test
@@ -173,31 +180,7 @@ public class KnownBuildRuleTypesTest {
         .build();
 
     DefaultJavaLibrary libraryRule = createJavaLibrary(buildRuleTypes);
-    assertEquals(javac.toPath(), libraryRule.getJavac().get());
-  }
-
-  @Test
-  public void whenJavacIsSetInBuckConfigConfiguredRulesCreateJavaLibraryRuleWithJavacVersionSet()
-      throws IOException, NoSuchBuildTargetException, InterruptedException {
-    final File javac = temporaryFolder.newFile();
-    javac.setExecutable(true);
-
-    Map<String, Map<String, String>> sections = ImmutableMap.of(
-        "tools", (Map<String, String>) ImmutableMap.of("javac", javac.toString()));
-    FakeBuckConfig buckConfig = new FakeBuckConfig(sections);
-
-    JavacVersion javacVersion = new JavacVersion("fakeVersion 0.1");
-
-    ProcessExecutor processExecutor = createExecutor(javac.toString(), "fakeVersion 0.1");
-
-    KnownBuildRuleTypes buildRuleTypes = KnownBuildRuleTypes.createBuilder(
-        buckConfig,
-        processExecutor,
-        new FakeAndroidDirectoryResolver(),
-        DUMMY_PYTHON_ENVIRONMENT)
-        .build();
-    DefaultJavaLibrary libraryRule = createJavaLibrary(buildRuleTypes);
-    assertEquals(javacVersion, libraryRule.getJavacVersion().get());
+    assertEquals(javac.toPath(), ((ExternalJavac) libraryRule.getJavac()).getPath());
   }
 
   @Test
@@ -227,38 +210,7 @@ public class KnownBuildRuleTypesTest {
   }
 
   @Test
-  public void differentExternalJavacCreateJavaLibraryRulesWithDifferentRuleKey()
-      throws IOException, NoSuchBuildTargetException, InterruptedException {
-    final File javac = temporaryFolder.newFile();
-    javac.setExecutable(true);
-
-    Map<String, Map<String, String>> sections = ImmutableMap.of(
-        "tools", (Map<String, String>) ImmutableMap.of("javac", javac.toString()));
-    FakeBuckConfig buckConfig = new FakeBuckConfig(sections);
-    ProcessExecutor processExecutor = createExecutor(javac.toString(), "fakeVersion 0.1");
-
-    KnownBuildRuleTypes configuredBuildRuleTypes1 = KnownBuildRuleTypes.createBuilder(
-        buckConfig,
-        processExecutor,
-        new FakeAndroidDirectoryResolver(),
-        DUMMY_PYTHON_ENVIRONMENT)
-        .build();
-    DefaultJavaLibrary configuredRule1 = createJavaLibrary(configuredBuildRuleTypes1);
-
-    ProcessExecutor processExecutor2 = createExecutor(javac.toString(), "fakeVersion 0.2");
-    KnownBuildRuleTypes configuredBuildRuleTypes2 = KnownBuildRuleTypes.createBuilder(
-        buckConfig,
-        processExecutor2,
-        new FakeAndroidDirectoryResolver(),
-        DUMMY_PYTHON_ENVIRONMENT)
-        .build();
-    DefaultJavaLibrary configuredRule2 = createJavaLibrary(configuredBuildRuleTypes2);
-
-    assertNotEquals(configuredRule1.getRuleKey(), configuredRule2.getRuleKey());
-  }
-
-  @Test
-  public void whenJavacIsNotSetInBuckConfigConfiguredRulesCreateAndroidLibraryRuleWithAbsentJavac()
+  public void whenJavacIsNotSetInBuckConfigConfiguredRulesCreateAndroidLibraryRuleWithJsr199Javac()
       throws IOException, NoSuchBuildTargetException, InterruptedException {
     FakeBuckConfig buckConfig = new FakeBuckConfig();
 
@@ -266,7 +218,9 @@ public class KnownBuildRuleTypesTest {
         buckConfig,
         createExecutor(),
         new FakeAndroidDirectoryResolver(),
-        new PythonEnvironment(Paths.get("fake_python"), new PythonVersion("Python 2.7"))).build();
+        new PythonEnvironment(
+            Paths.get("fake_python"),
+            ImmutablePythonVersion.of("Python 2.7"))).build();
     AndroidLibraryDescription description =
         (AndroidLibraryDescription) buildRuleTypes.getDescription(AndroidLibraryDescription.TYPE);
 
@@ -277,7 +231,10 @@ public class KnownBuildRuleTypesTest {
         buildRuleParams,
         new BuildRuleResolver(),
         arg);
-    assertEquals(Optional.absent(), rule.getJavac());
+
+
+    Javac javac = rule.getJavac();
+    assertTrue(javac.getClass().toString(), javac instanceof Jsr199Javac);
   }
 
   @Test
@@ -308,7 +265,7 @@ public class KnownBuildRuleTypesTest {
         buildRuleParams,
         new BuildRuleResolver(),
         arg);
-    assertEquals(javac.toPath(), rule.getJavac().get());
+    assertEquals(javac.toPath(), ((ExternalJavac) rule.getJavac()).getPath());
   }
 
   @Test
@@ -376,8 +333,8 @@ public class KnownBuildRuleTypesTest {
     Map<ProcessExecutorParams, FakeProcess> processMap = new HashMap<>();
 
       FakeProcess process = new FakeProcess(0, "", version);
-      ProcessExecutorParams params = ProcessExecutorParams.builder()
-          .setCommand(Lists.newArrayList(javac, "-version"))
+      ProcessExecutorParams params = ImmutableProcessExecutorParams.builder()
+          .setCommand(ImmutableList.of(javac, "-version"))
           .build();
       processMap.put(params, process);
 
@@ -391,8 +348,8 @@ public class KnownBuildRuleTypesTest {
       String xcodeSelectPath) {
 
     FakeProcess xcodeSelectOutputProcess = new FakeProcess(0, xcodeSelectPath, "");
-    ProcessExecutorParams xcodeSelectParams = ProcessExecutorParams.builder()
-        .setCommand(Lists.newArrayList("xcode-select", "--print-path"))
+    ProcessExecutorParams xcodeSelectParams = ImmutableProcessExecutorParams.builder()
+        .setCommand(ImmutableList.of("xcode-select", "--print-path"))
         .build();
     processMap.put(xcodeSelectParams, xcodeSelectOutputProcess);
   }

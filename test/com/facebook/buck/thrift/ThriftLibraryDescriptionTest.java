@@ -26,6 +26,7 @@ import com.facebook.buck.model.BuildTarget;
 import com.facebook.buck.model.BuildTargetFactory;
 import com.facebook.buck.model.BuildTargets;
 import com.facebook.buck.model.Flavor;
+import com.facebook.buck.model.ImmutableFlavor;
 import com.facebook.buck.rules.BuildRule;
 import com.facebook.buck.rules.BuildRuleParams;
 import com.facebook.buck.rules.BuildRuleParamsFactory;
@@ -40,10 +41,8 @@ import com.facebook.buck.rules.TestSourcePath;
 import com.facebook.buck.shell.Genrule;
 import com.facebook.buck.shell.GenruleBuilder;
 import com.facebook.buck.testutil.FakeProjectFilesystem;
-import com.google.common.base.Functions;
 import com.google.common.base.Optional;
 import com.google.common.base.Preconditions;
-import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
@@ -164,7 +163,7 @@ public class ThriftLibraryDescriptionTest {
     FakeProjectFilesystem filesystem = new FakeProjectFilesystem();
 
     String language = "fake";
-    Flavor flavor = new Flavor("fake");
+    Flavor flavor = ImmutableFlavor.of("fake");
     ImmutableSet<String> options = ImmutableSet.of();
 
     // Setup the default values returned by the language specific enhancer.
@@ -277,7 +276,7 @@ public class ThriftLibraryDescriptionTest {
     FakeBuildRule thriftRule = createFakeBuildRule("//thrift:target", pathResolver);
     resolver.addToIndex(thriftRule);
     filesystem.mkdirs(thriftRule.getBuildTarget().getBasePath());
-    filesystem.touch(thriftRule.getBuildTarget().getBuildFilePath());
+    filesystem.touch(thriftRule.getBuildTarget().getBasePath().resolve("BUCK"));
 
     // Setup an empty thrift buck config, and set compiler target.
     buckConfig = new FakeBuckConfig(
@@ -367,11 +366,11 @@ public class ThriftLibraryDescriptionTest {
 
     // Setup the default values returned by the language specific enhancer.
     String language = "fake";
-    Flavor flavor = new Flavor("fake");
+    Flavor flavor = ImmutableFlavor.of("fake");
     final BuildRule implicitDep = createFakeBuildRule("//implicit:dep", pathResolver);
     resolver.addToIndex(implicitDep);
     filesystem.mkdirs(implicitDep.getBuildTarget().getBasePath());
-    filesystem.touch(implicitDep.getBuildTarget().getBuildFilePath());
+    filesystem.touch(implicitDep.getBuildTarget().getBasePath().resolve("BUCK"));
     ImmutableSet<BuildTarget> implicitDeps = ImmutableSet.of(implicitDep.getBuildTarget());
     ImmutableSet<String> options = ImmutableSet.of();
 
@@ -406,7 +405,7 @@ public class ThriftLibraryDescriptionTest {
     final FakeBuildRule thriftRule = createFakeBuildRule("//thrift:target", pathResolver);
     resolver.addToIndex(thriftRule);
     filesystem.mkdirs(thriftRule.getBuildTarget().getBasePath());
-    filesystem.touch(thriftRule.getBuildTarget().getBuildFilePath());
+    filesystem.touch(thriftRule.getBuildTarget().getBasePath().resolve("BUCK"));
 
     // Setup a simple description with an empty config.
     FakeBuckConfig buckConfig = new FakeBuckConfig(
@@ -508,11 +507,11 @@ public class ThriftLibraryDescriptionTest {
     ThriftConstructorArg constructorArg = desc.createUnpopulatedConstructorArg();
 
     // Now call the find deps methods and verify it returns nothing.
-    Iterable<String> results = desc.findDepsForTargetFromConstructorArgs(
+    Iterable<BuildTarget> results = desc.findDepsForTargetFromConstructorArgs(
         unflavoredTarget,
         constructorArg);
     assertEquals(
-        ImmutableList.<String>of(),
+        ImmutableList.<BuildTarget>of(),
         ImmutableList.copyOf(results));
   }
 
@@ -526,7 +525,7 @@ public class ThriftLibraryDescriptionTest {
 
     // Setup the default values returned by the language specific enhancer.
     String language = "fake";
-    Flavor flavor = new Flavor("fake");
+    Flavor flavor = ImmutableFlavor.of("fake");
     ImmutableSet<String> options = ImmutableSet.of();
     ImmutableSet<BuildTarget> implicitDeps = ImmutableSet.of(implicitDep.getBuildTarget());
     BuildTarget unflavoredTarget = BuildTargetFactory.newInstance("//:thrift");
@@ -551,18 +550,15 @@ public class ThriftLibraryDescriptionTest {
     constructorArg.deps = Optional.of(ImmutableSortedSet.<BuildTarget>of());
 
     // Now call the find deps methods and verify it returns nothing.
-    Iterable<String> results = desc.findDepsForTargetFromConstructorArgs(
+    Iterable<BuildTarget> results = desc.findDepsForTargetFromConstructorArgs(
         flavoredTarget,
         constructorArg);
     assertEquals(
-        FluentIterable.from(
-            ImmutableSet.<BuildTarget>builder()
-                .add(unflavoredTarget)
-                .add(thriftTarget)
-                .addAll(implicitDeps)
-                .build())
-            .transform(Functions.toStringFunction())
-            .toSet(),
+        ImmutableSet.<BuildTarget>builder()
+            .add(unflavoredTarget)
+            .add(thriftTarget)
+            .addAll(implicitDeps)
+            .build(),
         ImmutableSet.copyOf(results));
   }
 

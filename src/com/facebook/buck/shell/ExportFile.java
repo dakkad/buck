@@ -107,7 +107,8 @@ public class ExportFile extends AbstractBuildRule implements HasOutputName {
   @Override
   public RuleKey.Builder appendDetailsToRuleKey(RuleKey.Builder builder) {
     return builder
-        .set("out", out.toString());
+        .setReflectively("name", name)
+        .setReflectively("out", out.toString());
   }
 
   @Override

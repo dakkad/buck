@@ -19,6 +19,8 @@ package com.facebook.buck.cli;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+import com.facebook.buck.android.AndroidDirectoryResolver;
+import com.facebook.buck.android.FakeAndroidDirectoryResolver;
 import com.facebook.buck.event.BuckEventBus;
 import com.facebook.buck.event.BuckEventBusFactory;
 import com.facebook.buck.io.MorePaths;
@@ -28,6 +30,7 @@ import com.facebook.buck.model.BuildTarget;
 import com.facebook.buck.model.BuildTargetPattern;
 import com.facebook.buck.parser.BuildTargetParser;
 import com.facebook.buck.parser.NoSuchBuildTargetException;
+import com.facebook.buck.parser.ParserConfig;
 import com.facebook.buck.rules.ArtifactCache;
 import com.facebook.buck.rules.BuildRule;
 import com.facebook.buck.rules.BuildRuleFactoryParams;
@@ -37,6 +40,7 @@ import com.facebook.buck.rules.BuildRuleType;
 import com.facebook.buck.rules.Description;
 import com.facebook.buck.rules.FakeBuildRule;
 import com.facebook.buck.rules.FakeRepositoryFactory;
+import com.facebook.buck.rules.ImmutableBuildRuleType;
 import com.facebook.buck.rules.NonCheckingBuildRuleFactoryParams;
 import com.facebook.buck.rules.NoopArtifactCache;
 import com.facebook.buck.rules.Repository;
@@ -46,8 +50,6 @@ import com.facebook.buck.rules.TestRepositoryBuilder;
 import com.facebook.buck.testutil.FakeFileHashCache;
 import com.facebook.buck.testutil.FakeProjectFilesystem;
 import com.facebook.buck.testutil.TestConsole;
-import com.facebook.buck.android.AndroidDirectoryResolver;
-import com.facebook.buck.android.FakeAndroidDirectoryResolver;
 import com.facebook.buck.util.environment.Platform;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Joiner;
@@ -74,7 +76,7 @@ public class AuditOwnerCommandTest {
 
     @Override
     public BuildRuleType getBuildRuleType() {
-      return new BuildRuleType("fake_rule");
+      return ImmutableBuildRuleType.of("fake_rule");
     }
 
     @Override
@@ -204,8 +206,7 @@ public class AuditOwnerCommandTest {
         androidDirectoryResolver,
         new InstanceArtifactCacheFactory(artifactCache),
         eventBus,
-        buckConfig.getPythonInterpreter(),
-        buckConfig.getAllowEmptyGlobs(),
+        new ParserConfig(buckConfig),
         Platform.detect(),
         ImmutableMap.copyOf(System.getenv()),
         new FakeJavaPackageFinder(),

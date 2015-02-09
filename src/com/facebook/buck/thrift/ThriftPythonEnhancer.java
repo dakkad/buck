@@ -18,6 +18,7 @@ package com.facebook.buck.thrift;
 
 import com.facebook.buck.model.BuildTarget;
 import com.facebook.buck.model.Flavor;
+import com.facebook.buck.model.ImmutableFlavor;
 import com.facebook.buck.python.PythonLibrary;
 import com.facebook.buck.python.PythonLibraryDescription;
 import com.facebook.buck.python.PythonUtil;
@@ -28,6 +29,7 @@ import com.facebook.buck.rules.BuildTargetSourcePath;
 import com.facebook.buck.rules.SourcePath;
 import com.facebook.buck.rules.SourcePathResolver;
 import com.facebook.buck.util.HumanReadableException;
+import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
@@ -38,8 +40,8 @@ import java.nio.file.Path;
 
 public class ThriftPythonEnhancer implements ThriftLanguageSpecificEnhancer {
 
-  private static final Flavor PYTHON_FLAVOR = new Flavor("py");
-  private static final Flavor PYTHON_TWISTED_FLAVOR = new Flavor("py-twisted");
+  private static final Flavor PYTHON_FLAVOR = ImmutableFlavor.of("py");
+  private static final Flavor PYTHON_TWISTED_FLAVOR = ImmutableFlavor.of("py-twisted");
 
   public static enum Type {
     NORMAL,
@@ -114,8 +116,8 @@ public class ThriftPythonEnhancer implements ThriftLanguageSpecificEnhancer {
     BuildRuleParams langParams = params.copyWithChanges(
         PythonLibraryDescription.TYPE,
         params.getBuildTarget(),
-        deps,
-        ImmutableSortedSet.<BuildRule>of());
+        Suppliers.ofInstance(deps),
+        Suppliers.ofInstance(ImmutableSortedSet.<BuildRule>of()));
 
     // Construct a python library and return it as our language specific build rule.  Dependents
     // will use this to pull the generated sources into packages/PEXs.

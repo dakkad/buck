@@ -30,7 +30,7 @@ import java.nio.file.Path;
  */
 public class OutputOnlyBuildRule extends AbstractBuildRule {
 
-  public static final BuildRuleType TYPE = new BuildRuleType("output_only_build_rule");
+  public static final BuildRuleType TYPE = ImmutableBuildRuleType.of("output_only_build_rule");
 
   private final Path pathToOutputFile;
 
@@ -64,7 +64,7 @@ public class OutputOnlyBuildRule extends AbstractBuildRule {
   @Override
   protected Builder appendDetailsToRuleKey(Builder builder) {
     // Note that the path itself is part of the rule key, but not the contents of the file.
-    return builder.set("output", pathToOutputFile.toString());
+    return builder.setReflectively("output", pathToOutputFile.toString());
   }
 
 }

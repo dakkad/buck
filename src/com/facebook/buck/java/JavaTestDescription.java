@@ -24,6 +24,7 @@ import com.facebook.buck.rules.BuildRuleResolver;
 import com.facebook.buck.rules.BuildRuleType;
 import com.facebook.buck.rules.Description;
 import com.facebook.buck.rules.Hint;
+import com.facebook.buck.rules.ImmutableBuildRuleType;
 import com.facebook.buck.rules.Label;
 import com.facebook.buck.rules.SourcePathResolver;
 import com.facebook.buck.util.HumanReadableException;
@@ -37,17 +38,14 @@ import java.nio.file.Path;
 
 public class JavaTestDescription implements Description<JavaTestDescription.Arg> {
 
-  public static final BuildRuleType TYPE = new BuildRuleType("java_test");
+  public static final BuildRuleType TYPE = ImmutableBuildRuleType.of("java_test");
 
-  private final Javac javac;
   private final JavacOptions templateOptions;
   private final Optional<Long> testRuleTimeoutMs;
 
   public JavaTestDescription(
-      Javac javac,
       JavacOptions templateOptions,
       Optional<Long> testRuleTimeoutMs) {
-    this.javac = javac;
     this.templateOptions = templateOptions;
     this.testRuleTimeoutMs = testRuleTimeoutMs;
   }
@@ -69,7 +67,8 @@ public class JavaTestDescription implements Description<JavaTestDescription.Arg>
       A args) {
     SourcePathResolver pathResolver = new SourcePathResolver(resolver);
 
-    JavacOptions.Builder javacOptions = JavaLibraryDescription.getJavacOptions(
+    ImmutableJavacOptions.Builder javacOptions = JavaLibraryDescription.getJavacOptions(
+        pathResolver,
         args,
         templateOptions);
 
@@ -77,7 +76,7 @@ public class JavaTestDescription implements Description<JavaTestDescription.Arg>
         params.getBuildTarget(),
         params.getProjectFilesystem(),
         resolver);
-    javacOptions.setAnnotationProcessingData(annotationParams);
+    javacOptions.setAnnotationProcessingParams(annotationParams);
 
     return new JavaTest(
         params,
@@ -91,7 +90,6 @@ public class JavaTestDescription implements Description<JavaTestDescription.Arg>
         args.proguardConfig,
         /* additionalClasspathEntries */ ImmutableSet.<Path>of(),
         args.testType.or(TestType.JUNIT),
-        javac,
         javacOptions.build(),
         args.vmArgs.get(),
         validateAndGetSourcesUnderTest(

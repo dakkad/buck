@@ -17,24 +17,30 @@
 package com.facebook.buck.apple;
 
 import com.facebook.buck.cxx.CxxBinaryDescription;
+import com.facebook.buck.cxx.CxxLibraryDescription;
+import com.facebook.buck.cxx.CxxPlatform;
 import com.facebook.buck.model.Flavor;
+import com.facebook.buck.model.FlavorDomain;
 import com.facebook.buck.model.Flavored;
 import com.facebook.buck.rules.BuildRule;
 import com.facebook.buck.rules.BuildRuleParams;
 import com.facebook.buck.rules.BuildRuleResolver;
 import com.facebook.buck.rules.BuildRuleType;
 import com.facebook.buck.rules.Description;
+import com.facebook.buck.rules.ImmutableBuildRuleType;
 import com.facebook.buck.rules.SourcePathResolver;
 import com.google.common.base.Optional;
 import com.google.common.base.Predicate;
 import com.google.common.collect.FluentIterable;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
+import java.util.Map;
 import java.util.Set;
 
 public class AppleBinaryDescription
     implements Description<AppleNativeTargetDescriptionArg>, Flavored {
-  public static final BuildRuleType TYPE = new BuildRuleType("apple_binary");
+  public static final BuildRuleType TYPE = ImmutableBuildRuleType.of("apple_binary");
 
   private static final Set<Flavor> SUPPORTED_FLAVORS = ImmutableSet.of(
       CompilationDatabase.COMPILATION_DATABASE,
@@ -49,10 +55,18 @@ public class AppleBinaryDescription
 
   private final AppleConfig appleConfig;
   private final CxxBinaryDescription delegate;
+  private final FlavorDomain<CxxPlatform> cxxPlatformFlavorDomain;
+  private final ImmutableMap<CxxPlatform, AppleSdkPaths> appleCxxPlatformsToAppleSdkPaths;
 
-  public AppleBinaryDescription(AppleConfig appleConfig, CxxBinaryDescription delegate) {
+  public AppleBinaryDescription(
+      AppleConfig appleConfig,
+      CxxBinaryDescription delegate,
+      FlavorDomain<CxxPlatform> cxxPlatformFlavorDomain,
+      Map<CxxPlatform, AppleSdkPaths> appleCxxPlatformsToAppleSdkPaths) {
     this.appleConfig = appleConfig;
     this.delegate = delegate;
+    this.cxxPlatformFlavorDomain = cxxPlatformFlavorDomain;
+    this.appleCxxPlatformsToAppleSdkPaths = ImmutableMap.copyOf(appleCxxPlatformsToAppleSdkPaths);
   }
 
   @Override
@@ -67,7 +81,8 @@ public class AppleBinaryDescription
 
   @Override
   public boolean hasFlavors(ImmutableSet<Flavor> flavors) {
-    return FluentIterable.from(flavors).allMatch(IS_SUPPORTED_FLAVOR);
+    return FluentIterable.from(flavors).allMatch(IS_SUPPORTED_FLAVOR) ||
+        delegate.hasFlavors(flavors);
   }
 
   @Override
@@ -90,11 +105,18 @@ public class AppleBinaryDescription
     }
 
     CxxBinaryDescription.Arg delegateArg = delegate.createUnpopulatedConstructorArg();
+    CxxLibraryDescription.TypeAndPlatform typeAndPlatform =
+        CxxLibraryDescription.getTypeAndPlatform(
+            params.getBuildTarget(),
+            cxxPlatformFlavorDomain);
+    Optional<AppleSdkPaths> appleSdkPaths = Optional.fromNullable(
+        appleCxxPlatformsToAppleSdkPaths.get(typeAndPlatform.getPlatform()));
     AbstractAppleNativeTargetBuildRuleDescriptions.populateCxxConstructorArg(
         delegateArg,
         args,
         params.getBuildTarget(),
-        targetSources);
+        targetSources,
+        appleSdkPaths);
 
     return delegate.createBuildRule(params, resolver, delegateArg);
   }

@@ -16,11 +16,13 @@
 
 package com.facebook.buck.cli;
 
+import com.google.common.collect.ImmutableMap;
+
 import java.util.Map;
 
 public class FakeBuckEnvironment extends FakeBuckConfig {
 
-  private final Map<String, String> environment;
+  private final ImmutableMap<String, String> environment;
   private final Map<String, String> properties;
 
   public FakeBuckEnvironment(
@@ -28,12 +30,17 @@ public class FakeBuckEnvironment extends FakeBuckConfig {
       Map<String, String> environment,
       Map<String, String> properties) {
     super(sections);
-    this.environment = environment;
+    this.environment = ImmutableMap.copyOf(environment);
     this.properties = properties;
   }
 
   @Override
-  String[] getEnv(String propertyName, String separator) {
+  public ImmutableMap<String, String> getEnvironment() {
+    return environment;
+  }
+
+  @Override
+  public String[] getEnv(String propertyName, String separator) {
     return environment.get(propertyName).split(separator);
   }
 

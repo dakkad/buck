@@ -57,6 +57,7 @@ java_library(
     ':support',
     '//third-party/java/guava:guava',
     '//src/com/facebook/buck/cli:config',
+    '//src/com/facebook/buck/rules:build_rule',
     '//src/com/facebook/buck/util:exceptions',
     '//src/com/facebook/buck/util:io',
   ],
@@ -75,12 +76,13 @@ java_library(
   visibility = ['PUBLIC'],
 )
 
-java_library(
+java_immutables_library(
   name = 'javac',
   srcs = [
     'ExternalJavac.java',
     'Javac.java',
     'JavacErrorParser.java',
+    'JavacVersion.java',
     'Jsr199Javac.java',
     'ZipEntryJavaFileObject.java',
   ],
@@ -90,6 +92,7 @@ java_library(
     '//src/com/facebook/buck/io:io',
     '//src/com/facebook/buck/log:log',
     '//src/com/facebook/buck/model:model',
+    '//src/com/facebook/buck/rules:build_rule',
     '//src/com/facebook/buck/step:step',
     '//src/com/facebook/buck/util:exceptions',
     '//src/com/facebook/buck/util:io',
@@ -101,22 +104,20 @@ java_library(
   visibility = ['PUBLIC'],
 )
 
-java_library(
+java_immutables_library(
   name = 'support',
   srcs = [
-    'AnnotationProcessingDataDecorator.java',
-    'AnnotationProcessingDataDecorators.java',
     'AnnotationProcessingParams.java',
+    'BuildsAnnotationProcessor.java',
     'HasClasspathEntries.java',
     'HasJavaAbi.java',
     'Javac.java',
     'JavaLibrary.java',
-    'JavacVersion.java',
     'JavacOptions.java',
-    'JavaCompilerEnvironment.java',
   ],
   deps = [
     ':classhash',
+    ':javac',
     '//src/com/facebook/buck/io:io',
     '//src/com/facebook/buck/java/abi:protocol',
     '//src/com/facebook/buck/model:model',
@@ -171,6 +172,7 @@ java_library(
     'FatJarMain.java',
   ],
   deps = [
+    ':javac',
     ':classhash',
     ':fat-jar-main',
     ':nativelinkable',
@@ -219,6 +221,7 @@ java_library(
     'TestType.java',
   ],
   deps = [
+    ':javac',
     ':packagefinder',
     ':report-generator',
     ':support',
@@ -265,6 +268,7 @@ java_library(
     '//src/com/facebook/buck/io:io',
     '//src/com/facebook/buck/json:json',
     '//src/com/facebook/buck/model:model',
+    '//src/com/facebook/buck/parser:config',
     '//src/com/facebook/buck/rules:build_rule',
     '//src/com/facebook/buck/util:constants',
     '//src/com/facebook/buck/util:io',

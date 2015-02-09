@@ -86,6 +86,5 @@ public class ExternalJavacTest extends EasyMockSupport {
     Path fakeJavac = Paths.get("fakeJavac");
     return new ExternalJavac(fakeJavac);
   }
-
 }
 

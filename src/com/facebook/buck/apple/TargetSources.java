@@ -69,23 +69,33 @@ public abstract class TargetSources {
   public static TargetSources ofAppleSources(
       SourcePathResolver resolver,
       Collection<AppleSource> appleSources) {
-    ImmutableList.Builder<GroupedSource> srcsBuilder = ImmutableList.builder();
+    ImmutableSortedSet.Builder<SourcePath> allSourcesBuilder = ImmutableSortedSet.naturalOrder();
     ImmutableSortedMap.Builder<SourcePath, String> perFileFlagsBuilder = ImmutableSortedMap
         .naturalOrder();
     ImmutableSortedSet.Builder<SourcePath> srcPathsBuilder = ImmutableSortedSet.naturalOrder();
     ImmutableSortedSet.Builder<SourcePath> headerPathsBuilder = ImmutableSortedSet.naturalOrder();
     RuleUtils.extractSourcePaths(
         resolver,
-        srcsBuilder,
+        allSourcesBuilder,
         perFileFlagsBuilder,
         srcPathsBuilder,
         headerPathsBuilder,
         appleSources);
+
+    ImmutableSortedSet<SourcePath> allSources = allSourcesBuilder.build();
+    ImmutableSortedMap<SourcePath, String> perFileFlags = perFileFlagsBuilder.build();
+    ImmutableSortedSet<SourcePath> srcPaths = srcPathsBuilder.build();
+    ImmutableSortedSet<SourcePath> headerPaths = headerPathsBuilder.build();
+
+    ImmutableList<GroupedSource> groupedSource = RuleUtils.createGroupsFromSourcePaths(
+        resolver,
+        allSources);
+
     return ImmutableTargetSources.of(
-        srcsBuilder.build(),
-        perFileFlagsBuilder.build(),
-        srcPathsBuilder.build(),
-        headerPathsBuilder.build());
+        groupedSource,
+        perFileFlags,
+        srcPaths,
+        headerPaths);
   }
 
 }

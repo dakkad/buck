@@ -17,24 +17,27 @@
 package com.facebook.buck.cxx;
 
 import com.facebook.buck.model.BuildTarget;
-import com.facebook.buck.model.BuildTargets;
 import com.facebook.buck.model.Flavor;
-import com.facebook.buck.model.Flavored;
 import com.facebook.buck.model.FlavorDomain;
 import com.facebook.buck.model.FlavorDomainException;
+import com.facebook.buck.model.Flavored;
+import com.facebook.buck.model.ImmutableFlavor;
+import com.facebook.buck.model.Pair;
 import com.facebook.buck.rules.BuildRule;
 import com.facebook.buck.rules.BuildRuleParams;
 import com.facebook.buck.rules.BuildRuleResolver;
 import com.facebook.buck.rules.BuildRuleType;
 import com.facebook.buck.rules.Description;
+import com.facebook.buck.rules.ImmutableBuildRuleType;
 import com.facebook.buck.rules.ImplicitDepsInferringDescription;
 import com.facebook.buck.rules.SourcePath;
 import com.facebook.buck.rules.SourcePathResolver;
 import com.facebook.buck.rules.SymlinkTree;
-import com.facebook.buck.model.Pair;
 import com.facebook.buck.util.HumanReadableException;
+import com.facebook.buck.util.immutables.BuckStyleImmutable;
 import com.facebook.infer.annotation.SuppressFieldNotInitialized;
 import com.google.common.base.Optional;
+import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableMultimap;
@@ -45,17 +48,20 @@ import java.nio.file.Path;
 import java.util.Map;
 import java.util.Set;
 
+import org.immutables.value.Value;
+
+@Value.Nested
 public class CxxLibraryDescription implements
     Description<CxxLibraryDescription.Arg>,
     ImplicitDepsInferringDescription<CxxLibraryDescription.Arg>,
     Flavored {
-  private static enum Type {
+  public static enum Type {
     HEADERS,
     SHARED,
     STATIC,
   }
 
-  public static final BuildRuleType TYPE = new BuildRuleType("cxx_library");
+  public static final BuildRuleType TYPE = ImmutableBuildRuleType.of("cxx_library");
 
   private static final FlavorDomain<Type> LIBRARY_TYPE =
       new FlavorDomain<>(
@@ -80,10 +86,10 @@ public class CxxLibraryDescription implements
     return cxxPlatforms.containsAnyOf(flavors);
   }
 
-  private static final Flavor LEX_YACC_SOURCE_FLAVOR = new Flavor("lex_yacc_sources");
+  private static final Flavor LEX_YACC_SOURCE_FLAVOR = ImmutableFlavor.of("lex_yacc_sources");
 
   private BuildTarget createLexYaccSourcesBuildTarget(BuildTarget target) {
-    return BuildTargets.extendFlavoredBuildTarget(target, LEX_YACC_SOURCE_FLAVOR);
+    return BuildTarget.builder(target).addFlavors(LEX_YACC_SOURCE_FLAVOR).build();
   }
 
   private CxxHeaderSourceSpec requireLexYaccSources(
@@ -137,11 +143,11 @@ public class CxxLibraryDescription implements
     BuildTarget headerSymlinkTreeTarget =
         CxxDescriptionEnhancer.createHeaderSymlinkTreeTarget(
             params.getBuildTarget(),
-            cxxPlatform.asFlavor());
+            cxxPlatform.getFlavor());
     Path headerSymlinkTreeRoot =
         CxxDescriptionEnhancer.getHeaderSymlinkTreePath(
             params.getBuildTarget(),
-            cxxPlatform.asFlavor());
+            cxxPlatform.getFlavor());
 
     CxxHeaderSourceSpec lexYaccSources = requireLexYaccSources(
         params,
@@ -180,7 +186,7 @@ public class CxxLibraryDescription implements
     BuildTarget headerTarget =
         CxxDescriptionEnhancer.createHeaderSymlinkTreeTarget(
             params.getBuildTarget(),
-            cxxPlatform.asFlavor());
+            cxxPlatform.getFlavor());
 
     // Check the cache...
     Optional<BuildRule> rule = ruleResolver.getRuleOptional(headerTarget);
@@ -214,6 +220,7 @@ public class CxxLibraryDescription implements
       ImmutableMap<Path, SourcePath> headers,
       ImmutableList<String> compilerFlags,
       ImmutableMap<String, CxxSource> sources,
+      ImmutableList<Path> frameworkSearchPaths,
       boolean pic) {
 
     CxxHeaderSourceSpec lexYaccSources =
@@ -243,7 +250,8 @@ public class CxxLibraryDescription implements
             params,
             cxxPlatform,
             preprocessorFlags,
-            headerSymlinkTree);
+            headerSymlinkTree,
+            frameworkSearchPaths);
 
     ImmutableMap<String, CxxSource> allSources =
         ImmutableMap.<String, CxxSource>builder()
@@ -285,7 +293,8 @@ public class CxxLibraryDescription implements
       ImmutableMultimap<CxxSource.Type, String> preprocessorFlags,
       ImmutableMap<Path, SourcePath> headers,
       ImmutableList<String> compilerFlags,
-      ImmutableMap<String, CxxSource> sources) {
+      ImmutableMap<String, CxxSource> sources,
+      ImmutableList<Path> frameworkSearchPaths) {
 
     // Create rules for compiling the non-PIC object files.
     ImmutableList<SourcePath> objects = requireObjects(
@@ -299,17 +308,18 @@ public class CxxLibraryDescription implements
         headers,
         compilerFlags,
         sources,
+        frameworkSearchPaths,
         /* pic */ false);
 
     // Write a build rule to create the archive for this C/C++ library.
     BuildTarget staticTarget =
         CxxDescriptionEnhancer.createStaticLibraryBuildTarget(
             params.getBuildTarget(),
-            cxxPlatform.asFlavor());
+            cxxPlatform.getFlavor());
     Path staticLibraryPath =
         CxxDescriptionEnhancer.getStaticLibraryPath(
             params.getBuildTarget(),
-            cxxPlatform.asFlavor());
+            cxxPlatform.getFlavor());
     Archive staticLibraryBuildRule = Archives.createArchiveRule(
         pathResolver,
         staticTarget,
@@ -338,6 +348,7 @@ public class CxxLibraryDescription implements
       ImmutableList<String> compilerFlags,
       ImmutableMap<String, CxxSource> sources,
       ImmutableList<String> linkerFlags,
+      ImmutableList<Path> frameworkSearchPaths,
       Optional<String> soname) {
 
     // Create rules for compiling the PIC object files.
@@ -352,13 +363,14 @@ public class CxxLibraryDescription implements
         headers,
         compilerFlags,
         sources,
+        frameworkSearchPaths,
         /* pic */ true);
 
     // Setup the rules to link the shared library.
     BuildTarget sharedTarget =
         CxxDescriptionEnhancer.createSharedLibraryBuildTarget(
             params.getBuildTarget(),
-            cxxPlatform.asFlavor());
+            cxxPlatform.getFlavor());
     String sharedLibrarySoname =
         soname.or(
             CxxDescriptionEnhancer.getSharedLibrarySoname(params.getBuildTarget(), cxxPlatform));
@@ -405,6 +417,7 @@ public class CxxLibraryDescription implements
     arg.yaccSrcs = Optional.absent();
     arg.headerNamespace = Optional.absent();
     arg.soname = Optional.absent();
+    arg.frameworkSearchPaths = Optional.of(ImmutableList.<Path>of());
     return arg;
   }
 
@@ -453,7 +466,8 @@ public class CxxLibraryDescription implements
             .build(),
         CxxDescriptionEnhancer.parseHeaders(params, resolver, args),
         args.compilerFlags.or(ImmutableList.<String>of()),
-        CxxDescriptionEnhancer.parseCxxSources(params, resolver, args));
+        CxxDescriptionEnhancer.parseCxxSources(params, resolver, args),
+        args.frameworkSearchPaths.get());
   }
 
   /**
@@ -489,9 +503,38 @@ public class CxxLibraryDescription implements
             .addAll(
                 CxxDescriptionEnhancer.getPlatformFlags(
                     args.platformLinkerFlags.get(),
-                    cxxPlatform.asFlavor().toString()))
+                    cxxPlatform.getFlavor().toString()))
             .build(),
+        args.frameworkSearchPaths.get(),
         args.soname);
+  }
+
+  @Value.Immutable
+  @BuckStyleImmutable
+  public static interface TypeAndPlatform {
+    @Value.Parameter
+    Optional<Map.Entry<Flavor, Type>> getType();
+
+    @Value.Parameter
+    Optional<Map.Entry<Flavor, CxxPlatform>> getPlatform();
+  }
+
+  public static TypeAndPlatform getTypeAndPlatform(
+      BuildTarget buildTarget,
+      FlavorDomain<CxxPlatform> platforms) {
+    // See if we're building a particular "type" and "platform" of this library, and if so, extract
+    // them from the flavors attached to the build target.
+    Optional<Map.Entry<Flavor, Type>> type;
+    Optional<Map.Entry<Flavor, CxxPlatform>> platform;
+    try {
+      type = LIBRARY_TYPE.getFlavorAndValue(
+          ImmutableSet.copyOf(buildTarget.getFlavors()));
+      platform = platforms.getFlavorAndValue(
+          ImmutableSet.copyOf(buildTarget.getFlavors()));
+    } catch (FlavorDomainException e) {
+      throw new HumanReadableException("%s: %s", buildTarget, e.getMessage());
+    }
+    return ImmutableCxxLibraryDescription.TypeAndPlatform.of(type, platform);
   }
 
   @Override
@@ -499,33 +542,35 @@ public class CxxLibraryDescription implements
       BuildRuleParams params,
       BuildRuleResolver resolver,
       A args) {
+    TypeAndPlatform typeAndPlatform = getTypeAndPlatform(
+        params.getBuildTarget(),
+        cxxPlatforms);
+    return createBuildRule(params, resolver, args, typeAndPlatform);
+  }
 
-    // See if we're building a particular "type" and "platform" of this library, and if so, extract
-    // them from the flavors attached to the build target.
-    Optional<Map.Entry<Flavor, Type>> type;
-    Optional<Map.Entry<Flavor, CxxPlatform>> platform;
-    try {
-      type = LIBRARY_TYPE.getFlavorAndValue(params.getBuildTarget().getFlavors());
-      platform = cxxPlatforms.getFlavorAndValue(params.getBuildTarget().getFlavors());
-    } catch (FlavorDomainException e) {
-      throw new HumanReadableException("%s: %s", params.getBuildTarget(), e.getMessage());
-    }
+  public <A extends Arg> BuildRule createBuildRule(
+      BuildRuleParams params,
+      BuildRuleResolver resolver,
+      A args,
+      TypeAndPlatform typeAndPlatform) {
+    Optional<Map.Entry<Flavor, Type>> type = typeAndPlatform.getType();
+    Optional<Map.Entry<Flavor, CxxPlatform>> platform = typeAndPlatform.getPlatform();
 
     // If we *are* building a specific type of this lib, call into the type specific
     // rule builder methods.
-    if (type.isPresent()) {
+    if (type.isPresent() && platform.isPresent()) {
       Set<Flavor> flavors = Sets.newHashSet(params.getBuildTarget().getFlavors());
       flavors.remove(type.get().getKey());
-      BuildTarget target =
-          BuildTargets.extendFlavoredBuildTarget(
-              params.getBuildTarget().getUnflavoredTarget(),
-              flavors);
+      BuildTarget target = BuildTarget
+          .builder(params.getBuildTarget().getUnflavoredTarget())
+          .addAllFlavors(flavors)
+          .build();
       BuildRuleParams typeParams =
           params.copyWithChanges(
               params.getBuildRuleType(),
               target,
-              params.getDeclaredDeps(),
-              params.getExtraDeps());
+              Suppliers.ofInstance(params.getDeclaredDeps()),
+              Suppliers.ofInstance(params.getExtraDeps()));
       if (type.get().getValue().equals(Type.HEADERS)) {
         return createHeaderSymlinkTreeBuildRule(
             typeParams,
@@ -569,13 +614,13 @@ public class CxxLibraryDescription implements
   }
 
   @Override
-  public Iterable<String> findDepsForTargetFromConstructorArgs(
+  public Iterable<BuildTarget> findDepsForTargetFromConstructorArgs(
       BuildTarget buildTarget,
       Arg constructorArg) {
-    ImmutableSet.Builder<String> deps = ImmutableSet.builder();
+    ImmutableSet.Builder<BuildTarget> deps = ImmutableSet.builder();
 
     if (constructorArg.lexSrcs.isPresent() && !constructorArg.lexSrcs.get().isEmpty()) {
-      deps.add(cxxBuckConfig.getLexDep().toString());
+      deps.add(cxxBuckConfig.getLexDep());
     }
 
     return deps.build();

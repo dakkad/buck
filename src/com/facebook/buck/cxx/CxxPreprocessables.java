@@ -16,22 +16,25 @@
 
 package com.facebook.buck.cxx;
 
+import com.facebook.buck.graph.AbstractBreadthFirstTraversal;
 import com.facebook.buck.model.BuildTarget;
 import com.facebook.buck.model.BuildTargets;
 import com.facebook.buck.model.Flavor;
-import com.facebook.buck.graph.AbstractBreadthFirstTraversal;
+import com.facebook.buck.model.ImmutableFlavor;
 import com.facebook.buck.rules.BuildRule;
 import com.facebook.buck.rules.BuildRuleParams;
 import com.facebook.buck.rules.BuildRuleResolver;
 import com.facebook.buck.rules.BuildRuleType;
 import com.facebook.buck.rules.BuildRules;
 import com.facebook.buck.rules.BuildTargetSourcePath;
+import com.facebook.buck.rules.ImmutableBuildRuleType;
 import com.facebook.buck.rules.SourcePath;
 import com.facebook.buck.rules.SourcePathResolver;
 import com.facebook.buck.rules.SymlinkTree;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
+import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
@@ -47,9 +50,9 @@ public class CxxPreprocessables {
   private CxxPreprocessables() {}
 
   private static final BuildRuleType HEADER_SYMLINK_TREE_TYPE =
-      new BuildRuleType("header_symlink_tree");
+      ImmutableBuildRuleType.of("header_symlink_tree");
 
-  private static final BuildRuleType PREPROCESS_TYPE = new BuildRuleType("preprocess");
+  private static final BuildRuleType PREPROCESS_TYPE = ImmutableBuildRuleType.of("preprocess");
 
   /**
    * Resolve the map of name to {@link SourcePath} to a map of full header name to
@@ -130,8 +133,8 @@ public class CxxPreprocessables {
             HEADER_SYMLINK_TREE_TYPE,
             target,
             // Symlink trees never need to depend on anything.
-            ImmutableSortedSet.<BuildRule>of(),
-            ImmutableSortedSet.<BuildRule>of()),
+            Suppliers.ofInstance(ImmutableSortedSet.<BuildRule>of()),
+            Suppliers.ofInstance(ImmutableSortedSet.<BuildRule>of())),
         resolver,
         root,
         links);
@@ -177,18 +180,20 @@ public class CxxPreprocessables {
       CxxSource.Type type,
       boolean pic,
       String name) {
-    return BuildTargets.extendFlavoredBuildTarget(
-        target,
-        platform,
-        new Flavor(
-            String.format(
-                "preprocess-%s%s",
-                pic ? "pic-" : "",
-                getOutputName(type, name)
-                    .replace('/', '-')
-                    .replace('.', '-')
-                    .replace('+', '-')
-                    .replace(' ', '-'))));
+    return BuildTarget
+        .builder(target)
+        .addFlavors(platform)
+        .addFlavors(
+            ImmutableFlavor.of(
+                String.format(
+                    "preprocess-%s%s",
+                    pic ? "pic-" : "",
+                    getOutputName(type, name)
+                        .replace('/', '-')
+                        .replace('.', '-')
+                        .replace('+', '-')
+                        .replace(' ', '-'))))
+        .build();
   }
 
   /**
@@ -224,7 +229,7 @@ public class CxxPreprocessables {
         pathResolver.filterBuildRuleInputs(
             ImmutableList.<SourcePath>builder()
                 .add(source.getPath())
-                .addAll(preprocessorInput.getIncludes().nameToPathMap().values())
+                .addAll(preprocessorInput.getIncludes().getNameToPathMap().values())
                 .build()));
 
     // Also add in extra deps from the preprocessor input, such as the symlink tree
@@ -268,11 +273,13 @@ public class CxxPreprocessables {
         break;
       case OBJC:
         preprocessor = cxxPlatform.getCpp();
+        args.addAll(cxxPlatform.getCppflags());
         args.addAll(preprocessorInput.getPreprocessorFlags().get(CxxSource.Type.OBJC));
         outputType = CxxSource.Type.OBJC_CPP_OUTPUT;
         break;
       case OBJCXX:
         preprocessor = cxxPlatform.getCxxpp();
+        args.addAll(cxxPlatform.getCxxppflags());
         args.addAll(preprocessorInput.getPreprocessorFlags().get(CxxSource.Type.OBJCXX));
         outputType = CxxSource.Type.OBJCXX_CPP_OUTPUT;
         break;
@@ -293,7 +300,7 @@ public class CxxPreprocessables {
     BuildTarget target =
         createPreprocessBuildTarget(
             params.getBuildTarget(),
-            cxxPlatform.asFlavor(),
+            cxxPlatform.getFlavor(),
             source.getType(),
             pic,
             name);
@@ -301,8 +308,8 @@ public class CxxPreprocessables {
         params.copyWithChanges(
             PREPROCESS_TYPE,
             target,
-            dependencies.build(),
-            ImmutableSortedSet.<BuildRule>of()),
+            Suppliers.ofInstance(dependencies.build()),
+            Suppliers.ofInstance(ImmutableSortedSet.<BuildRule>of())),
         pathResolver,
         preprocessor,
         args.build(),

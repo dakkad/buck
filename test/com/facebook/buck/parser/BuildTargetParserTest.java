@@ -23,6 +23,7 @@ import static org.junit.Assert.fail;
 
 import com.facebook.buck.model.BuildTarget;
 import com.facebook.buck.model.Flavor;
+import com.facebook.buck.model.ImmutableFlavor;
 import com.google.common.base.Optional;
 import com.google.common.collect.ImmutableMap;
 
@@ -66,7 +67,7 @@ public class BuildTargetParserTest {
     assertEquals("//:lib#bar,foo", buildTarget.getFullyQualifiedName());
     assertThat(
         buildTarget.getFlavors(),
-        hasItems(new Flavor("foo"), new Flavor("bar")));
+        hasItems((Flavor) ImmutableFlavor.of("foo"), ImmutableFlavor.of("bar")));
   }
 
   @Test
@@ -182,4 +183,13 @@ public class BuildTargetParserTest {
     String zeroLengthRepoTargetStr = "@//foo/bar:baz";
     parser.parse(zeroLengthRepoTargetStr, fullyQualifiedParser);
   }
+
+  @Test
+  public void testParseWithBackslash() {
+    BuildTargetParser parser = new BuildTargetParser();
+    String backslashStr = "//com\\microsoft\\windows:something";
+    BuildTarget buildTarget = parser.parse(backslashStr, fullyQualifiedParser);
+    assertEquals("//com/microsoft/windows", buildTarget.getBaseName());
+  }
+
 }

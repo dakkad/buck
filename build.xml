@@ -6,13 +6,17 @@
   <property name="test.dir" value="${basedir}/test" />
   <property name="third-party.dir" value="${basedir}/third-party" />
   <property name="build.dir" value="${basedir}/build" />
+  <property name="aosp.classes.dir" value="${build.dir}/aosp/classes" />
   <property name="testrunner.classes.dir" value="${build.dir}/testrunner/classes" />
-  <property name="bootstrapper.src.dir" value="${src.dir}/com/facebook/buck/cli/bootstrapper/" />
+  <property name="bootstrapper.src.dir" value="com/facebook/buck/cli/bootstrapper/" />
   <property name="bootstrapper.classes.dir" value="${build.dir}/bootstrapper/classes" />
   <property name="buck.path_to_buck_py" value="${basedir}/src/com/facebook/buck/parser/buck.py" />
   <property name="buck.path_to_compile_asset_catalogs_py" value="${basedir}/src/com/facebook/buck/apple/compile_asset_catalogs.py" />
   <property name="buck.path_to_compile_asset_catalogs_build_phase_sh" value="${basedir}/src/com/facebook/buck/apple/compile_asset_catalogs_build_phase.sh" />
+  <property name="buck.path_to_sh_binary_template" value="${basedir}/src/com/facebook/buck/shell/sh_binary_template" />
   <property name="buck.logging_config_file" value="${basedir}/config/logging.properties" />
+  <property name="buck.test_logging_config_file" value="${basedir}/config/logging.test.properties" />
+  <property name="buck.log4j_config_file" value="${basedir}/config/log4j.properties" />
   <property name="classes.dir" value="${build.dir}/classes" />
   <property name="testclasses.dir" value="${build.dir}/testclasses" />
   <property name="javadoc.dir" value="${build.dir}/javadoc" />
@@ -33,7 +37,7 @@
   <property name="pathlib.dir" value="${third-party.dir}/py/pathlib" />
   <property name="unittest2.dir" value="${third-party.dir}/py/unittest2" />
 
-  <property name="immutables-value-standalone.jar" value="${third-party.dir}/java/immutables/value-standalone-1.1.1.jar" />
+  <property name="immutables-value-standalone.jar" value="${third-party.dir}/java/immutables/value-standalone-1.1.2.jar" />
   <property name="immutables.gensrc.dir" value="${build.dir}/immutables" />
   <property name="immutables.gensrc.test.dir" value="${build.dir}/immutables-tests" />
 
@@ -45,6 +49,7 @@
     <include name="jackson/jackson-annotations-2.0.5.jar" />
     <include name="jackson/jackson-core-2.0.5.jar" />
     <include name="jackson/jackson-databind-2.0.5.jar" />
+    <include name="jackson/jackson-datatype-jdk7-2.5.0.jar" />
     <include name="jsr/jsr305.jar" />
     <include name="android/sdklib.jar" />
     <include name="nailgun/nailgun-server-0.9.2-SNAPSHOT.jar" />
@@ -86,8 +91,8 @@
     <include name="guice/guice-multibindings-3.0.jar" />
     <include name="gson/gson-2.2.4.jar" />
     <include name="icu4j/icu4j-54.1.1.jar" />
-    <include name="immutables/value-1.1.1.jar" />
-    <include name="infer-annotations/infer-annotations-1.3.jar" />
+    <include name="immutables/value-1.1.2.jar" />
+    <include name="infer-annotations/infer-annotations-1.4.jar" />
     <include name="jacoco/org.jacoco.core-0.7.2.201409121644.jar" />
     <include name="jacoco/org.jacoco.report-0.7.2.201409121644.jar" />
     <include name="jetty/jetty-all-9.0.4.v20130625.jar" />
@@ -95,6 +100,7 @@
     <include name="jsr/javax.inject-1.jar" />
     <include name="parboiled/parboiled-core-1.1.6.jar" />
     <include name="parboiled/parboiled-java-1.1.6.jar" />
+    <include name="stringtemplate/ST-4.0.8.jar" />    
     <include name="xz-java-1.3/xz-1.3.jar" />
   </fileset>
 
@@ -109,6 +115,12 @@
     <path refid="classpath-no-src" />
     <pathelement location="${src.dir}" />
     <pathelement location="${immutables.gensrc.dir}" />
+  </path>
+
+  <path id="classpath-generate-immutables">
+    <fileset refid="buck.jars" />
+    <fileset refid="third-party.jars" />
+    <pathelement location="${aosp.classes.dir}" />
   </path>
 
   <path id="junit">
@@ -149,11 +161,9 @@
 
   <target name="compile-bootstrapper" depends="checkversion">
     <mkdir dir="${bootstrapper.classes.dir}" />
-    <ecj srcdir="${bootstrapper.src.dir}"
-           destdir="${bootstrapper.classes.dir}"
-           >
+    <ecj destdir="${bootstrapper.classes.dir}">
       <javac-params>
-          <include name="**/*.java"/>
+        <include name="${bootstrapper.src.dir}/**/*.java" />
       </javac-params>
     </ecj>
   </target>
@@ -162,19 +172,59 @@
     <path refid="classpath" />
     <pathelement location="${immutables-value-standalone.jar}" />
     <pathelement location="${src.dir}" />
+    <pathelement location="${aosp.classes.dir}" />
   </path>
 
-  <target name="generate-immutables">
+  <!-- The set of Immutables value type source files which have not
+       yet been run through the javac annotation processor. -->
+  <fileset dir="${src.dir}" id="immutables-srcs">
+    <!-- Speed up the build by only running javac on files containing Immutables. -->
+    <contains text="org.immutables" />
+    <exclude name="com/facebook/buck/android/support/**" />
+    <exclude name="com/facebook/buck/cli/quickstart/**" />
+    <exclude name="com/facebook/buck/junit/**" />
+    <!-- Only run javac on immutables files which have changed since the last build. -->
+    <modified>
+      <param name="cache.cachefile" value="${build.dir}/immutables.modified.properties" />
+    </modified>
+  </fileset>
+
+  <target name="check-immutables">
+    <!--
+      javac rules don't support filesets, but they do support comma-separated lists of
+      sources in the includes parameter.
+
+      However, if the includes parameter is empty, the javac rule will build everything,
+      which we don't want. So we have to skip the generate-immutables step entirely
+      in that case.
+
+      This sets ${immutables-srcs-flattened} to a comma-separated list of files to build,
+      then sets ${generate-immutables-needed} to true iff that variable is non-empty.
+    -->
+    <pathconvert property="immutables-srcs-flattened" pathsep="," refid="immutables-srcs">
+      <map from="${src.dir}/" to=""/>
+    </pathconvert>
+    <condition property="generate-immutables-needed">
+      <length string="${immutables-srcs-flattened}" when="greater" length="0" />
+    </condition>
+  </target>
+
+  <target name="compile-aosp" depends="checkversion">
+    <mkdir dir="${aosp.classes.dir}" />
+    <ecj srcdir="${aosp.src.dir}" destdir="${aosp.classes.dir}">
+      <ecj-params>
+        <!-- ManifestMerger.java has redundant null checks -->
+        <compilerarg value="-err:-null" />
+      </ecj-params>
+    </ecj>
+  </target>
+
+  <target name="generate-immutables" depends="compile-aosp, check-immutables" if="${generate-immutables-needed}">
     <mkdir dir="${immutables.gensrc.dir}" />
-    <javac srcdir="${src.dir}"
-           classpathref="classpath"
-           includeAntRuntime="no">
-      <!-- Speed up the build by only running javac on files containing Immutables. -->
-      <contains text="org.immutables" />
-      <src path="${aosp.src.dir}" />
-      <exclude name="com/facebook/buck/android/support/**" />
-      <exclude name="com/facebook/buck/cli/quickstart/**" />
-      <exclude name="com/facebook/buck/junit/**" />
+    <javac srcdir="${src.dir}:${immutables.gensrc.dir}"
+           classpathref="classpath-generate-immutables"
+           includeAntRuntime="no"
+           includes="${immutables-srcs-flattened}">
       <compilerarg value="-processorpath" />
       <compilerarg value="${immutables-value-standalone.jar}" />
       <compilerarg value="-processor" />
@@ -199,7 +249,11 @@
       to the empty string, set the srcdir to something, and use include/exclude
       elements to filter things under the srcdir.
     -->
-    <element name="javac-params" />
+    <element name="javac-params" optional="true" />
+    <!--
+      ecj-params can contain any extra paramters to the Eclipse batch compiler.
+    -->
+    <element name="ecj-params" optional="true" />
     <sequential>
       <javac srcdir="@{srcdir}"
              sourcepath=""
@@ -229,6 +283,7 @@
           <pathelement location="${eclipse.dir}/org.eclipse.jdt.core_3.9.2.v20140114-1555.jar" />
           <pathelement location="${eclipse.dir}/jdtCompilerAdapter.jar" />
         </compilerclasspath>
+        <ecj-params />
       </javac>
     </sequential>
   </macrodef>
@@ -272,6 +327,7 @@
         <include name="com/facebook/buck/util/DirectoryTraverser.java" />
         <include name="com/facebook/buck/util/DirectoryTraversal.java" />
         <include name="com/facebook/buck/util/DirtyPrintStreamDecorator.java" />
+        <include name="com/facebook/buck/util/ImmutableProcessExecutorParams.java" />
         <include name="com/facebook/buck/util/InputStreamConsumer.java" />
         <include name="com/facebook/buck/util/MoreFiles.java" />
         <include name="com/facebook/buck/util/MorePaths.java" />
@@ -290,6 +346,9 @@
         <!-- //src/com/facebook/buck/util/environment:platform -->
         <include name="com/facebook/buck/util/environment/Platform.java" />
 
+        <!-- //src/com/facebook/buck/util/immutables:immutables -->
+        <include name="com/facebook/buck/util/immutables/BuckStyleImmutable.java" />
+
         <!-- //src/com/facebook/buck/zip:stream -->
         <include name="com/facebook/buck/zip/AppendingZipOutputStream.java" />
         <include name="com/facebook/buck/zip/ByteIo.java" />
@@ -302,6 +361,8 @@
 
         <!-- //src/com/facebook/buck/timing:timing -->
         <include name="com/facebook/buck/timing/*.java" />
+
+        <src path="${immutables.gensrc.dir}" />
       </javac-params>
     </ecj>
 
@@ -349,7 +410,15 @@
     <fileset refid="dx.jars" />
   </path>
 
-  <target name="dx">
+  <target name="dx-check-build">
+    <uptodate property="dx-build-not-required" targetfile="${build.dir}/dx.jar">
+      <srcfiles dir="${dx.src.dir}" includes="**/*.java" />
+      <srcfiles dir="${third-party.dir}/java/guava" includes="guava-*.jar" />
+      <srcfiles dir="${third-party.dir}/java/junit" includes="junit-*.jar" />
+    </uptodate>
+  </target>
+
+  <target name="dx" depends="dx-check-build" unless="dx-build-not-required">
     <mkdir dir="${dx.classes.dir}" />
 
     <javac destdir="${dx.classes.dir}"
@@ -448,14 +517,44 @@
     <pathelement location="${immutables.gensrc.test.dir}" />
   </path>
 
-  <target name="generate-test-immutables" depends="compile">
+  <!-- The set of Immutables value type source files which have not
+       yet been run through the javac annotation processor. -->
+  <fileset dir="${test.dir}" id="immutables-test-srcs">
+    <!-- Speed up the build by only running javac on files containing Immutables. -->
+    <contains text="org.immutables" />
+    <exclude name="**/testdata/**" />
+    <!-- Only run javac on immutables files which have changed since the last build. -->
+    <modified>
+      <param name="cache.cachefile" value="${build.dir}/immutables.test.modified.properties" />
+    </modified>
+  </fileset>
+
+  <target name="check-test-immutables">
+    <!--
+      javac rules don't support filesets, but they do support comma-separated lists of
+      sources in the includes parameter.
+
+      However, if the includes parameter is empty, the javac rule will build everything,
+      which we don't want. So we have to skip the generate-immutables step entirely
+      in that case.
+
+      This sets ${immutables-test-srcs-flattened} to a comma-separated list of files to build,
+      then sets ${generate-test-immutables-needed} to true iff that variable is non-empty.
+    -->
+    <pathconvert property="immutables-test-srcs-flattened" pathsep="," refid="immutables-test-srcs">
+      <map from="${test.dir}/" to=""/>
+    </pathconvert>
+    <condition property="generate-test-immutables-needed">
+      <length string="${immutables-test-srcs-flattened}" when="greater" length="0" />
+    </condition>
+  </target>
+
+  <target name="generate-test-immutables" depends="compile, check-test-immutables" if="${generate-test-immutables-needed}">
     <mkdir dir="${immutables.gensrc.test.dir}" />
-    <javac srcdir="${test.dir}"
+    <javac srcdir="${test.dir}:${immutables.gensrc.test.dir}"
+           includes="${immutables-test-srcs-flattened}"
            classpathref="tests.classpath"
            includeAntRuntime="no">
-      <!-- Speed up the build by only running javac on files containing Immutables. -->
-      <contains text="org.immutables" />
-      <exclude name="**/testdata/**" />
       <compilerarg value="-processorpath" />
       <compilerarg value="${immutables-value-standalone.jar}" />
       <compilerarg value="-processor" />
@@ -492,7 +591,8 @@
       <sysproperty key="buck.path_to_buck_py" value="${buck.path_to_buck_py}" />
       <sysproperty key="buck.path_to_compile_asset_catalogs_py" value="${buck.path_to_compile_asset_catalogs_py}" />
       <sysproperty key="buck.path_to_compile_asset_catalogs_build_phase_sh" value="${buck.path_to_compile_asset_catalogs_build_phase_sh}" />
-      <sysproperty key="buck.logging_config_file" value="${buck.logging_config_file}" />
+      <sysproperty key="buck.logging_config_file" value="${buck.test_logging_config_file}" />
+      <sysproperty key="log4j.configuration" value="file:${buck.log4j_config_file}" />
       <sysproperty key="java.util.logging.config.class" value="com.facebook.buck.log.LogConfig" />
 
       <!-- See DEFS for details on why this property is needed. -->

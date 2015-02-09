@@ -18,10 +18,10 @@ package com.facebook.buck.android;
 
 import com.facebook.buck.android.AndroidLibraryGraphEnhancer.ResourceDependencyMode;
 import com.facebook.buck.java.AnnotationProcessingParams;
+import com.facebook.buck.java.ImmutableJavacOptions;
 import com.facebook.buck.java.JavaLibrary;
 import com.facebook.buck.java.JavaLibraryDescription;
 import com.facebook.buck.java.JavaSourceJar;
-import com.facebook.buck.java.Javac;
 import com.facebook.buck.java.JavacOptions;
 import com.facebook.buck.model.Flavor;
 import com.facebook.buck.model.Flavored;
@@ -30,10 +30,12 @@ import com.facebook.buck.rules.BuildRuleParams;
 import com.facebook.buck.rules.BuildRuleResolver;
 import com.facebook.buck.rules.BuildRuleType;
 import com.facebook.buck.rules.Description;
+import com.facebook.buck.rules.ImmutableBuildRuleType;
 import com.facebook.buck.rules.SourcePath;
 import com.facebook.buck.rules.SourcePathResolver;
 import com.facebook.infer.annotation.SuppressFieldNotInitialized;
 import com.google.common.base.Optional;
+import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSortedSet;
 
@@ -42,13 +44,11 @@ import java.nio.file.Path;
 public class AndroidLibraryDescription
     implements Description<AndroidLibraryDescription.Arg>, Flavored {
 
-  public static final BuildRuleType TYPE = new BuildRuleType("android_library");
+  public static final BuildRuleType TYPE = ImmutableBuildRuleType.of("android_library");
 
-  private final Javac javac;
   private final JavacOptions defaultOptions;
 
-  public AndroidLibraryDescription(Javac javac, JavacOptions defaultOptions) {
-    this.javac = javac;
+  public AndroidLibraryDescription(JavacOptions defaultOptions) {
     this.defaultOptions = defaultOptions;
   }
 
@@ -72,7 +72,8 @@ public class AndroidLibraryDescription
       return new JavaSourceJar(params, pathResolver, args.srcs.get());
     }
 
-    JavacOptions.Builder javacOptions = JavaLibraryDescription.getJavacOptions(
+    ImmutableJavacOptions.Builder javacOptions = JavaLibraryDescription.getJavacOptions(
+        pathResolver,
         args,
         defaultOptions);
 
@@ -80,12 +81,12 @@ public class AndroidLibraryDescription
         params.getBuildTarget(),
         params.getProjectFilesystem(),
         resolver);
-    javacOptions.setAnnotationProcessingData(annotationParams);
+    javacOptions.setAnnotationProcessingParams(annotationParams);
 
     AndroidLibraryGraphEnhancer graphEnhancer = new AndroidLibraryGraphEnhancer(
         params.getBuildTarget(),
-        params.copyWithExtraDeps(resolver.getAllRules(args.exportedDeps.get())),
-        javac,
+        params.copyWithExtraDeps(
+            Suppliers.ofInstance(resolver.getAllRules(args.exportedDeps.get()))),
         javacOptions.build(),
         ResourceDependencyMode.FIRST_ORDER);
     Optional<DummyRDotJava> dummyRDotJava = graphEnhancer.createBuildableForAndroidResources(
@@ -99,7 +100,9 @@ public class AndroidLibraryDescription
           .addAll(params.getDeclaredDeps())
           .add(dummyRDotJava.get())
           .build();
-      params = params.copyWithDeps(newDeclaredDeps, params.getExtraDeps());
+      params = params.copyWithDeps(
+          Suppliers.ofInstance(newDeclaredDeps),
+          Suppliers.ofInstance(params.getExtraDeps()));
     }
 
     return new AndroidLibrary(
@@ -115,7 +118,6 @@ public class AndroidLibraryDescription
         resolver.getAllRules(args.exportedDeps.get()),
         resolver.getAllRules(args.providedDeps.get()),
         additionalClasspathEntries,
-        javac,
         javacOptions.build(),
         args.resourcesRoot,
         args.manifest,

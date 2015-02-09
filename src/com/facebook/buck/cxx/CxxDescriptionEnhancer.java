@@ -20,18 +20,21 @@ import com.facebook.buck.io.MorePaths;
 import com.facebook.buck.model.BuildTarget;
 import com.facebook.buck.model.BuildTargets;
 import com.facebook.buck.model.Flavor;
+import com.facebook.buck.model.ImmutableFlavor;
+import com.facebook.buck.model.Pair;
 import com.facebook.buck.rules.BuildRule;
 import com.facebook.buck.rules.BuildRuleParams;
 import com.facebook.buck.rules.BuildRuleResolver;
 import com.facebook.buck.rules.BuildRuleType;
 import com.facebook.buck.rules.BuildTargetSourcePath;
 import com.facebook.buck.rules.Description;
+import com.facebook.buck.rules.ImmutableBuildRuleType;
 import com.facebook.buck.rules.SourcePath;
 import com.facebook.buck.rules.SourcePathResolver;
 import com.facebook.buck.rules.SourcePaths;
 import com.facebook.buck.rules.SymlinkTree;
 import com.facebook.buck.rules.TargetNode;
-import com.facebook.buck.model.Pair;
+import com.facebook.buck.util.HumanReadableException;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Function;
 import com.google.common.base.Functions;
@@ -39,11 +42,11 @@ import com.google.common.base.Joiner;
 import com.google.common.base.Optional;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Predicates;
+import com.google.common.base.Suppliers;
 import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableMultimap;
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSortedSet;
 import com.google.common.io.Files;
 
@@ -53,14 +56,14 @@ import java.util.regex.Pattern;
 
 public class CxxDescriptionEnhancer {
 
-  public static final Flavor HEADER_SYMLINK_TREE_FLAVOR = new Flavor("header-symlink-tree");
-  public static final Flavor STATIC_FLAVOR = new Flavor("static");
-  public static final Flavor SHARED_FLAVOR = new Flavor("shared");
+  public static final Flavor HEADER_SYMLINK_TREE_FLAVOR = ImmutableFlavor.of("header-symlink-tree");
+  public static final Flavor STATIC_FLAVOR = ImmutableFlavor.of("static");
+  public static final Flavor SHARED_FLAVOR = ImmutableFlavor.of("shared");
 
-  public static final Flavor CXX_LINK_BINARY_FLAVOR = new Flavor("binary");
+  public static final Flavor CXX_LINK_BINARY_FLAVOR = ImmutableFlavor.of("binary");
 
-  public static final BuildRuleType LEX_TYPE = new BuildRuleType("lex");
-  public static final BuildRuleType YACC_TYPE = new BuildRuleType("yacc");
+  public static final BuildRuleType LEX_TYPE = ImmutableBuildRuleType.of("lex");
+  public static final BuildRuleType YACC_TYPE = ImmutableBuildRuleType.of("yacc");
 
   private CxxDescriptionEnhancer() {}
 
@@ -71,10 +74,11 @@ public class CxxDescriptionEnhancer {
   public static BuildTarget createHeaderSymlinkTreeTarget(
       BuildTarget target,
       Flavor platform) {
-    return BuildTargets.extendFlavoredBuildTarget(
-        target,
-        platform,
-        HEADER_SYMLINK_TREE_FLAVOR);
+    return BuildTarget
+        .builder(target)
+        .addFlavors(platform)
+        .addFlavors(HEADER_SYMLINK_TREE_FLAVOR)
+        .build();
   }
 
   /**
@@ -159,22 +163,26 @@ public class CxxDescriptionEnhancer {
 
   @VisibleForTesting
   protected static BuildTarget createLexBuildTarget(BuildTarget target, String name) {
-    return BuildTargets.extendFlavoredBuildTarget(
-        target.getUnflavoredTarget(),
-        new Flavor(
-            String.format(
-                "lex-%s",
-                name.replace('/', '-').replace('.', '-').replace('+', '-').replace(' ', '-'))));
+    return BuildTarget
+        .builder(target.getUnflavoredTarget())
+        .addFlavors(
+            ImmutableFlavor.of(
+                String.format(
+                    "lex-%s",
+                    name.replace('/', '-').replace('.', '-').replace('+', '-').replace(' ', '-'))))
+        .build();
   }
 
   @VisibleForTesting
   protected static BuildTarget createYaccBuildTarget(BuildTarget target, String name) {
-    return BuildTargets.extendFlavoredBuildTarget(
-        target.getUnflavoredTarget(),
-        new Flavor(
-            String.format(
-                "yacc-%s",
-                name.replace('/', '-').replace('.', '-').replace('+', '-').replace(' ', '-'))));
+    return BuildTarget
+        .builder(target.getUnflavoredTarget())
+        .addFlavors(
+            ImmutableFlavor.of(
+                String.format(
+                    "yacc-%s",
+                    name.replace('/', '-').replace('.', '-').replace('+', '-').replace(' ', '-'))))
+        .build();
   }
 
   /**
@@ -218,6 +226,20 @@ public class CxxDescriptionEnhancer {
       ImmutableMap<String, SourcePath> lexSrcs,
       ImmutableList<String> yaccFlags,
       ImmutableMap<String, SourcePath> yaccSrcs) {
+    if (!lexSrcs.isEmpty() && !cxxPlatform.getLex().isPresent()) {
+      throw new HumanReadableException(
+          "Platform %s must support lex to compile srcs %s",
+          cxxPlatform,
+          lexSrcs);
+    }
+
+    if (!yaccSrcs.isEmpty() && !cxxPlatform.getYacc().isPresent()) {
+      throw new HumanReadableException(
+          "Platform %s must support yacc to compile srcs %s",
+          cxxPlatform,
+          yaccSrcs);
+    }
+
     SourcePathResolver pathResolver = new SourcePathResolver(resolver);
 
     ImmutableMap.Builder<String, CxxSource> lexYaccCxxSourcesBuilder = ImmutableMap.builder();
@@ -238,11 +260,12 @@ public class CxxDescriptionEnhancer {
           params.copyWithChanges(
               LEX_TYPE,
               target,
-              ImmutableSortedSet.copyOf(
-                  pathResolver.filterBuildRuleInputs(ImmutableList.of(source))),
-              ImmutableSortedSet.<BuildRule>of()),
+              Suppliers.ofInstance(
+                  ImmutableSortedSet.copyOf(
+                      pathResolver.filterBuildRuleInputs(ImmutableList.of(source)))),
+              Suppliers.ofInstance(ImmutableSortedSet.<BuildRule>of())),
           pathResolver,
-          cxxPlatform.getLex(),
+          cxxPlatform.getLex().get(),
           ImmutableList.<String>builder()
               .addAll(cxxPlatform.getLexFlags())
               .addAll(lexFlags)
@@ -277,11 +300,12 @@ public class CxxDescriptionEnhancer {
           params.copyWithChanges(
               YACC_TYPE,
               target,
-              ImmutableSortedSet.copyOf(
-                  pathResolver.filterBuildRuleInputs(ImmutableList.of(source))),
-              ImmutableSortedSet.<BuildRule>of()),
+              Suppliers.ofInstance(
+                  ImmutableSortedSet.copyOf(
+                      pathResolver.filterBuildRuleInputs(ImmutableList.of(source)))),
+              Suppliers.ofInstance(ImmutableSortedSet.<BuildRule>of())),
           pathResolver,
-          cxxPlatform.getYacc(),
+          cxxPlatform.getYacc().get(),
           ImmutableList.<String>builder()
               .addAll(cxxPlatform.getYaccFlags())
               .addAll(yaccFlags)
@@ -335,7 +359,8 @@ public class CxxDescriptionEnhancer {
       BuildRuleParams params,
       CxxPlatform cxxPlatform,
       ImmutableMultimap<CxxSource.Type, String> preprocessorFlags,
-      SymlinkTree headerSymlinkTree) {
+      SymlinkTree headerSymlinkTree,
+      ImmutableList<Path> frameworkSearchPaths) {
 
     // Write the compile rules for all C/C++ sources in this rule.
     CxxPreprocessorInput cxxPreprocessorInputFromDeps =
@@ -355,6 +380,7 @@ public class CxxDescriptionEnhancer {
                         .putAllFullNameToPathMap(headerSymlinkTree.getFullLinks())
                         .build())
                 .addIncludeRoots(headerSymlinkTree.getRoot())
+                .addAllFrameworkRoots(frameworkSearchPaths)
                 .build(),
             cxxPreprocessorInputFromDeps));
 
@@ -392,19 +418,13 @@ public class CxxDescriptionEnhancer {
   public static BuildTarget createStaticLibraryBuildTarget(
       BuildTarget target,
       Flavor platform) {
-    return BuildTargets.extendFlavoredBuildTarget(
-        target,
-        platform,
-        STATIC_FLAVOR);
+    return BuildTarget.builder(target).addFlavors(platform).addFlavors(STATIC_FLAVOR).build();
   }
 
   public static BuildTarget createSharedLibraryBuildTarget(
       BuildTarget target,
       Flavor platform) {
-    return BuildTargets.extendFlavoredBuildTarget(
-        target,
-        platform,
-        SHARED_FLAVOR);
+    return BuildTarget.builder(target).addFlavors(platform).addFlavors(SHARED_FLAVOR).build();
   }
 
   public static Path getStaticLibraryPath(
@@ -435,7 +455,7 @@ public class CxxDescriptionEnhancer {
     String extension = platform.getSharedLibraryExtension();
     String name = String.format("lib%s.%s", target.getShortName(), extension);
     return BuildTargets.getBinPath(
-        createSharedLibraryBuildTarget(target, platform.asFlavor()),
+        createSharedLibraryBuildTarget(target, platform.getFlavor()),
         "%s/" + name);
   }
 
@@ -446,7 +466,7 @@ public class CxxDescriptionEnhancer {
 
   @VisibleForTesting
   protected static BuildTarget createCxxLinkTarget(BuildTarget target) {
-    return BuildTargets.extendFlavoredBuildTarget(target, CXX_LINK_BINARY_FLAVOR);
+    return BuildTarget.builder(target).addFlavors(CXX_LINK_BINARY_FLAVOR).build();
   }
 
   public static CxxLink createBuildRulesForCxxBinaryDescriptionArg(
@@ -476,7 +496,7 @@ public class CxxDescriptionEnhancer {
     SymlinkTree headerSymlinkTree = createHeaderSymlinkTreeBuildRule(
         params,
         resolver,
-        cxxPlatform.asFlavor(),
+        cxxPlatform.getFlavor(),
         ImmutableMap.<Path, SourcePath>builder()
             .putAll(headers)
             .putAll(lexYaccSources.getCxxHeaders())
@@ -487,7 +507,8 @@ public class CxxDescriptionEnhancer {
         CxxPreprocessorFlags.fromArgs(
             args.preprocessorFlags,
             args.langPreprocessorFlags),
-        headerSymlinkTree);
+        headerSymlinkTree,
+        args.frameworkSearchPaths.get());
 
     // The complete list of input sources.
     ImmutableMap<String, CxxSource> sources =
@@ -530,7 +551,7 @@ public class CxxDescriptionEnhancer {
             .addAll(
                 CxxDescriptionEnhancer.getPlatformFlags(
                     args.platformLinkerFlags.get(),
-                    cxxPlatform.asFlavor().toString()))
+                    cxxPlatform.getFlavor().toString()))
             .build(),
         createCxxLinkTarget(params.getBuildTarget()),
         Linker.LinkType.EXECUTABLE,
@@ -549,9 +570,7 @@ public class CxxDescriptionEnhancer {
       BuildRuleResolver ruleResolver,
       TargetNode<T> node,
       Flavor... flavors) {
-    BuildTarget target = BuildTargets.extendFlavoredBuildTarget(
-        params.getBuildTarget(),
-        ImmutableSet.copyOf(flavors));
+    BuildTarget target = BuildTarget.builder(params.getBuildTarget()).addFlavors(flavors).build();
     Optional<BuildRule> rule = ruleResolver.getRuleOptional(target);
     if (!rule.isPresent()) {
       Description<T> description = node.getDescription();
@@ -561,8 +580,8 @@ public class CxxDescriptionEnhancer {
               params.copyWithChanges(
                   params.getBuildRuleType(),
                   target,
-                  params.getDeclaredDeps(),
-                  params.getExtraDeps()),
+                  Suppliers.ofInstance(params.getDeclaredDeps()),
+                  Suppliers.ofInstance(params.getExtraDeps())),
               ruleResolver,
               args));
       ruleResolver.addToIndex(rule.get());

@@ -103,8 +103,8 @@ public class AndroidBinaryTest {
     FakeBuildableContext buildableContext = new FakeBuildableContext();
 
     androidBinary.addProguardCommands(
-        packageableCollection.classpathEntriesToDex(),
-        packageableCollection.proguardConfigs(),
+        packageableCollection.getClasspathEntriesToDex(),
+        packageableCollection.getProguardConfigs(),
         commands,
         buildableContext);
 
@@ -316,21 +316,22 @@ public class AndroidBinaryTest {
         .setManifest(new TestSourcePath("AndroidManifest.xml"))
         .setKeystore(keystoreRule.getBuildTarget())
         .setTarget("Google Inc:Google APIs:16")
-        .setResourceFilter(new ResourceFilter(ImmutableList.<String>of("mdpi")))
+        .setResourceFilter(new ResourceFilter(ImmutableList.of("mdpi")))
         .setResourceCompressionMode(ResourceCompressionMode.ENABLED_WITH_STRINGS_AS_ASSETS);
 
     AndroidBinary buildRule = (AndroidBinary) builder.build(resolver);
     ImmutableList<Path> resourceDirectories = ImmutableList.of(Paths.get("one"), Paths.get("two"));
 
     FilteredResourcesProvider resourcesProvider = buildRule.getEnhancementResult()
-        .aaptPackageResources()
+        .getAaptPackageResources()
         .getFilteredResourcesProvider();
     assertTrue(resourcesProvider instanceof ResourcesFilter);
     ImmutableList.Builder<Path> filteredDirs = ImmutableList.builder();
     ((ResourcesFilter) resourcesProvider)
         .createFilterResourcesStep(
             resourceDirectories,
-                /* whitelistedStringsDir */ ImmutableSet.<Path>of(),
+            /* whitelistedStringsDir */ ImmutableSet.<Path>of(),
+            /* locales */ ImmutableSet.<String>of(),
             filteredDirs);
 
     assertEquals(

@@ -16,19 +16,21 @@
 
 package com.facebook.buck.gwt;
 
+import com.facebook.buck.graph.AbstractBreadthFirstTraversal;
 import com.facebook.buck.java.JavaLibrary;
 import com.facebook.buck.model.BuildTarget;
 import com.facebook.buck.model.BuildTargets;
-import com.facebook.buck.graph.AbstractBreadthFirstTraversal;
 import com.facebook.buck.rules.BuildRule;
 import com.facebook.buck.rules.BuildRuleParams;
 import com.facebook.buck.rules.BuildRuleResolver;
 import com.facebook.buck.rules.BuildRuleType;
 import com.facebook.buck.rules.Description;
+import com.facebook.buck.rules.ImmutableBuildRuleType;
 import com.facebook.buck.rules.SourcePathResolver;
 import com.facebook.infer.annotation.SuppressFieldNotInitialized;
 import com.google.common.base.Optional;
 import com.google.common.base.Preconditions;
+import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSortedSet;
@@ -37,7 +39,7 @@ import java.nio.file.Path;
 
 public class GwtBinaryDescription implements Description<GwtBinaryDescription.Arg> {
 
-  public static final BuildRuleType TYPE = new BuildRuleType("gwt_binary");
+  public static final BuildRuleType TYPE = ImmutableBuildRuleType.of("gwt_binary");
 
   /** Default value for {@link Arg#style}. */
   private static final String DEFAULT_STYLE = GwtBinary.Style.OBF.name();
@@ -138,7 +140,7 @@ public class GwtBinaryDescription implements Description<GwtBinaryDescription.Ar
     }.start();
 
     return new GwtBinary(
-        params.copyWithExtraDeps(extraDeps.build()),
+        params.copyWithExtraDeps(Suppliers.ofInstance(extraDeps.build())),
         new SourcePathResolver(resolver),
         args.modules.get(),
         args.vmArgs.get(),
