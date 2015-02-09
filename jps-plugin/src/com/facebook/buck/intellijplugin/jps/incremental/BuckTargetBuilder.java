@@ -86,8 +86,10 @@ public class BuckTargetBuilder extends TargetBuilder<BuckSourceRootDescriptor, B
       DirtyFilesHolder<BuckSourceRootDescriptor, BuckBuildTarget> dirtyFilesHolder,
       BuildOutputConsumer buildOutputConsumer, final CompileContext compileContext)
       throws ProjectBuildException, IOException {
-    File canonicalPath = new File(buckBuildTarget.getTargetPath());
 
+    LOG.info("Build called for target: " + buckBuildTarget.getId());
+
+    File canonicalPath = new File(buckBuildTarget.getTargetPath());
 
     // Check whether this build should even be run
     if (!dirtyFilesHolder.hasDirtyFiles() &&
