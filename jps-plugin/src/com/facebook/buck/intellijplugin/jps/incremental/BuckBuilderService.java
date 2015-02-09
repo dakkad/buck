@@ -18,6 +18,7 @@ package com.facebook.buck.intellijplugin.jps.incremental;
 
 import com.facebook.buck.intellijplugin.buckbuilder.BuckBuildTarget;
 import com.facebook.buck.intellijplugin.jps.model.BuckBuildTargetType;
+import com.intellij.openapi.diagnostic.Logger;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.jps.builders.BuildTargetType;
 import org.jetbrains.jps.incremental.BuilderService;
@@ -31,6 +32,8 @@ import java.util.List;
  * the intellij plugin to access buck functions.
  */
 public class BuckBuilderService extends BuilderService {
+
+  private static final Logger LOG = Logger.getInstance(BuckBuilderService.class);
 
   @NotNull
   @Override

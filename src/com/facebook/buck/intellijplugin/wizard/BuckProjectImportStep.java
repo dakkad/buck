@@ -17,7 +17,7 @@
 package com.facebook.buck.intellijplugin.wizard;
 
 import com.facebook.buck.intellijplugin.components.BuckConfigurationComponent;
-import com.facebook.buck.intellijplugin.settings.BuckCompilerForm;
+import com.facebook.buck.intellijplugin.settings.BuckProjectForm;
 import com.intellij.ide.util.projectWizard.ModuleWizardStep;
 import com.intellij.ide.util.projectWizard.WizardContext;
 import com.intellij.openapi.diagnostic.Logger;
@@ -34,7 +34,7 @@ public class BuckProjectImportStep extends ModuleWizardStep {
   private static final Logger LOG = Logger.getInstance(BuckProjectImportStep.class);
 
   private final WizardContext context;
-  private BuckCompilerForm form = BuckCompilerForm.newInstance();
+  private BuckProjectForm form = BuckProjectForm.newInstance();
 
   public BuckProjectImportStep(WizardContext context) {
     super();

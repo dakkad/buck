@@ -16,86 +16,69 @@
 
 package com.facebook.buck.intellijplugin.settings;
 
-import com.facebook.buck.intellijplugin.components.BuckConfigurationComponent;
 import com.facebook.buck.intellijplugin.content.BuckPluginContent;
-import com.intellij.openapi.project.Project;
+import com.intellij.openapi.ui.ComboBox;
 
 import java.awt.FlowLayout;
-import javax.swing.JComponent;
+import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
-import javax.swing.JTextField;
-import javax.swing.border.TitledBorder;
 
 /**
- * Buck compiler form provides settings and configuration for the buck compiler.
+ * Compiler form that allows a user to select the regular javac or the buck
+ * compiler option.
  */
 public class BuckCompilerForm {
 
   private static final int PADDING = 6;
-  private static final String EMPTY_TARGET_LIST = "";
   private JPanel outer;
-  private JTextField field;
+  private JComboBox<CompilerChoice> compilerChooser;
+  private CompilerChoice buckChoice = new CompilerChoice(BuckPluginContent.BUCK_COMPILER_LABEL);
+  private CompilerChoice intelliJChoice = new CompilerChoice(BuckPluginContent.INTELLIJ_COMPILER_LABEL);
 
-  private BuckCompilerForm() { }
+  public BuckCompilerForm() {
 
-  public static BuckCompilerForm newInstance() {
-    BuckCompilerForm form = new BuckCompilerForm();
     FlowLayout layout = new FlowLayout(FlowLayout.LEADING, PADDING, PADDING);
-    form.outer = new JPanel(layout);
-    JLabel label = new JLabel(BuckPluginContent.PROJECT_NAMES_LABEL);
-    form.outer.add(label);
-    String projects = EMPTY_TARGET_LIST;
-    form.field = new JTextField(projects, 36);
-    form.outer.add(form.field);
-    return form;
+    outer = new JPanel(layout);
+    JLabel label = new JLabel(BuckPluginContent.COMPILER_CHOICE_LABEL);
+    outer.add(label);
+    compilerChooser = new ComboBox(new CompilerChoice[] {
+        buckChoice,
+        intelliJChoice
+    });
+    outer.add(compilerChooser);
   }
 
-  public static BuckCompilerForm newInstance(String targets) {
-    BuckCompilerForm form = new BuckCompilerForm();
-    FlowLayout layout = new FlowLayout(FlowLayout.LEADING, PADDING, PADDING);
-    form.outer = new JPanel(layout);
-    form.outer.setBorder(new TitledBorder(BuckPluginContent.ARGUMENTS_TITLE));
-    JLabel label = new JLabel(BuckPluginContent.PROJECT_NAMES_LABEL);
-    form.outer.add(label);
-    form.field = new JTextField(targets, 36);
-
-    form.outer.add(form.field);
-    return form;
-  }
-
-  public static BuckCompilerForm newInstance(Project project) {
-    String targets = BuckConfigurationComponent.getTargetNames(project);
-    return newInstance(targets);
-  }
-
-  public JComponent getComponent() {
+  public JPanel getMainPanel() {
     return outer;
   }
 
-  public BuckCompilerForm setText(String targetNames) {
-    if (null == targetNames) {
-      targetNames = EMPTY_TARGET_LIST;
+  public boolean isBuckCompile() {
+    return buckChoice == compilerChooser.getSelectedItem();
+  }
+
+  public void setBuckCompile(boolean buckCompile) {
+    compilerChooser.setSelectedItem(buckCompile? buckChoice : intelliJChoice);
+  }
+
+  public static class CompilerChoice {
+
+    private String name;
+
+    public CompilerChoice(String name) {
+      this.name = name;
     }
-    field.setText(targetNames);
-    return this;
-  }
 
-  public String getText() {
-    return field.getText();
-  }
+    public String getName() {
+      return name;
+    }
 
-  public boolean isModified(String targetNames) {
-    return !getText().equals(targetNames);
-  }
+    public void setName(String name) {
+      this.name = name;
+    }
 
-  public BuckCompilerForm reset() {
-    field.setText(EMPTY_TARGET_LIST);
-    return this;
-  }
-
-  public BuckCompilerForm setEnable(boolean enabled) {
-    field.setEnabled(enabled);
-    return this;
+    public String toString() {
+      return name;
+    }
   }
 }

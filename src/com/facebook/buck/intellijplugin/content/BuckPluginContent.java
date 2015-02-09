@@ -29,6 +29,9 @@ public class BuckPluginContent {
   public static final String NO_TARGETS_WARNING = "No Project Names Specified. " +
       "Please check your buck settings";
   public static final String NO_TARGETS_TITLE = "Buck Projects";
+  public static final String COMPILER_CHOICE_LABEL = "Choose Your Compiler";
+  public static final String BUCK_COMPILER_LABEL = "Buck Compiler";
+  public static final String INTELLIJ_COMPILER_LABEL = "IntelliJ Compiler";
 
   public static String ARGUMENTS_TITLE = "Buck Configuration / Targets";
 }

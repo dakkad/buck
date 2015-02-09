@@ -17,7 +17,7 @@ package com.facebook.buck.intellijplugin.components;
 
 import com.facebook.buck.intellijplugin.BuckPlugin;
 import com.facebook.buck.intellijplugin.content.BuckPluginContent;
-import com.facebook.buck.intellijplugin.settings.BuckCompilerForm;
+import com.facebook.buck.intellijplugin.settings.BuckProjectForm;
 import com.intellij.ide.util.PropertiesComponent;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.options.BaseConfigurable;
@@ -44,7 +44,7 @@ public class BuckConfigurationComponent extends BaseConfigurable implements Sear
   private static final String PROJECT_PREFIX = "project ";
 
   private final Project project;
-  private BuckCompilerForm form = BuckCompilerForm.newInstance();
+  private BuckProjectForm form = BuckProjectForm.newInstance();
 
 
   public BuckConfigurationComponent(Project project) {

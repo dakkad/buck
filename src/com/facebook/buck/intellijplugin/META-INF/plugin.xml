@@ -58,6 +58,9 @@
     <projectConfigurable id="BuckPlugin.BuckConfigurable"
                          instance="com.facebook.buck.intellijplugin.settings.BuckConfigurable"
                          displayName="Buck Config" parentId="project.propCompiler"/>
+    <projectConfigurable id="BuckPlugin.CompilerConfigurable"
+                         instance="com.facebook.buck.intellijplugin.settings.BuckProjectCompilerConfigurable"
+                         displayName="Buck Compiler Config" parentId="project.propCompiler" />
 
     <!-- TODO Consider for targets command integraion <bundledQuickListsProvider implementation="" /> -->
     <!-- TODO Consider for target scope calculation <compiler.buildTargetScopeProvider implementation="" /> -->

@@ -30,7 +30,7 @@ public class BuckProjectSettingsControl extends AbstractExternalProjectSettingsC
   private static final Logger LOG = Logger.getInstance(BuckProjectSettingsControl.class);
 
   private BuckProjectSettings settings;
-  private BuckCompilerForm form = BuckCompilerForm.newInstance();
+  private BuckProjectForm form = BuckProjectForm.newInstance();
 
   public BuckProjectSettingsControl(BuckProjectSettings settings) {
     super(settings);

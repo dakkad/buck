@@ -16,7 +16,7 @@
 
 package com.facebook.buck.intellijplugin.execution;
 
-import com.facebook.buck.intellijplugin.settings.BuckCompilerForm;
+import com.facebook.buck.intellijplugin.settings.BuckProjectForm;
 import com.intellij.openapi.options.ConfigurationException;
 import com.intellij.openapi.options.SettingsEditor;
 import com.intellij.openapi.project.Project;
@@ -30,7 +30,7 @@ import javax.swing.JComponent;
 public class BuckRunConfigurable extends SettingsEditor<BuckRunConfiguration> {
 
   private final Project project;
-  private BuckCompilerForm form = BuckCompilerForm.newInstance();
+  private BuckProjectForm form = BuckProjectForm.newInstance();
 
   public BuckRunConfigurable(Project project) {
     this.project = project;

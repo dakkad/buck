@@ -26,6 +26,7 @@ import com.facebook.buck.intellijplugin.jps.wrapper.BuckCommand;
 import com.facebook.buck.intellijplugin.jps.wrapper.BuckEventListener;
 import com.facebook.buck.intellijplugin.jps.wrapper.BuckTarget;
 import com.intellij.openapi.diagnostic.Logger;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.jps.builders.BuildOutputConsumer;
 import org.jetbrains.jps.builders.DirtyFilesHolder;
 import org.jetbrains.jps.builders.java.JavaBuilderUtil;
@@ -49,8 +50,10 @@ public class BuckTargetBuilder extends TargetBuilder<BuckSourceRootDescriptor, B
 
   public BuckTargetBuilder() {
     super(Collections.singletonList(BuckBuildTargetType.getInstance()));
+    LOG.info("Buck Target Builder Created");
   }
 
+  @NotNull
   @Override
   public String getPresentableName() {
     return "Buck Compiler";
@@ -59,6 +62,7 @@ public class BuckTargetBuilder extends TargetBuilder<BuckSourceRootDescriptor, B
   @Override
   public void buildStarted(CompileContext compileContext) {
     super.buildStarted(compileContext);
+    LOG.info("Build Started. Disabling java compiler");
     JpsProject project = compileContext.getProjectDescriptor().getProject();
     JpsBuckProjectExtension extension = JpsBuckProjectExtensionSerializer.find(project);
     // TODO(dka) Check whether we should use buck for compiling - for now yes

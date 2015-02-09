@@ -22,6 +22,7 @@ import com.google.common.collect.Lists;
 import com.intellij.compiler.impl.BuildTargetScopeProvider;
 import com.intellij.openapi.compiler.CompileScope;
 import com.intellij.openapi.compiler.CompilerFilter;
+import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
 import org.jetbrains.jps.api.CmdlineRemoteProto.Message.ControllerMessage.ParametersMessage.TargetTypeBuildScope;
 
@@ -32,12 +33,15 @@ import java.util.List;
  */
 public class BuckBuildTargetScopeProvider extends BuildTargetScopeProvider {
 
+  private Logger LOG = Logger.getInstance(BuckBuildTargetScopeProvider.class);
+
   @Override
   public List<TargetTypeBuildScope> getBuildTargetScopes(CompileScope compileScope,
       CompilerFilter compilerFilter, Project project, boolean forceBuild) {
+    LOG.info("Buck build target scope provider returning scope");
     return Lists.newArrayList(TargetTypeBuildScope.newBuilder()
         .setAllTargets(true)
-        .setForceBuild(true)
+        .setForceBuild(forceBuild)
         .addTargetId(BuckConfigurationComponent.getTargetNames(project))
         .setTypeId(BuckBuildTargetType.getInstance()
             .getTypeId())
