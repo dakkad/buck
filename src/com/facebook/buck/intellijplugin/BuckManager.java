@@ -88,6 +88,7 @@ public class BuckManager implements
   @NotNull
   @Override
   public Configurable getConfigurable(@NotNull Project project) {
+    // TODO (dka) Look at switching to the compiler configurable
     return new BuckConfigurable(project);
   }
 

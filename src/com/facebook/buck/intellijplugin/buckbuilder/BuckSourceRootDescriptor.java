@@ -16,6 +16,7 @@
 
 package com.facebook.buck.intellijplugin.buckbuilder;
 
+import com.facebook.buck.intellijplugin.jps.model.BuckBuildTarget;
 import com.intellij.openapi.util.io.FileUtil;
 import org.apache.commons.lang.builder.HashCodeBuilder;
 import org.jetbrains.annotations.NotNull;

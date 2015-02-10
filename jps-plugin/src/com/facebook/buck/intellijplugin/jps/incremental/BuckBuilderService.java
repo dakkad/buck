@@ -16,7 +16,7 @@
 
 package com.facebook.buck.intellijplugin.jps.incremental;
 
-import com.facebook.buck.intellijplugin.buckbuilder.BuckBuildTarget;
+import com.facebook.buck.intellijplugin.jps.model.BuckBuildTarget;
 import com.facebook.buck.intellijplugin.jps.model.BuckBuildTargetType;
 import com.intellij.openapi.diagnostic.Logger;
 import org.jetbrains.annotations.NotNull;
@@ -39,12 +39,14 @@ public class BuckBuilderService extends BuilderService {
   @Override
   public List<? extends BuildTargetType<?>> getTargetTypes() {
     BuildTargetType<BuckBuildTarget> type = BuckBuildTargetType.getInstance();
+    LOG.info("Including buck build target types: " + type.getTypeId());
     return Collections.singletonList(type);
   }
 
   @NotNull
   @Override
   public List<? extends TargetBuilder<?, ?>> createBuilders() {
+    LOG.info("Creating builder for buck targets.");
     return Collections.singletonList(new BuckTargetBuilder());
   }
 }

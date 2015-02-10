@@ -86,6 +86,7 @@ public class BuckProjectCompilerConfigurable extends BaseConfigurable
   @Override
   public void reset() {
     BuckSettings settings = BuckSettings.getInstance(project);
+    // TODO (dka) Add the project target and other options to the form
     form.setBuckCompile(settings.getCompileWithBuck());
   }
 

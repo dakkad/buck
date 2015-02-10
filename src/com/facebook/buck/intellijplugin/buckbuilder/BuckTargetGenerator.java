@@ -16,6 +16,7 @@
 
 package com.facebook.buck.intellijplugin.buckbuilder;
 
+import com.facebook.buck.intellijplugin.jps.model.BuckBuildTarget;
 import com.google.common.collect.Sets;
 import com.intellij.util.Processor;
 import org.jetbrains.jps.builders.java.JavaSourceRootDescriptor;

@@ -25,6 +25,7 @@ import com.intellij.openapi.options.ConfigurationException;
 import com.intellij.openapi.options.SearchableConfigurable;
 import com.intellij.openapi.project.Project;
 import org.jetbrains.annotations.Nls;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.JComponent;
@@ -33,7 +34,7 @@ import javax.swing.JComponent;
  * Buck configuration management using basic project properties component to
  * persist the project selection.
  */
-public class BuckConfigurationComponent extends BaseConfigurable implements SearchableConfigurable {
+public class BuckConfigurationComponent extends BaseConfigurable implements SearchableConfigurable, com.intellij.openapi.components.ProjectComponent {
 
   private static final Logger LOG = Logger.getInstance(BuckConfigurationComponent.class);
   public static final String BUCK_PROJECT_NAMES = BuckPlugin.PLUGIN_NAME +
@@ -58,6 +59,8 @@ public class BuckConfigurationComponent extends BaseConfigurable implements Sear
     if (DEFAULT_PROJECT_NAMES.equals(result)) {
       result = TARGETS;
     }
+    LOG.info("Returning target names [" + result + "] for project " +
+        project.getName());
     return result;
   }
 
@@ -129,5 +132,31 @@ public class BuckConfigurationComponent extends BaseConfigurable implements Sear
 
   @Override
   public void disposeUIResources() {
+  }
+
+  @Override
+  public void projectOpened() {
+
+  }
+
+  @Override
+  public void projectClosed() {
+
+  }
+
+  @Override
+  public void initComponent() {
+
+  }
+
+  @Override
+  public void disposeComponent() {
+
+  }
+
+  @NotNull
+  @Override
+  public String getComponentName() {
+    return BuckPlugin.BUCK_SETUP_COMPONENT;
   }
 }

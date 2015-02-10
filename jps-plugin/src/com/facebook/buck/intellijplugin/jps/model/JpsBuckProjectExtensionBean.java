@@ -30,6 +30,7 @@ public class JpsBuckProjectExtensionBean extends JpsElementBase<JpsBuckProjectEx
 
   private String targetPath;
   private List<String> targetNames;
+  private boolean buildWithBuck;
 
   public JpsBuckProjectExtensionBean(String targetPath, List<String> targetNames) {
     this.targetPath = targetPath;
@@ -43,6 +44,17 @@ public class JpsBuckProjectExtensionBean extends JpsElementBase<JpsBuckProjectEx
   @Override
   public void setTargetNames(List<String> targetNames) {
     this.targetNames = targetNames;
+  }
+
+  @Override
+  public void setBuildWithBuck(boolean buildWithBuck) {
+    this.buildWithBuck = buildWithBuck;
+  }
+
+  @NotNull
+  @Override
+  public Boolean getBuildWithBuck() {
+    return buildWithBuck;
   }
 
   @NotNull

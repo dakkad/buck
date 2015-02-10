@@ -17,8 +17,8 @@
 package com.facebook.buck.intellijplugin.jps.model;
 
 import com.facebook.buck.intellijplugin.BuckPlugin;
-import com.facebook.buck.intellijplugin.buckbuilder.BuckBuildTarget;
 import com.google.common.collect.Lists;
+import com.intellij.openapi.diagnostic.Logger;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.jps.builders.BuildTargetLoader;
@@ -33,6 +33,8 @@ import java.util.List;
  */
 public class BuckBuildTargetType extends BuildTargetType<BuckBuildTarget> {
 
+  private static final Logger LOG = Logger.getInstance(BuckBuildTargetType.class);
+
   private BuckBuildTargetType() {
     super(BuckPlugin.BUCK_TARGET_COMPILE);
   }
@@ -43,7 +45,7 @@ public class BuckBuildTargetType extends BuildTargetType<BuckBuildTarget> {
 
   @NotNull
   @Override
-  public List<BuckBuildTarget> computeAllTargets(JpsModel jpsModel) {
+  public List<BuckBuildTarget> computeAllTargets(@NotNull JpsModel jpsModel) {
     List<BuckBuildTarget> buildTargets = Lists.newArrayList();
     buildTargets.add(getTarget(jpsModel));
     return buildTargets;
@@ -52,8 +54,18 @@ public class BuckBuildTargetType extends BuildTargetType<BuckBuildTarget> {
   private BuckBuildTarget getTarget(JpsModel jpsModel) {
     JpsProject project = jpsModel.getProject();
     JpsBuckProjectExtension extension = JpsBuckProjectExtensionSerializer.find(project);
+    LOG.info("Loaded buck project extensions? " + (null != extension));
     // TODO(dka) Figure out if this is a buck compile project
-    return new BuckBuildTarget(extension.getTargetPath(), extension.getTargetNames());
+    boolean buckCompile = null != extension && extension.getBuildWithBuck();
+    // TODO (dka) If not a buck compile don't return a buck target
+
+    if (buckCompile) {
+      LOG.info("Returning buck build target as is a buck project");
+      return new BuckBuildTarget(extension.getTargetPath(), extension.getTargetNames());
+    } else {
+      LOG.info("Not returning buck build target as no buck project extension");
+      return null;
+    }
   }
 
   @NotNull

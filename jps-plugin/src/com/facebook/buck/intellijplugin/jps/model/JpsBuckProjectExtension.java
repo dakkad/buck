@@ -18,6 +18,7 @@ package com.facebook.buck.intellijplugin.jps.model;
 
 import com.facebook.buck.intellijplugin.BuckPlugin;
 import com.facebook.buck.intellijplugin.buckbuilder.BuckCompileOptions;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.jps.model.JpsElement;
 import org.jetbrains.jps.model.JpsElementChildRole;
 import org.jetbrains.jps.model.ex.JpsElementChildRoleBase;
@@ -35,4 +36,9 @@ public interface JpsBuckProjectExtension extends JpsElement, BuckCompileOptions 
   public void setTargetPath(String targetPath);
 
   public void setTargetNames(List<String> targetNames);
+
+  public void setBuildWithBuck(boolean buildWithBuck);
+
+  @NotNull
+  public Boolean getBuildWithBuck();
 }
