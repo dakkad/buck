@@ -44,7 +44,7 @@
     <!-- Add your extensions here -->
 
     <!-- External project compiler -->
-    <compileServer.plugin classpath="jps-plugin.jar"/>
+    <compileServer.plugin classpath="buck-jps-plugin.jar"/>
     <compiler.buildTargetScopeProvider implementation="com.facebook.buck.intellijplugin.buckbuilder.BuckBuildTargetScopeProvider" />
     <!-- <buildProcess.parametersProvider implementation="com.facebook.buck.intellijplugin.buckbuilder.BuckBuildParametersProvider" /> -->
 
