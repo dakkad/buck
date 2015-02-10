@@ -47,7 +47,10 @@ public class BuckBuildTargetType extends BuildTargetType<BuckBuildTarget> {
   @Override
   public List<BuckBuildTarget> computeAllTargets(@NotNull JpsModel jpsModel) {
     List<BuckBuildTarget> buildTargets = Lists.newArrayList();
-    buildTargets.add(getTarget(jpsModel));
+    BuckBuildTarget target = getTarget(jpsModel);
+    if (null != target) {
+      buildTargets.add(target);
+    }
     return buildTargets;
   }
 
@@ -63,8 +66,9 @@ public class BuckBuildTargetType extends BuildTargetType<BuckBuildTarget> {
       LOG.info("Returning buck build target as is a buck project");
       return new BuckBuildTarget(extension.getTargetPath(), extension.getTargetNames());
     } else {
-      LOG.info("Not returning buck build target as no buck project extension");
-      return null;
+      LOG.info("Returning vanilla buck build target as no buck project extension");
+      return new BuckBuildTarget("/home/dak/dev/github/protostore/src/main/java/net/sitemorph/protostore",
+          Lists.newArrayList("protostore"));
     }
   }
 

@@ -17,7 +17,7 @@
 package com.facebook.buck.intellijplugin.buckbuilder;
 
 import com.facebook.buck.intellijplugin.jps.model.BuckBuildTarget;
-import com.google.common.collect.Sets;
+import com.google.common.collect.Lists;
 import com.intellij.util.Processor;
 import org.jetbrains.jps.builders.java.JavaSourceRootDescriptor;
 import org.jetbrains.jps.builders.storage.BuildDataPaths;
@@ -28,7 +28,6 @@ import org.jetbrains.jps.model.JpsModel;
 import org.jetbrains.jps.model.JpsProject;
 
 import java.util.List;
-import java.util.Set;
 
 /**
  * The buck target generator uses process build target interface to offer
@@ -41,7 +40,7 @@ public class BuckTargetGenerator implements Processor<ModuleBuildTarget> {
   private ModuleExcludeIndex moduleExcludeIndex;
   private IgnoredFileIndex ignoredFileIndex;
   private BuildDataPaths buildDataPaths;
-  private Set<BuckSourceRootDescriptor> result = Sets.newHashSet();
+  private List<BuckSourceRootDescriptor> result = Lists.newArrayList();
   private BuckBuildTarget buildTarget;
 
   public BuckTargetGenerator() { }
@@ -64,7 +63,8 @@ public class BuckTargetGenerator implements Processor<ModuleBuildTarget> {
     return new Builder();
   }
 
-  public Set<BuckSourceRootDescriptor> getBuckTargets() {
+  public List<BuckSourceRootDescriptor> getBuckSourceRootDescriptors() {
+
     return result;
   }
 

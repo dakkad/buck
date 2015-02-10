@@ -17,8 +17,9 @@
 package com.facebook.buck.intellijplugin.buckbuilder;
 
 import com.facebook.buck.intellijplugin.jps.model.BuckBuildTarget;
+
+import com.google.common.base.Objects;
 import com.intellij.openapi.util.io.FileUtil;
-import org.apache.commons.lang.builder.HashCodeBuilder;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.jps.builders.BuildRootDescriptor;
 import org.jetbrains.jps.builders.BuildTarget;
@@ -96,11 +97,9 @@ public class BuckSourceRootDescriptor extends BuildRootDescriptor {
 
   @Override
   public int hashCode() {
-    return new HashCodeBuilder(37, 41)
-        .append(FileUtil.fileHashCode(sourceRoot))
-        .append(sourceRoot)
-        .append(isGeneratedRoot)
-        .append(excludedRoots)
-        .toHashCode();
+    return Objects.hashCode(FileUtil.fileHashCode(sourceRoot),
+        sourceRoot,
+        isGeneratedRoot,
+        excludedRoots);
   }
 }

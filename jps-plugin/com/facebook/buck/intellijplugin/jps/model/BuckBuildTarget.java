@@ -20,10 +20,11 @@ import com.facebook.buck.intellijplugin.BuckPlugin;
 import com.facebook.buck.intellijplugin.buckbuilder.BuckCompileOptions;
 import com.facebook.buck.intellijplugin.buckbuilder.BuckSourceRootDescriptor;
 import com.facebook.buck.intellijplugin.buckbuilder.BuckTargetGenerator;
-import com.google.common.collect.Lists;
+
+import com.google.common.base.Objects;
+import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.util.io.FileUtil;
 import gnu.trove.THashSet;
-import org.apache.commons.lang.builder.HashCodeBuilder;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.jps.builders.BuildRootIndex;
@@ -50,6 +51,8 @@ import java.util.Set;
  * Buck build target information representation.
  */
 public class BuckBuildTarget extends BuildTarget<BuckSourceRootDescriptor> implements BuckCompileOptions {
+
+  private static final Logger LOG = Logger.getInstance(BuckBuildTarget.class);
 
   private final String path;
   private final List<String> targets;
@@ -88,6 +91,8 @@ public class BuckBuildTarget extends BuildTarget<BuckSourceRootDescriptor> imple
       BuildTargetRegistry buildTargetRegistry,
       TargetOutputIndex targetOutputIndex) {
     // TODO(dka) Review if need to specify dependency tree
+    // Note that this is also done in pants where they return an empty
+    // dependency list, presumably to avoid further plugin involvement
     return Collections.emptyList();
   }
 
@@ -112,20 +117,21 @@ public class BuckBuildTarget extends BuildTarget<BuckSourceRootDescriptor> imple
         generator.process(moduleBuildTarget);
       }
     }
-    return Lists.newArrayList(generator.getBuckTargets());
+    return generator.getBuckSourceRootDescriptors();
   }
 
   @Nullable
   @Override
   public BuckSourceRootDescriptor findRootDescriptor(String s,
       BuildRootIndex buildRootIndex) {
+    LOG.info("Root descriptor not returned");
     return null;
   }
 
   @NotNull
   @Override
   public Collection<File> getOutputRoots(CompileContext compileContext) {
-    Set<File> files = new THashSet<File>(FileUtil.FILE_HASHING_STRATEGY);
+    Set<File> files = new THashSet<>(FileUtil.FILE_HASHING_STRATEGY);
     JpsProject project = compileContext.getProjectDescriptor().getProject();
     for (JpsModule module : project.getModules()) {
       for (JavaModuleBuildTargetType buildTargetType :
@@ -149,9 +155,6 @@ public class BuckBuildTarget extends BuildTarget<BuckSourceRootDescriptor> imple
 
   @Override
   public int hashCode() {
-    return new HashCodeBuilder(27, 41)
-        .append(path)
-        .append(targets)
-        .toHashCode();
+    return Objects.hashCode(path, targets);
   }
 }

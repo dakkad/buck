@@ -18,13 +18,12 @@ package com.facebook.buck.intellijplugin.wizard;
 
 import com.facebook.buck.intellijplugin.BuckPlugin;
 import com.facebook.buck.intellijplugin.runner.BaseDirectoryResolver;
+
 import com.intellij.ide.util.projectWizard.ModuleWizardStep;
-import com.intellij.ide.util.projectWizard.ProjectJdkStep;
 import com.intellij.ide.util.projectWizard.WizardContext;
 import com.intellij.openapi.externalSystem.service.project.wizard.AbstractExternalProjectImportProvider;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.projectImport.ProjectImportBuilder;
-import com.intellij.util.ArrayUtil;
 
 /**
  * Project import provider which takes the buck project config and pushes it
@@ -54,8 +53,8 @@ public class BuckExternalProjectImportProvider extends AbstractExternalProjectIm
   @Override
   public ModuleWizardStep[] createSteps(WizardContext context) {
     // TODO(dka) Consider adding project JDK step where buck takes over as jdk / compiler
-    return ArrayUtil.append(super.createSteps(context),
+    return super.createSteps(context);
         //new BuckProjectImportStep(context)),
-        new ProjectJdkStep(context));
+        //new ProjectJdkStep(context));
   }
 }

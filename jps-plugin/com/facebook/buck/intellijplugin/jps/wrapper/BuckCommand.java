@@ -50,7 +50,7 @@ public class BuckCommand {
 
   private File workingDirectory;
   private ExecutorService executorService;
-  private String buckPath;
+  private String buckPath = "/usr/bin/buck";
   private Optional<String> buckdPath;
   private Optional<BuckdSocketClient> socket;
   private BuckEventListener listener;
@@ -105,6 +105,7 @@ public class BuckCommand {
   private int execute(ImmutableList<String> command, ImmutableMap<String, String> environment) {
     Preconditions.checkNotNull(command);
     ProcessBuilder processBuilder = new ProcessBuilder(command);
+    LOG.info("Buck command using working directory " + workingDirectory);
     processBuilder.directory(workingDirectory);
     for (ImmutableMap.Entry<String, String> entry : environment.entrySet()) {
       processBuilder.environment().put(entry.getKey(), entry.getValue());

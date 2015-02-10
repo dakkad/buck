@@ -25,6 +25,7 @@ import com.facebook.buck.intellijplugin.jps.wrapper.BuckBuildCommand;
 import com.facebook.buck.intellijplugin.jps.wrapper.BuckCommand;
 import com.facebook.buck.intellijplugin.jps.wrapper.BuckEventListener;
 import com.facebook.buck.intellijplugin.jps.wrapper.BuckTarget;
+
 import com.intellij.openapi.diagnostic.Logger;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.jps.builders.BuildOutputConsumer;
@@ -61,11 +62,17 @@ public class BuckTargetBuilder extends TargetBuilder<BuckSourceRootDescriptor, B
   @Override
   public void buildStarted(CompileContext compileContext) {
     super.buildStarted(compileContext);
-    LOG.info("Build Started. Disabling java compiler");
+    LOG.info("Buck Target Builder Started.");
     JpsProject project = compileContext.getProjectDescriptor().getProject();
     JpsBuckProjectExtension extension = JpsBuckProjectExtensionSerializer.find(project);
     // TODO(dka) Check whether we should use buck for compiling - for now yes
-    if (projectContainsRelevantModules(project)) {
+    if (null != extension && extension.getBuildWithBuck() &&
+        projectContainsRelevantModules(project)) {
+      LOG.info("Buck Target Builder Disabling Java Compiler");
+      JavaBuilder.IS_ENABLED.set(compileContext, false);
+    } else {
+      LOG.info("Buck Target Builder Not Disabling Java as No Extension / Not Relevant");
+      //TODO (dka) remove javac disable if project is not relevant.
       JavaBuilder.IS_ENABLED.set(compileContext, false);
     }
   }

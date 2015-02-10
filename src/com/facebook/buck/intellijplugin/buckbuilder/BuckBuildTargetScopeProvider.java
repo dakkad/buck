@@ -23,6 +23,7 @@ import com.intellij.openapi.compiler.CompileScope;
 import com.intellij.openapi.compiler.CompilerFilter;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.jps.api.CmdlineRemoteProto.Message.ControllerMessage.ParametersMessage.TargetTypeBuildScope;
 
 import java.util.List;
@@ -34,9 +35,10 @@ public class BuckBuildTargetScopeProvider extends BuildTargetScopeProvider {
 
   private Logger LOG = Logger.getInstance(BuckBuildTargetScopeProvider.class);
 
+  @NotNull
   @Override
-  public List<TargetTypeBuildScope> getBuildTargetScopes(CompileScope compileScope,
-      CompilerFilter compilerFilter, Project project, boolean forceBuild) {
+  public List<TargetTypeBuildScope> getBuildTargetScopes(@NotNull CompileScope compileScope,
+      @NotNull CompilerFilter compilerFilter, @NotNull Project project, boolean forceBuild) {
     LOG.info("Buck build target scope provider returning scope");
 
     List<TargetTypeBuildScope> result = Lists.newArrayList(TargetTypeBuildScope.newBuilder()

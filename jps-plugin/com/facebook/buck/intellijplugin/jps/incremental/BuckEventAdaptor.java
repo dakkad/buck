@@ -16,9 +16,13 @@
 
 package com.facebook.buck.intellijplugin.jps.incremental;
 
+import com.facebook.buck.intellijplugin.BuckPlugin;
 import com.facebook.buck.intellijplugin.jps.wrapper.BuckEvent;
 import com.facebook.buck.intellijplugin.jps.wrapper.BuckEventListener;
+
 import org.jetbrains.jps.incremental.CompileContext;
+import org.jetbrains.jps.incremental.messages.BuildMessage.Kind;
+import org.jetbrains.jps.incremental.messages.CompilerMessage;
 
 /**
  * Listen to buck events and adapt them to intellij messages.
@@ -52,5 +56,7 @@ public class BuckEventAdaptor implements BuckEventListener {
     // FileGeneratedEvent filePaths
 
     // FileDeletedEvent filePaths
+    context.processMessage(new CompilerMessage(BuckPlugin.BUCK_PLUGIN_ID,
+        Kind.WARNING, event.getType()));
   }
 }
