@@ -16,8 +16,8 @@
 
 package com.facebook.buck.intellijplugin.jps.incremental;
 
-import com.facebook.buck.intellijplugin.jps.model.BuckBuildTarget;
 import com.facebook.buck.intellijplugin.buckbuilder.BuckSourceRootDescriptor;
+import com.facebook.buck.intellijplugin.jps.model.BuckBuildTarget;
 import com.facebook.buck.intellijplugin.jps.model.BuckBuildTargetType;
 import com.facebook.buck.intellijplugin.jps.model.JpsBuckProjectExtension;
 import com.facebook.buck.intellijplugin.jps.model.JpsBuckProjectExtensionSerializer;
@@ -35,7 +35,6 @@ import org.jetbrains.jps.incremental.ProjectBuildException;
 import org.jetbrains.jps.incremental.TargetBuilder;
 import org.jetbrains.jps.incremental.java.JavaBuilder;
 import org.jetbrains.jps.model.JpsProject;
-import org.jetbrains.jps.model.module.JpsModule;
 
 import java.io.File;
 import java.io.IOException;
@@ -73,12 +72,12 @@ public class BuckTargetBuilder extends TargetBuilder<BuckSourceRootDescriptor, B
 
   private boolean projectContainsRelevantModules(JpsProject project) {
     LOG.info("Buck checking whether there are relevant modules...");
-    for (JpsModule modules : project.getModules()) {
-      if (null != JpsBuckProjectExtensionSerializer.find(project)) {
-        LOG.info("Buck returning relevant modules based on serializer");
-        return true;
-      }
+
+    if (null != JpsBuckProjectExtensionSerializer.find(project)) {
+      LOG.info("Buck returning relevant modules based on serializer");
+      return true;
     }
+
     LOG.info("Buck returning not relevant modules based on lack of serializer");
     return false;
   }
