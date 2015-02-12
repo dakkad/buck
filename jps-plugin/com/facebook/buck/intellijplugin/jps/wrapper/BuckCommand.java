@@ -194,6 +194,10 @@ public class BuckCommand {
     return port;
   }
 
+  public void signalBuildFailed(String fullTargetName) {
+
+  }
+
   public class BuckNotFoundError extends Error {
   }
 }

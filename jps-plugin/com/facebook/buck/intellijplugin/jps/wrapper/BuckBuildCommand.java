@@ -31,8 +31,9 @@ public class BuckBuildCommand {
     int exitCode = buckRunner.executeAndListenToWebSocket("build",
         target.getFullName());
     if (exitCode != 0) {
-      buckRunner.buildFailed()
+      buckRunner.signalBuildFailed(target.getFullName());
       //LOG.error(buckRunner.getStdErr());
+      LOG.info("Buck Failed to run: " + buckRunner.getStdErr());
       return;
     }
   }

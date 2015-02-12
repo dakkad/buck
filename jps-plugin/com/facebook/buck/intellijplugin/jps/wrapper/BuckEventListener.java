@@ -16,10 +16,14 @@
 
 package com.facebook.buck.intellijplugin.jps.wrapper;
 
+import org.jetbrains.jps.incremental.messages.CompilerMessage;
+
 /**
 * Listen to buck plugin events.
 */
 public interface BuckEventListener {
 
   public void onEvent(BuckEvent event);
+
+  public void passThrough(CompilerMessage compilerMessage);
 }

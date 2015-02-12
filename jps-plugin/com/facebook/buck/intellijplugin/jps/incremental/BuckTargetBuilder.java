@@ -91,9 +91,11 @@ public class BuckTargetBuilder extends TargetBuilder<BuckSourceRootDescriptor, B
 
 
   @Override
-  public void build(BuckBuildTarget buckBuildTarget,
-      DirtyFilesHolder<BuckSourceRootDescriptor, BuckBuildTarget> dirtyFilesHolder,
-      BuildOutputConsumer buildOutputConsumer, final CompileContext compileContext)
+  public void build(@NotNull BuckBuildTarget buckBuildTarget,
+      @NotNull DirtyFilesHolder<BuckSourceRootDescriptor,
+      BuckBuildTarget> dirtyFilesHolder,
+      @NotNull BuildOutputConsumer buildOutputConsumer,
+      @NotNull final CompileContext compileContext)
       throws ProjectBuildException, IOException {
 
     LOG.info("Build called for target: " + buckBuildTarget.getId());
@@ -103,9 +105,11 @@ public class BuckTargetBuilder extends TargetBuilder<BuckSourceRootDescriptor, B
     // Check whether this build should even be run
     if (!dirtyFilesHolder.hasDirtyFiles() &&
         !JavaBuilderUtil.isForcedRecompilationAllJavaModules(compileContext)) {
-      compileContext.processMessage(BuckMessage.info("No changes to compile"));
+      compileContext.processMessage(BuckMessage.info("Buck says: changes to compile"));
       return;
     }
+
+    // TODO(dka) Find out how to signal to the index that the new files need including
 
     // TODO(dka) Consider checking to make sure that buck is found
 

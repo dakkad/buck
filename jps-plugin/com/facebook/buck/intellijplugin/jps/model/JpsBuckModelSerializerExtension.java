@@ -17,6 +17,8 @@
 package com.facebook.buck.intellijplugin.jps.model;
 
 import com.facebook.buck.intellijplugin.BuckPlugin;
+
+import com.intellij.openapi.diagnostic.Logger;
 import org.jdom.Element;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
@@ -28,9 +30,12 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * The model serialiser.
+ * The model serializer extension. IntelliJ uses these serialisation functions
+ * to pass configuration information to the external builder.
  */
 public class JpsBuckModelSerializerExtension extends JpsModelSerializerExtension {
+
+  private static final Logger LOG = Logger.getInstance(JpsBuckModelSerializerExtension.class);
 
   // As we are in a different context can't refer to the constants in the main project.
   // TODO(dka) Consider refactoring into common.
@@ -53,9 +58,14 @@ public class JpsBuckModelSerializerExtension extends JpsModelSerializerExtension
     String linkedProjectPath = rootElement.getAttributeValue(LINKED_PROJECT_PATH_KEY);
     if (BuckPlugin.BUCK_PLUGIN_ID.equals(externalSystemId) &&
         null != linkedProjectId && null != linkedProjectPath) {
+      LOG.info("Loaded module options for buck linkedProjectPath: " +
+          linkedProjectPath + " linkedProjectId: " + linkedProjectId);
       JpsBuckModuleExtension moduleExtension = new JpsDefaultBuckModuleExtension(
           linkedProjectPath, linkedProjectId);
       module.getContainer().setChild(JpsBuckModuleExtension.ROLE, moduleExtension);
+    } else {
+      LOG.info("Did not load module options for buck due to external system id mismatch: " +
+          externalSystemId);
     }
   }
 }

@@ -59,4 +59,9 @@ public class BuckEventAdaptor implements BuckEventListener {
     context.processMessage(new CompilerMessage(BuckPlugin.BUCK_PLUGIN_ID,
         Kind.WARNING, event.getType()));
   }
+
+  @Override
+  public void passThrough(CompilerMessage compilerMessage) {
+    context.processMessage(compilerMessage);
+  }
 }
