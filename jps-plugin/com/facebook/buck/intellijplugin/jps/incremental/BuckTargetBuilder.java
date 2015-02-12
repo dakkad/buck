@@ -64,7 +64,8 @@ public class BuckTargetBuilder extends TargetBuilder<BuckSourceRootDescriptor, B
     super.buildStarted(compileContext);
     LOG.info("Buck Target Builder Started.");
     JpsProject project = compileContext.getProjectDescriptor().getProject();
-    JpsBuckProjectExtension extension = JpsBuckProjectExtensionSerializer.find(project);
+    JpsBuckProjectExtension extension = JpsBuckProjectExtensionSerializer
+        .findProjectExtension(project);
     // TODO(dka) Check whether we should use buck for compiling - for now yes
     if (null != extension && extension.getBuildWithBuck() &&
         projectContainsRelevantModules(project)) {
@@ -80,7 +81,7 @@ public class BuckTargetBuilder extends TargetBuilder<BuckSourceRootDescriptor, B
   private boolean projectContainsRelevantModules(JpsProject project) {
     LOG.info("Buck checking whether there are relevant modules...");
 
-    if (null != JpsBuckProjectExtensionSerializer.find(project)) {
+    if (null != JpsBuckProjectExtensionSerializer.findProjectExtension(project)) {
       LOG.info("Buck returning relevant modules based on serializer");
       return true;
     }

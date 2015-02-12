@@ -56,7 +56,8 @@ public class BuckBuildTargetType extends BuildTargetType<BuckBuildTarget> {
 
   private BuckBuildTarget getTarget(JpsModel jpsModel) {
     JpsProject project = jpsModel.getProject();
-    JpsBuckProjectExtension extension = JpsBuckProjectExtensionSerializer.find(project);
+    JpsBuckProjectExtension extension = JpsBuckProjectExtensionSerializer.findProjectExtension(
+        project);
     LOG.info("Loaded buck project extensions? " + (null != extension));
     // TODO(dka) Figure out if this is a buck compile project
     boolean buckCompile = null != extension && extension.getBuildWithBuck();
@@ -67,8 +68,8 @@ public class BuckBuildTargetType extends BuildTargetType<BuckBuildTarget> {
       return new BuckBuildTarget(extension.getTargetPath(), extension.getTargetNames());
     } else {
       LOG.info("Returning vanilla buck build target as no buck project extension");
-      return new BuckBuildTarget("/home/dak/dev/github/protostore/src/main/java/net/sitemorph/protostore",
-          Lists.newArrayList("protostore"));
+      return new BuckBuildTarget("/home/dak/dev/hello/src/src/com/facebook/buck",
+          Lists.newArrayList("hello"));
     }
   }
 

@@ -20,6 +20,7 @@ import com.facebook.buck.intellijplugin.BuckPlugin;
 import com.facebook.buck.intellijplugin.jps.wrapper.BuckEvent;
 import com.facebook.buck.intellijplugin.jps.wrapper.BuckEventListener;
 
+import com.intellij.openapi.diagnostic.Logger;
 import org.jetbrains.jps.incremental.CompileContext;
 import org.jetbrains.jps.incremental.messages.BuildMessage.Kind;
 import org.jetbrains.jps.incremental.messages.CompilerMessage;
@@ -29,6 +30,8 @@ import org.jetbrains.jps.incremental.messages.CompilerMessage;
  */
 public class BuckEventAdaptor implements BuckEventListener {
 
+  private static final Logger LOG = Logger.getInstance(BuckEventAdaptor.class);
+
   private final CompileContext context;
 
   public BuckEventAdaptor(CompileContext compileContext) {
@@ -37,6 +40,8 @@ public class BuckEventAdaptor implements BuckEventListener {
 
   @Override
   public void onEvent(BuckEvent event) {
+    LOG.info("Received Buck Event " + event.getBuildId() + " " +
+        event.getType() + " " + event.getTimestamp());
     // BuildMessage Kind:ERROR/WARNING/INFO/PROGRESS
 
     // DoneSomethingNotification relates to build message

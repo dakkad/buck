@@ -26,7 +26,6 @@ import com.intellij.openapi.util.JDOMUtil;
 import org.jdom.Element;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.jps.model.JpsProject;
-import org.jetbrains.jps.model.module.JpsModule;
 import org.jetbrains.jps.model.serialization.JpsProjectExtensionSerializer;
 
 import java.util.Collections;
@@ -49,8 +48,9 @@ public class JpsBuckProjectExtensionSerializer extends JpsProjectExtensionSerial
     super(BaseDirectoryResolver.BUCK_CONFIG_FILE, BuckPlugin.BUCK_SETTINGS_LABEL);
   }
 
-  public static JpsBuckModuleExtension findModuleExtension(JpsModule module) {
-    return module.getContainer().getChild(JpsBuckModuleExtension.ROLE);
+
+  public static JpsBuckProjectExtension findProjectExtension(JpsProject project) {
+    return project.getContainer().getChild(JpsBuckProjectExtension.ROLE);
   }
 
   @Override
@@ -92,4 +92,5 @@ public class JpsBuckProjectExtensionSerializer extends JpsProjectExtensionSerial
   public void saveExtension(@NotNull JpsProject jpsProject, @NotNull Element element) {
     // TODO(dka) Consider saving the extension. Not done in pants.
   }
+
 }
