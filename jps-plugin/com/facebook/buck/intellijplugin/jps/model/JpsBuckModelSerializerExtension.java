@@ -39,13 +39,19 @@ public class JpsBuckModelSerializerExtension extends JpsModelSerializerExtension
 
   // As we are in a different context can't refer to the constants in the main project.
   // TODO(dka) Consider refactoring into common.
-  @NonNls
-  @NotNull public static final String EXTERNAL_SYSTEM_ID_KEY  = "external.system.id";
-  @NonNls @NotNull public static final String LINKED_PROJECT_ID_KEY   = "external.linked.project.id";
-  @NonNls @NotNull public static final String LINKED_PROJECT_PATH_KEY = "external.linked.project.path";
+  @NonNls @NotNull
+  public static final String EXTERNAL_SYSTEM_ID_KEY  = "external.system.id";
+  @NonNls @NotNull
+  public static final String LINKED_PROJECT_ID_KEY   = "external.linked.project.id";
+  @NonNls @NotNull
+  public static final String LINKED_PROJECT_PATH_KEY = "external.linked.project.path";
 
-  @NotNull
-  @Override
+
+  public static JpsBuckModuleExtension findModuleExtension(JpsModule module) {
+    return module.getContainer().getChild(JpsBuckModuleExtension.ROLE);
+  }
+
+  @NotNull @Override
   public List<? extends JpsProjectExtensionSerializer> getProjectExtensionSerializers() {
     return Collections.singletonList(new JpsBuckProjectExtensionSerializer());
   }

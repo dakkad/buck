@@ -28,7 +28,7 @@ import org.jetbrains.jps.model.ex.JpsElementChildRoleBase;
 public interface JpsBuckModuleExtension extends JpsElement {
 
   public static final JpsElementChildRole<JpsBuckModuleExtension> ROLE =
-      JpsElementChildRoleBase.create(BuckPlugin.BUCK_PROJECT_LABEL);
+      JpsElementChildRoleBase.create(BuckPlugin.BUCK_PLUGIN_ID);
 
   @NotNull
   String getTargetLocation();

@@ -18,11 +18,15 @@ package com.facebook.buck.intellijplugin.jps.model;
 
 import com.facebook.buck.intellijplugin.BuckPlugin;
 import com.facebook.buck.intellijplugin.runner.BaseDirectoryResolver;
+
 import com.google.common.collect.Lists;
+import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.util.JDOMExternalizerUtil;
 import com.intellij.openapi.util.JDOMUtil;
 import org.jdom.Element;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.jps.model.JpsProject;
+import org.jetbrains.jps.model.module.JpsModule;
 import org.jetbrains.jps.model.serialization.JpsProjectExtensionSerializer;
 
 import java.util.Collections;
@@ -39,23 +43,24 @@ public class JpsBuckProjectExtensionSerializer extends JpsProjectExtensionSerial
   private static final String SUB_LIST = "list";
   private static final String OPTION_FIELD = "option";
   private static final String VALUE_ATTRIBUTE = "value";
-
-  public static JpsBuckProjectExtension find(JpsProject project) {
-    return project.getContainer()
-        .getChild(JpsBuckProjectExtension.ROLE);
-  }
+  private static final Logger LOG = Logger.getInstance(JpsBuckProjectExtensionSerializer.class);
 
   public JpsBuckProjectExtensionSerializer() {
     super(BaseDirectoryResolver.BUCK_CONFIG_FILE, BuckPlugin.BUCK_SETTINGS_LABEL);
   }
 
+  public static JpsBuckModuleExtension findModuleExtension(JpsModule module) {
+    return module.getContainer().getChild(JpsBuckModuleExtension.ROLE);
+  }
+
   @Override
-  public void loadExtension(JpsProject jpsProject, Element componentElement) {
+  public void loadExtension(@NotNull JpsProject jpsProject, @NotNull Element componentElement) {
     Element linkedSettings = JDOMExternalizerUtil.getOption(componentElement,
         LINKED_PROJECT_SETTINGS);
     Element projectSettings = null == linkedSettings? null :
-        linkedSettings.getChild(BuckPlugin.BUCK_PROJECT_LABEL);
+        linkedSettings.getChild(BuckPlugin.BUCK_PROJECT_SETTINGS_ELEMENT);
     if (null == projectSettings) {
+      LOG.info("Buck Project Extensions not found by serializer");
       return;
     }
     String projectPath = JDOMExternalizerUtil.readField(projectSettings,
@@ -84,7 +89,7 @@ public class JpsBuckProjectExtensionSerializer extends JpsProjectExtensionSerial
   }
 
   @Override
-  public void saveExtension(JpsProject jpsProject, Element element) {
+  public void saveExtension(@NotNull JpsProject jpsProject, @NotNull Element element) {
     // TODO(dka) Consider saving the extension. Not done in pants.
   }
 }

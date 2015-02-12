@@ -43,6 +43,7 @@ public class BuckPlugin {
   public static final String PROJECT_PATH_SETTING = "projectPath";
   public static final String PROJECT_TARGETS_SETTING = "projectTargets";
   public static final String BUCK_SETUP_COMPONENT = "buck.setup";
+  public static final String BUCK_PROJECT_SETTINGS_ELEMENT = "BuckProjectSettings";
 
   private BuckPlugin() { }
 
