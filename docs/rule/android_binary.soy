@@ -37,16 +37,6 @@ An <code>android_binary()</code> rule is used to generate an Android APK.
 {/call}
 
 {call buck.arg}
-  {param name: 'target' /}
-  {param desc}
-  The version of Android being targeted by this APK. In a traditional
-  Android project, this would be specified in the
-  {sp}<code>project.properties</code> file. This is frequently something
-  like <code>'Google Inc.:Google APIs:16'</code>.
-  {/param}
-{/call}
-
-{call buck.arg}
   {param name: 'keystore' /}
   {param desc}
   A build target that identifies a {call buck.keystore /} to use to
@@ -123,6 +113,36 @@ An <code>android_binary()</code> rule is used to generate an Android APK.
 {/call}
 
 {call buck.arg}
+  {param name : 'skip_crunch_pngs' /}
+  {param default : 'False' /}
+  {param desc}
+  If <code>True</code>, PNGs in the APK are not crushed by aapt.
+
+  This is equivalent to specifying
+
+  {literal}<pre class="prettyprint lang-js">
+  android {
+      aaptOptions.useAaptPngCruncher = false
+  }
+  </pre>{/literal}
+
+  in gradle, or
+
+  {literal}<pre class="prettyprint lang-xml">
+  &lt;target name="-crunch">
+      &lt;echo message="Skipping PNG optimization"/>
+  &lt;/target>
+  </pre>{/literal}
+
+  in ant.
+
+  This can be useful if the PNGs have
+  been optimised beforehand, as aapt would attempt to crush the optimised PNGs and end up increasing
+  their size instead of decreasing it.
+  {/param}
+{/call}
+
+{call buck.arg}
   {param name : 'deps' /}
   {param default : '[]' /}
   {param desc}
@@ -169,7 +189,6 @@ android_library(
 android_binary(
   name = 'messenger',
   manifest = 'AndroidManifest.xml',
-  target = 'Google Inc.:Google APIs:16',
   keystore = '//keystores:prod',
   package_type = 'release',
   proguard_config = 'proguard.cfg',

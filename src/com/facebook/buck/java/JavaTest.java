@@ -40,9 +40,11 @@ import com.facebook.buck.test.selectors.TestSelectorList;
 import com.facebook.buck.util.BuckConstant;
 import com.facebook.buck.util.ZipFileTraversal;
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Functions;
 import com.google.common.base.Optional;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Throwables;
+import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSortedSet;
@@ -152,10 +154,6 @@ public class JavaTest extends DefaultJavaLibrary implements TestRule {
   @Override
   public ImmutableSet<BuildRule> getSourceUnderTest() {
     return sourceUnderTest;
-  }
-
-  public ImmutableList<String> getVmArgs() {
-    return vmArgs;
   }
 
   /**
@@ -307,7 +305,7 @@ public class JavaTest extends DefaultJavaLibrary implements TestRule {
   }
 
   private Path getPathToTmpDirectory() {
-    Path base = BuildTargets.getBinPath(getBuildTarget(), "__java_test_%s_tmp__").toAbsolutePath();
+    Path base = BuildTargets.getScratchPath(getBuildTarget(), "__java_test_%s_tmp__");
     String subdir = BuckConstant.oneTimeTestSubdirectory;
     if (subdir != null && !subdir.isEmpty()) {
       base = base.resolve(subdir);
@@ -347,7 +345,11 @@ public class JavaTest extends DefaultJavaLibrary implements TestRule {
         // were run by its deps. In this case, return an empty TestResults.
         Set<String> testClassNames = getClassNamesForSources(context);
         if (testClassNames.isEmpty()) {
-          return new TestResults(getBuildTarget(), ImmutableList.<TestCaseSummary>of(), contacts);
+          return new TestResults(
+              getBuildTarget(),
+              ImmutableList.<TestCaseSummary>of(),
+              contacts,
+              FluentIterable.from(labels).transform(Functions.toStringFunction()).toSet());
         }
 
         List<TestCaseSummary> summaries = Lists.newArrayListWithCapacity(testClassNames.size());
@@ -384,7 +386,11 @@ public class JavaTest extends DefaultJavaLibrary implements TestRule {
           }
         }
 
-        return new TestResults(getBuildTarget(), summaries, contacts);
+        return new TestResults(
+            getBuildTarget(),
+            summaries,
+            contacts,
+            FluentIterable.from(labels).transform(Functions.toStringFunction()).toSet());
       }
 
     };

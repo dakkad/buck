@@ -16,15 +16,17 @@
 
 package com.facebook.buck.thrift;
 
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertEquals;
 
 import com.facebook.buck.cli.FakeBuckConfig;
 import com.facebook.buck.cxx.CxxBuckConfig;
+import com.facebook.buck.cxx.CxxLibraryDescription;
 import com.facebook.buck.cxx.CxxPlatform;
+import com.facebook.buck.cxx.CxxSourceRuleFactory;
 import com.facebook.buck.cxx.DefaultCxxPlatforms;
 import com.facebook.buck.model.BuildTarget;
 import com.facebook.buck.model.BuildTargetFactory;
-import com.facebook.buck.model.Flavor;
 import com.facebook.buck.model.FlavorDomain;
 import com.facebook.buck.model.ImmutableFlavor;
 import com.facebook.buck.rules.BuildRule;
@@ -36,12 +38,15 @@ import com.facebook.buck.rules.FakeBuildRuleParamsBuilder;
 import com.facebook.buck.rules.SourcePath;
 import com.facebook.buck.rules.SourcePathResolver;
 import com.facebook.buck.rules.TestSourcePath;
+import com.facebook.buck.rules.coercer.Either;
+import com.facebook.buck.rules.coercer.SourceWithFlags;
 import com.google.common.base.Optional;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSortedSet;
 
+import org.hamcrest.Matchers;
 import org.junit.Test;
 
 import java.nio.file.Path;
@@ -54,22 +59,27 @@ public class ThriftCxxEnhancerTest {
   private static final FakeBuckConfig BUCK_CONFIG = new FakeBuckConfig();
   private static final ThriftBuckConfig THRIFT_BUCK_CONFIG = new ThriftBuckConfig(BUCK_CONFIG);
   private static final CxxBuckConfig CXX_BUCK_CONFIG = new CxxBuckConfig(BUCK_CONFIG);
-  private static final CxxPlatform CXX_PLATFORM =
-      DefaultCxxPlatforms.build(BUCK_CONFIG);
+  private static final CxxPlatform CXX_PLATFORM = DefaultCxxPlatforms.build(
+      new CxxBuckConfig(BUCK_CONFIG));
   private static final FlavorDomain<CxxPlatform> CXX_PLATFORMS =
       new FlavorDomain<>(
           "C/C++ Platform",
-          ImmutableMap.<Flavor, CxxPlatform>of(CXX_PLATFORM.getFlavor(), CXX_PLATFORM));
-  private static final ThriftCxxEnhancer ENHANCER_CPP = new ThriftCxxEnhancer(
-      THRIFT_BUCK_CONFIG,
-      CXX_BUCK_CONFIG,
-      CXX_PLATFORMS,
-      /* cpp2 */ false);
-  private static final ThriftCxxEnhancer ENHANCER_CPP2 = new ThriftCxxEnhancer(
-      THRIFT_BUCK_CONFIG,
-      CXX_BUCK_CONFIG,
-      CXX_PLATFORMS,
-      /* cpp2 */ true);
+          ImmutableMap.of(CXX_PLATFORM.getFlavor(), CXX_PLATFORM));
+  private static final CxxLibraryDescription CXX_LIBRARY_DESCRIPTION =
+      new CxxLibraryDescription(
+          CXX_BUCK_CONFIG,
+          CXX_PLATFORMS,
+          CxxSourceRuleFactory.Strategy.SEPARATE_PREPROCESS_AND_COMPILE);
+  private static final ThriftCxxEnhancer ENHANCER_CPP =
+      new ThriftCxxEnhancer(
+          THRIFT_BUCK_CONFIG,
+          CXX_LIBRARY_DESCRIPTION,
+          /* cpp2 */ false);
+  private static final ThriftCxxEnhancer ENHANCER_CPP2 =
+      new ThriftCxxEnhancer(
+          THRIFT_BUCK_CONFIG,
+          CXX_LIBRARY_DESCRIPTION,
+          /* cpp2 */ true);
 
   private static FakeBuildRule createFakeBuildRule(
       String target,
@@ -196,13 +206,11 @@ public class ThriftCxxEnhancerTest {
     ThriftBuckConfig thriftBuckConfig = new ThriftBuckConfig(buckConfig);
     ThriftCxxEnhancer cppEnhancerWithSettings = new ThriftCxxEnhancer(
         thriftBuckConfig,
-        CXX_BUCK_CONFIG,
-        CXX_PLATFORMS,
+        CXX_LIBRARY_DESCRIPTION,
         /* cpp2 */ false);
     ThriftCxxEnhancer cpp2EnhancerWithSettings = new ThriftCxxEnhancer(
         thriftBuckConfig,
-        CXX_BUCK_CONFIG,
-        CXX_PLATFORMS,
+        CXX_LIBRARY_DESCRIPTION,
         /* cpp2 */ true);
 
     // With no options we just need to find the C/C++ thrift library.
@@ -305,6 +313,7 @@ public class ThriftCxxEnhancerTest {
             "test_types.tcc",
             "Test.h",
             "Test.cpp",
+            "Test_client.cpp",
             "Test.tcc"),
         ENHANCER_CPP2.getGeneratedThriftSources(
             ImmutableSet.<String>of(),
@@ -339,6 +348,7 @@ public class ThriftCxxEnhancerTest {
             "test_layouts.cpp",
             "Test.h",
             "Test.cpp",
+            "Test_client.cpp",
             "Test.tcc"),
         ENHANCER_CPP2.getGeneratedThriftSources(
             ImmutableSet.of("frozen"),
@@ -367,6 +377,7 @@ public class ThriftCxxEnhancerTest {
             "test_types.tcc",
             "Test.h",
             "Test.cpp",
+            "Test_client.cpp",
             "Test.tcc"),
         ENHANCER_CPP2.getGeneratedThriftSources(
             ImmutableSet.of("bootstrap"),
@@ -399,6 +410,7 @@ public class ThriftCxxEnhancerTest {
             "test_types.tcc",
             "Test.h",
             "Test.cpp",
+            "Test_client.cpp",
             "Test.tcc"),
         ENHANCER_CPP2.getGeneratedThriftSources(
             ImmutableSet.of("templates"),
@@ -430,9 +442,43 @@ public class ThriftCxxEnhancerTest {
             "test_types.tcc",
             "Test.h",
             "Test.cpp",
+            "Test_client.cpp",
             "Test.tcc"),
         ENHANCER_CPP2.getGeneratedThriftSources(
             ImmutableSet.of("perfhash"),
+            "test.thrift",
+            ImmutableList.of("Test")));
+
+    // Test with "separate_processmap" option.
+    assertEquals(
+        ImmutableList.of(
+            "test_constants.h",
+            "test_constants.cpp",
+            "test_types.h",
+            "test_types.cpp",
+            "test_reflection.h",
+            "test_reflection.cpp",
+            "Test.h",
+            "Test.cpp"),
+        ENHANCER_CPP.getGeneratedThriftSources(
+            ImmutableSet.of("separate_processmap"),
+            "test.thrift",
+            ImmutableList.of("Test")));
+    assertEquals(
+        ImmutableList.of(
+            "test_constants.h",
+            "test_constants.cpp",
+            "test_types.h",
+            "test_types.cpp",
+            "test_types.tcc",
+            "Test.h",
+            "Test.cpp",
+            "Test_client.cpp",
+            "Test_processmap_binary.cpp",
+            "Test_processmap_compact.cpp",
+            "Test.tcc"),
+        ENHANCER_CPP2.getGeneratedThriftSources(
+            ImmutableSet.of("separate_processmap"),
             "test.thrift",
             ImmutableList.of("Test")));
   }
@@ -448,6 +494,9 @@ public class ThriftCxxEnhancerTest {
     BuildRule argDep = createFakeBuildRule("//:arg_dep", pathResolver);
     resolver.addToIndex(argDep);
     ThriftConstructorArg arg = new ThriftConstructorArg();
+    arg.cppHeaderNamespace = Optional.absent();
+    arg.cppExportedHeaders = Optional.absent();
+    arg.cppSrcs = Optional.absent();
     arg.cpp2Options = Optional.absent();
     arg.cpp2Deps = Optional.of(
         ImmutableSortedSet.of(argDep.getBuildTarget()));
@@ -480,6 +529,83 @@ public class ThriftCxxEnhancerTest {
         arg,
         sources,
         deps);
+  }
+
+  @Test
+  public void cppSrcsAndHeadersArePropagated() {
+    BuildRuleResolver resolver = new BuildRuleResolver();
+    SourcePathResolver pathResolver = new SourcePathResolver(resolver);
+    BuildRuleParams flavoredParams =
+        BuildRuleParamsFactory.createTrivialBuildRuleParams(TARGET);
+
+    final String cppHeaderNamespace = "foo";
+    final ImmutableMap<String, SourcePath> cppHeaders =
+        ImmutableMap.<String, SourcePath>of(
+            "header.h", new TestSourcePath("header.h"));
+    final ImmutableMap<String, SourceWithFlags> cppSrcs =
+        ImmutableMap.of(
+            "source.cpp", SourceWithFlags.of(new TestSourcePath("source.cpp")));
+
+    ThriftConstructorArg arg = new ThriftConstructorArg();
+    arg.cppOptions = Optional.absent();
+    arg.cppDeps = Optional.absent();
+    arg.cppHeaderNamespace = Optional.of(cppHeaderNamespace);
+    arg.cppExportedHeaders =
+        Optional.of(
+            Either.<ImmutableList<SourcePath>, ImmutableMap<String, SourcePath>>ofRight(
+                cppHeaders));
+    arg.cppSrcs =
+        Optional.of(
+            Either.<ImmutableList<SourceWithFlags>, ImmutableMap<String, SourceWithFlags>>ofRight(
+                cppSrcs));
+
+    ThriftCompiler thrift = createFakeThriftCompiler("//:thrift_source", pathResolver);
+    resolver.addToIndex(thrift);
+
+    // Setup up some thrift inputs to pass to the createBuildRule method.
+    ImmutableMap<String, ThriftSource> sources = ImmutableMap.of(
+        "test.thrift", new ThriftSource(
+            thrift,
+            ImmutableList.<String>of(),
+            Paths.get("output")));
+
+    // Run the enhancer with a modified C++ description which checks that appropriate args are
+    // propagated.
+    CxxLibraryDescription cxxLibraryDescription =
+        new CxxLibraryDescription(
+            CXX_BUCK_CONFIG,
+            CXX_PLATFORMS,
+            CxxSourceRuleFactory.Strategy.SEPARATE_PREPROCESS_AND_COMPILE) {
+          @Override
+          public <A extends Arg> BuildRule createBuildRule(
+              BuildRuleParams params,
+              BuildRuleResolver resolver,
+              A args) {
+            assertThat(args.headerNamespace, Matchers.equalTo(Optional.of(cppHeaderNamespace)));
+            for (Map.Entry<String, SourcePath> header : cppHeaders.entrySet()) {
+              assertThat(
+                  args.exportedHeaders.get().getRight().get(header.getKey()),
+                  Matchers.equalTo(header.getValue()));
+            }
+            for (Map.Entry<String, SourceWithFlags> source : cppSrcs.entrySet()) {
+              assertThat(
+                  args.srcs.get().getRight().get(source.getKey()),
+                  Matchers.equalTo(source.getValue()));
+            }
+            return super.createBuildRule(params, resolver, args);
+          }
+        };
+    ThriftCxxEnhancer enhancer =
+        new ThriftCxxEnhancer(
+            THRIFT_BUCK_CONFIG,
+            cxxLibraryDescription,
+          /* cpp2 */ false);
+    enhancer.createBuildRule(
+        flavoredParams,
+        resolver,
+        arg,
+        sources,
+        ImmutableSortedSet.<BuildRule>of());
   }
 
 }

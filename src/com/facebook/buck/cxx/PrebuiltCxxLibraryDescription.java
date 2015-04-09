@@ -27,10 +27,12 @@ import com.facebook.buck.rules.BuildRuleParams;
 import com.facebook.buck.rules.BuildRuleResolver;
 import com.facebook.buck.rules.BuildRuleType;
 import com.facebook.buck.rules.Description;
-import com.facebook.buck.rules.ImmutableBuildRuleType;
 import com.facebook.buck.rules.PathSourcePath;
 import com.facebook.buck.rules.SourcePath;
 import com.facebook.buck.rules.SourcePathResolver;
+import com.facebook.buck.rules.macros.MacroException;
+import com.facebook.buck.rules.macros.MacroFinder;
+import com.facebook.buck.rules.macros.MacroReplacer;
 import com.facebook.buck.util.HumanReadableException;
 import com.facebook.infer.annotation.SuppressFieldNotInitialized;
 import com.google.common.base.Function;
@@ -48,6 +50,8 @@ import java.util.Map;
 public class PrebuiltCxxLibraryDescription
     implements Description<PrebuiltCxxLibraryDescription.Arg> {
 
+  private static final MacroFinder MACRO_FINDER = new MacroFinder();
+
   private static enum Type {
     SHARED,
   }
@@ -58,7 +62,7 @@ public class PrebuiltCxxLibraryDescription
           ImmutableMap.of(
               CxxDescriptionEnhancer.SHARED_FLAVOR, Type.SHARED));
 
-  public static final BuildRuleType TYPE = ImmutableBuildRuleType.of("prebuilt_cxx_library");
+  public static final BuildRuleType TYPE = BuildRuleType.of("prebuilt_cxx_library");
 
   private final FlavorDomain<CxxPlatform> cxxPlatforms;
 
@@ -76,6 +80,102 @@ public class PrebuiltCxxLibraryDescription
     return new Arg();
   }
 
+  // Using the {@code MACRO_FINDER} above, return the given string with any `platform` macros
+  // replaced with the name of the given platform.
+  private static String expandPlatform(
+      BuildTarget target,
+      final CxxPlatform cxxPlatform,
+      String arg) {
+    try {
+      return MACRO_FINDER.replace(
+          ImmutableMap.<String, MacroReplacer>of(
+              "platform",
+              new MacroReplacer() {
+                @Override
+                public String replace(String input) throws MacroException {
+                  return cxxPlatform.getFlavor().toString();
+                }
+              }),
+          arg);
+    } catch (MacroException e) {
+      throw new HumanReadableException("%s: %s", target, e.getMessage());
+    }
+  }
+
+  // Resolve the given optional arg, falling back to the given default if not present and
+  // expanding platform macros otherwise.
+  private static String getOptionalArg(
+      BuildTarget target,
+      CxxPlatform cxxPlatform,
+      Optional<String> arg,
+      String defaultValue) {
+    if (!arg.isPresent()) {
+      return defaultValue;
+    }
+    return expandPlatform(target, cxxPlatform, arg.get());
+  }
+
+  private static String getLibDir(
+      BuildTarget target,
+      CxxPlatform cxxPlatform,
+      Optional<String> libDir) {
+    return getOptionalArg(target, cxxPlatform, libDir, "lib");
+  }
+
+  private static String getLibName(
+      BuildTarget target,
+      CxxPlatform cxxPlatform,
+      Optional<String> libName) {
+    return getOptionalArg(target, cxxPlatform, libName, target.getShortName());
+  }
+
+  public static String getSoname(
+      BuildTarget target,
+      CxxPlatform cxxPlatform,
+      Optional<String> soname,
+      Optional<String> libName) {
+    return getOptionalArg(
+        target,
+        cxxPlatform,
+        soname,
+        String.format(
+            "lib%s.%s",
+            getLibName(target, cxxPlatform, libName),
+            cxxPlatform.getSharedLibraryExtension()));
+  }
+
+  private static Path getLibraryPath(
+      BuildTarget target,
+      CxxPlatform cxxPlatform,
+      Optional<String> libDir,
+      Optional<String> libName,
+      String suffix) {
+    return target.getBasePath()
+        .resolve(getLibDir(target, cxxPlatform, libDir))
+        .resolve(String.format("lib%s%s", getLibName(target, cxxPlatform, libName), suffix));
+  }
+
+  public static Path getSharedLibraryPath(
+      BuildTarget target,
+      CxxPlatform cxxPlatform,
+      Optional<String> libDir,
+      Optional<String> libName) {
+    return getLibraryPath(
+        target,
+        cxxPlatform,
+        libDir,
+        libName,
+        String.format(".%s", cxxPlatform.getSharedLibraryExtension()));
+  }
+
+  public static Path getStaticLibraryPath(
+      BuildTarget target,
+      CxxPlatform cxxPlatform,
+      Optional<String> libDir,
+      Optional<String> libName) {
+    return getLibraryPath(target, cxxPlatform, libDir, libName, ".a");
+  }
+
   private <A extends Arg> BuildRule createSharedLibraryBuildRule(
       BuildRuleParams params,
       BuildRuleResolver ruleResolver,
@@ -85,13 +185,8 @@ public class PrebuiltCxxLibraryDescription
     SourcePathResolver pathResolver = new SourcePathResolver(ruleResolver);
 
     BuildTarget target = params.getBuildTarget();
-    String libDir = args.libDir.or("lib");
-    String libName = args.libName.or(target.getShortName());
-    String soname = args.soname.or(String.format("lib%s.so", libName));
-    Path staticLibraryPath =
-        target.getBasePath()
-            .resolve(libDir)
-            .resolve(String.format("lib%s.a", libName));
+    String soname = getSoname(target, cxxPlatform, args.soname, args.libName);
+    Path staticLibraryPath = getStaticLibraryPath(target, cxxPlatform, args.libDir, args.libName);
 
     // Otherwise, we need to build it from the static lib.
     BuildTarget sharedTarget = BuildTarget
@@ -100,7 +195,7 @@ public class PrebuiltCxxLibraryDescription
         .build();
 
     // If not, setup a single link rule to link it from the static lib.
-    Path builtSharedLibraryPath = BuildTargets.getBinPath(sharedTarget, "%s").resolve(soname);
+    Path builtSharedLibraryPath = BuildTargets.getScratchPath(sharedTarget, "%s").resolve(soname);
     return CxxLinkableEnhancer.createCxxLinkableBuildRule(
         cxxPlatform,
         params,
@@ -111,7 +206,8 @@ public class PrebuiltCxxLibraryDescription
         Linker.LinkType.SHARED,
         Optional.of(soname),
         builtSharedLibraryPath,
-        ImmutableList.<SourcePath>of(new PathSourcePath(staticLibraryPath)),
+        ImmutableList.<SourcePath>of(
+            new PathSourcePath(params.getProjectFilesystem(), staticLibraryPath)),
         Linker.LinkableDepType.SHARED,
         params.getDeps());
   }
@@ -148,22 +244,6 @@ public class PrebuiltCxxLibraryDescription
     // get the real build rules via querying the action graph.
     final BuildTarget target = params.getBuildTarget();
 
-    boolean headerOnly = args.headerOnly.or(false);
-    boolean provided = args.provided.or(false);
-    boolean linkWhole = args.linkWhole.or(false);
-    String libDir = args.libDir.or("lib");
-    String libName = args.libName.or(target.getShortName());
-    String soname = args.soname.or(String.format("lib%s.so", libName));
-
-    Path staticLibraryPath =
-        target.getBasePath()
-            .resolve(libDir)
-            .resolve(String.format("lib%s.a", libName));
-    Path sharedLibraryPath =
-        target.getBasePath()
-            .resolve(libDir)
-            .resolve(String.format("lib%s.so", libName));
-
     // Resolve all the target-base-path-relative include paths to their full paths.
     Function<String, Path> fullPathFn = new Function<String, Path>() {
       @Override
@@ -182,14 +262,14 @@ public class PrebuiltCxxLibraryDescription
         resolver,
         pathResolver,
         includeDirs,
-        staticLibraryPath,
-        sharedLibraryPath,
-        args.linkerFlags.or(ImmutableList.<String>of()),
-        args.platformLinkerFlags.get(),
-        soname,
-        headerOnly,
-        linkWhole,
-        provided);
+        args.libDir,
+        args.libName,
+        args.exportedLinkerFlags.get(),
+        args.exportedPlatformLinkerFlags.get(),
+        args.soname,
+        args.headerOnly.or(false),
+        args.linkWhole.or(false),
+        args.provided.or(false));
   }
 
   @SuppressFieldNotInitialized
@@ -200,8 +280,8 @@ public class PrebuiltCxxLibraryDescription
     public Optional<Boolean> headerOnly;
     public Optional<Boolean> provided;
     public Optional<Boolean> linkWhole;
-    public Optional<ImmutableList<String>> linkerFlags;
-    public Optional<ImmutableList<Pair<String, ImmutableList<String>>>> platformLinkerFlags;
+    public Optional<ImmutableList<String>> exportedLinkerFlags;
+    public Optional<ImmutableList<Pair<String, ImmutableList<String>>>> exportedPlatformLinkerFlags;
     public Optional<String> soname;
     public Optional<ImmutableSortedSet<BuildTarget>> deps;
   }

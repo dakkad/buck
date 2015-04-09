@@ -33,7 +33,6 @@ import com.facebook.buck.rules.Repository;
 import com.facebook.buck.rules.TargetGraph;
 import com.facebook.buck.rules.TargetNode;
 import com.facebook.buck.rules.TestRepositoryBuilder;
-import com.facebook.buck.testutil.FakeFileHashCache;
 import com.facebook.buck.testutil.FakeProjectFilesystem;
 import com.facebook.buck.testutil.TargetGraphFactory;
 import com.facebook.buck.testutil.TestConsole;
@@ -74,19 +73,19 @@ public class AuditInputCommandTest {
     ObjectMapper objectMapper = new ObjectMapper();
     objectMapper.registerModule(new Jdk7Module());
 
-    auditInputCommand = new AuditInputCommand(new CommandRunnerParams(
-        console,
-        new FakeRepositoryFactory(),
-        repository,
-        new FakeAndroidDirectoryResolver(),
-        new InstanceArtifactCacheFactory(artifactCache),
-        eventBus,
-        new ParserConfig(new FakeBuckConfig()),
-        Platform.detect(),
-        ImmutableMap.copyOf(System.getenv()),
-        new FakeJavaPackageFinder(),
-        objectMapper,
-        FakeFileHashCache.EMPTY_CACHE));
+    auditInputCommand = new AuditInputCommand(
+        CommandRunnerParamsForTesting.createCommandRunnerParamsForTesting(
+            console,
+            new FakeRepositoryFactory(),
+            repository,
+            new FakeAndroidDirectoryResolver(),
+            new InstanceArtifactCacheFactory(artifactCache),
+            eventBus,
+            new ParserConfig(new FakeBuckConfig()),
+            Platform.detect(),
+            ImmutableMap.copyOf(System.getenv()),
+            new FakeJavaPackageFinder(),
+            objectMapper));
   }
 
   @Test

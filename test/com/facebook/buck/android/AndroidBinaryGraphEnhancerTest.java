@@ -117,10 +117,11 @@ public class AndroidBinaryGraphEnhancerTest {
         /* cpuFilters */ ImmutableSet.< TargetCpuType>of(),
         /* shouldBuildStringSourceMap */ false,
         /* shouldPreDex */ true,
-        BuildTargets.getBinPath(apkTarget, "%s/classes.dex"),
+        BuildTargets.getScratchPath(apkTarget, "%s/classes.dex"),
         DexSplitMode.NO_SPLIT,
         buildRulesToExcludeFromDex,
         /* resourcesToExclude */ ImmutableSet.<BuildTarget>of(),
+        /* skipCrunchPngs */ false,
         ANDROID_JAVAC_OPTIONS,
         EnumSet.noneOf(ExopackageMode.class),
         createStrictMock(Keystore.class),
@@ -146,7 +147,8 @@ public class AndroidBinaryGraphEnhancerTest {
         ANDROID_JAVAC_OPTIONS,
         false,
         false,
-        /* warnMissingResource */ false);
+        /* warnMissingResource */ false,
+        /* skipCrunchPngs */ false);
     ruleResolver.addToIndex(aaptPackageResources);
 
     ImmutableAndroidPackageableCollection collection = new AndroidPackageableCollector(
@@ -230,10 +232,11 @@ public class AndroidBinaryGraphEnhancerTest {
         /* cpuFilters */ ImmutableSet.<TargetCpuType>of(),
         /* shouldBuildStringSourceMap */ false,
         /* shouldPreDex */ false,
-        BuildTargets.getBinPath(apkTarget, "%s/classes.dex"),
+        BuildTargets.getScratchPath(apkTarget, "%s/classes.dex"),
         DexSplitMode.NO_SPLIT,
         /* buildRulesToExcludeFromDex */ ImmutableSet.<BuildTarget>of(),
         /* resourcesToExclude */ ImmutableSet.<BuildTarget>of(),
+        /* skipCrunchPngs */ false,
         ANDROID_JAVAC_OPTIONS,
         EnumSet.of(ExopackageMode.SECONDARY_DEX),
         keystore,

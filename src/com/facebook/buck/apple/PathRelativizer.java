@@ -19,9 +19,11 @@ package com.facebook.buck.apple;
 import com.facebook.buck.io.MorePaths;
 import com.facebook.buck.model.BuildTarget;
 import com.facebook.buck.rules.SourcePath;
-import com.facebook.buck.rules.SourcePathResolver;
+import com.google.common.base.Function;
+import com.google.common.base.Preconditions;
 
 import java.nio.file.Path;
+import java.nio.file.Paths;
 
 /**
  * Helper class to convert among various relative path-like objects.
@@ -30,39 +32,52 @@ import java.nio.file.Path;
  * path referenced from Y to one that is referenced from X.
  */
 public final class PathRelativizer {
-  private SourcePathResolver resolver;
 
-  private final Path outputPathToProjectRoot;
+  private static final Path EMPTY_PATH = Paths.get("");
+  private static final Path CURRENT_DIRECTORY = Paths.get(".");
 
-  public PathRelativizer(Path projectRoot, Path outputDirectory, SourcePathResolver resolver) {
+  private final Path outputDirectory;
+  private final Function<SourcePath, Path> resolver;
+
+  public PathRelativizer(
+      Path outputDirectory,
+      Function<SourcePath, Path> resolver) {
+    this.outputDirectory = outputDirectory;
     this.resolver = resolver;
-    this.outputPathToProjectRoot = MorePaths.relativize(
-        outputDirectory.toAbsolutePath(),
-        projectRoot.toAbsolutePath());
   }
 
   /**
    * Path from output directory to a build target's buck file directory.
    */
-  public Path outputPathToBuildTargetPath(BuildTarget target, Path... paths) {
-    Path result = outputPathToProjectRoot.resolve(target.getBasePath());
-    for (Path p : paths) {
-      result = result.resolve(p);
-    }
-    return result.normalize();
+  public Path outputPathToBuildTargetPath(BuildTarget target) {
+    return outputDirToRootRelative(target.getBasePath());
   }
 
   /**
    * Path from output directory to given path that's relative to the root directory.
    */
   public Path outputDirToRootRelative(Path path) {
-    return outputPathToProjectRoot.resolve(path).normalize();
+    Path result = MorePaths.normalize(MorePaths.relativize(outputDirectory, path));
+    if (EMPTY_PATH.equals(result)) {
+      result = CURRENT_DIRECTORY;
+    }
+    return result;
+  }
+
+  public Function<Path, Path> outputDirToRootRelative() {
+    return new Function<Path, Path>() {
+      @Override
+      public Path apply(Path input) {
+        return outputDirToRootRelative(input);
+      }
+    };
   }
 
   /**
    * Map a SourcePath to one that's relative to the output directory.
    */
   public Path outputPathToSourcePath(SourcePath sourcePath) {
-    return outputDirToRootRelative(resolver.getPath(sourcePath).normalize());
+    return outputDirToRootRelative(
+        Preconditions.checkNotNull(resolver.apply(sourcePath)));
   }
 }

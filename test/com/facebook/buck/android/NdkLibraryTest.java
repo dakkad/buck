@@ -33,6 +33,7 @@ import com.facebook.buck.testutil.MoreAsserts;
 import com.facebook.buck.util.BuckConstant;
 import com.facebook.buck.util.DefaultPropertyFinder;
 import com.google.common.base.Optional;
+import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
@@ -52,11 +53,12 @@ public class NdkLibraryTest {
 
   private ExecutionContext executionContext;
   private String ndkBuildCommand;
+  private ProjectFilesystem projectFilesystem;
 
   @Before
   public void setUp() {
     AssumeAndroidPlatform.assumeNdkIsAvailable();
-    ProjectFilesystem projectFilesystem = new ProjectFilesystem(Paths.get("."));
+    projectFilesystem = new ProjectFilesystem(Paths.get("."));
     AndroidDirectoryResolver resolver = new DefaultAndroidDirectoryResolver(projectFilesystem,
         Optional.<String>absent(),
         new DefaultPropertyFinder(projectFilesystem, ImmutableMap.copyOf(System.getenv())));
@@ -65,7 +67,7 @@ public class NdkLibraryTest {
         resolver,
         Optional.<Path>absent());
     executionContext = TestExecutionContext.newBuilder()
-        .setAndroidPlatformTarget(Optional.of(androidPlatformTarget))
+        .setAndroidPlatformTargetSupplier(Suppliers.ofInstance(androidPlatformTarget))
         .build();
     ndkBuildCommand = executionContext.resolveExecutable(
         resolver.findAndroidNdkDir().get(),
@@ -83,7 +85,9 @@ public class NdkLibraryTest {
         NdkLibraryBuilder.createNdkLibrary(
             BuildTargetFactory.newInstance(
                 String.format("//%s:base", basePath)),
-            pathResolver)
+            pathResolver,
+            ruleResolver,
+            projectFilesystem)
             .setNdkVersion("r8b")
             .addSrc(Paths.get(basePath + "/Application.mk"))
             .addSrc(Paths.get(basePath + "/main.cpp"))
@@ -111,7 +115,7 @@ public class NdkLibraryTest {
 
     List<Step> steps = ndkLibrary.getBuildSteps(context, new FakeBuildableContext());
 
-    String libbase = Paths.get(BuckConstant.BIN_DIR, basePath, "__libbase").toString();
+    String libbase = Paths.get(BuckConstant.SCRATCH_DIR, basePath, "__libbase").toString();
     MoreAsserts.assertShellCommands(
         "ndk_library() should invoke ndk-build on the given path with some -j value",
         ImmutableList.of(

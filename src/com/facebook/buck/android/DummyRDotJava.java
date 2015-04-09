@@ -109,7 +109,7 @@ public class DummyRDotJava extends AbstractBuildRule
           rDotJavaSrcFolder);
       steps.add(mergeStep);
       javaSourceFilePaths =
-          ImmutableSet.copyOf(getResolver().getAllPaths(mergeStep.getRDotJavaFiles()));
+          ImmutableSet.copyOf(mergeStep.getRDotJavaFiles());
     }
 
     // Clear out the directory where the .class files will be generated.
@@ -145,12 +145,12 @@ public class DummyRDotJava extends AbstractBuildRule
     return javacOptions.appendToRuleKey(builder, "javacOptions");
   }
 
-  private static Path getRDotJavaSrcFolder(BuildTarget buildTarget) {
-    return BuildTargets.getBinPath(buildTarget, "__%s_rdotjava_src__");
+  public static Path getRDotJavaSrcFolder(BuildTarget buildTarget) {
+    return BuildTargets.getScratchPath(buildTarget, "__%s_rdotjava_src__");
   }
 
   private static Path getRDotJavaBinFolder(BuildTarget buildTarget) {
-    return BuildTargets.getBinPath(buildTarget, "__%s_rdotjava_bin__");
+    return BuildTargets.getScratchPath(buildTarget, "__%s_rdotjava_bin__");
   }
 
   private static Path getPathToAbiOutputDir(BuildTarget buildTarget) {

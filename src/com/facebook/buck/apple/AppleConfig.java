@@ -61,7 +61,10 @@ public class AppleConfig {
     try {
       ImmutableMap<String, Path> toolchainPaths =
           AppleToolchainDiscovery.discoverAppleToolchainPaths(appleDeveloperDirectory);
-      return AppleSdkDiscovery.discoverAppleSdkPaths(appleDeveloperDirectory, toolchainPaths);
+      return AppleSdkDiscovery.discoverAppleSdkPaths(
+          appleDeveloperDirectory,
+          appleDeveloperDirectory.getParent().resolve("version.plist"),
+          toolchainPaths);
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
@@ -100,5 +103,9 @@ public class AppleConfig {
         return Paths.get(result.getStdout().get().trim());
       }
     });
+  }
+
+  public Optional<String> getTargetSdkVersion(ApplePlatform platform) {
+    return delegate.getValue("apple", platform.toString() + "_target_sdk_version");
   }
 }

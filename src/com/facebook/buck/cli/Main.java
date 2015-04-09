@@ -16,6 +16,9 @@
 
 package com.facebook.buck.cli;
 
+import com.facebook.buck.android.AndroidDirectoryResolver;
+import com.facebook.buck.android.AndroidPlatformTarget;
+import com.facebook.buck.android.NoAndroidSdkException;
 import com.facebook.buck.event.BuckEventBus;
 import com.facebook.buck.event.BuckEventListener;
 import com.facebook.buck.event.ConsoleEvent;
@@ -35,15 +38,12 @@ import com.facebook.buck.log.Logger;
 import com.facebook.buck.model.BuildId;
 import com.facebook.buck.parser.Parser;
 import com.facebook.buck.parser.ParserConfig;
-import com.facebook.buck.rules.BuildRule;
 import com.facebook.buck.rules.CachingBuildEngine;
 import com.facebook.buck.rules.KnownBuildRuleTypes;
 import com.facebook.buck.rules.Repository;
 import com.facebook.buck.rules.RepositoryFactory;
-import com.facebook.buck.rules.RuleKey;
-import com.facebook.buck.rules.RuleKey.Builder;
 import com.facebook.buck.rules.RuleKeyBuilderFactory;
-import com.facebook.buck.rules.SourcePathResolver;
+import com.facebook.buck.rules.keys.DefaultRuleKeyBuilderFactory;
 import com.facebook.buck.timing.Clock;
 import com.facebook.buck.timing.DefaultClock;
 import com.facebook.buck.timing.NanosAdjustedClock;
@@ -59,11 +59,11 @@ import com.facebook.buck.util.ProcessExecutor;
 import com.facebook.buck.util.ProcessManager;
 import com.facebook.buck.util.ProjectFilesystemWatcher;
 import com.facebook.buck.util.Verbosity;
-import com.facebook.buck.util.WatchServiceWatcher;
 import com.facebook.buck.util.WatchmanWatcher;
 import com.facebook.buck.util.WatchmanWatcherException;
 import com.facebook.buck.util.concurrent.TimeSpan;
 import com.facebook.buck.util.environment.DefaultExecutionEnvironment;
+import com.facebook.buck.util.environment.EnvironmentFilter;
 import com.facebook.buck.util.environment.ExecutionEnvironment;
 import com.facebook.buck.util.environment.Platform;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -72,6 +72,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Optional;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
+import com.google.common.base.Supplier;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
@@ -89,12 +90,12 @@ import java.io.PrintStream;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
-import java.nio.file.FileSystems;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Date;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.Semaphore;
@@ -114,8 +115,6 @@ public final class Main {
    */
   public static final int BUSY_EXIT_CODE = 2;
 
-  private static final String BUCK_VERSION_UID_KEY = "buck.version_uid";
-  private static final String BUCK_VERSION_UID = System.getProperty(BUCK_VERSION_UID_KEY, "N/A");
   private static final Optional<String> BUCKD_LAUNCH_TIME_NANOS =
     Optional.fromNullable(System.getProperty("buck.buckd_launch_time_nanos"));
   private static final String BUCK_BUILD_ID_ENV_VAR = "BUCK_BUILD_ID";
@@ -137,7 +136,7 @@ public final class Main {
 
   private final PrintStream stdOut;
   private final PrintStream stdErr;
-  private final Optional<BuckEventListener> externalEventsListener;
+  private final ImmutableList<BuckEventListener> externalEventsListeners;
 
   private static final Semaphore commandSemaphore = new Semaphore(1);
 
@@ -194,22 +193,14 @@ public final class Main {
 
     private ProjectFilesystemWatcher createWatcher(ProjectFilesystem projectFilesystem)
         throws IOException {
-      if (System.getProperty("buck.buckd_watcher", "WatchService").equals("Watchman")) {
-        LOG.debug("Using watchman to watch for file changes.");
-        return new WatchmanWatcher(
-            projectFilesystem,
-            fileEventBus,
-            clock,
-            objectMapper,
-            repository.getBuckConfig().getIgnorePaths(),
-            DEFAULT_IGNORE_GLOBS
-        );
-      }
-      LOG.debug("Using java.nio.file.WatchService to watch for file changes.");
-      return new WatchServiceWatcher(
+      LOG.debug("Using watchman to watch for file changes.");
+      return new WatchmanWatcher(
           projectFilesystem,
           fileEventBus,
-          FileSystems.getDefault().newWatchService());
+          clock,
+          objectMapper,
+          repository.getBuckConfig().getIgnorePaths(),
+          DEFAULT_IGNORE_GLOBS);
     }
 
     private Optional<WebServer> createWebServer(BuckConfig config, ProjectFilesystem filesystem) {
@@ -391,21 +382,21 @@ public final class Main {
 
   @VisibleForTesting
   public Main(PrintStream stdOut, PrintStream stdErr) {
-    this(stdOut, stdErr, Optional.<BuckEventListener>absent());
+    this(stdOut, stdErr, ImmutableList.<BuckEventListener>of());
   }
 
   @VisibleForTesting
   public Main(
       PrintStream stdOut,
       PrintStream stdErr,
-      Optional<BuckEventListener> externalEventsListener) {
+      List<BuckEventListener> externalEventsListeners) {
     this.stdOut = stdOut;
     this.stdErr = stdErr;
     this.platform = Platform.detect();
     this.objectMapper = new ObjectMapper();
     // Add support for serializing Path and other JDK 7 objects.
     this.objectMapper.registerModule(new Jdk7Module());
-    this.externalEventsListener = externalEventsListener;
+    this.externalEventsListeners = ImmutableList.copyOf(externalEventsListeners);
   }
 
   /** Prints the usage message to standard error. */
@@ -555,6 +546,10 @@ public final class Main {
     DefaultFileHashCache fileHashCache = new DefaultFileHashCache(rootRepository.getFilesystem());
 
     @Nullable ArtifactCacheFactory artifactCacheFactory = null;
+    Optional<WebServer> webServer = getWebServerIfDaemon(
+        context,
+        repositoryFactory,
+        clock);
 
     // The order of resources in the try-with-resources block is important: the BuckEventBus must
     // be the last resource, so that it is closed first and can deliver its queued events to the
@@ -572,9 +567,9 @@ public final class Main {
                  console,
                  verbosity,
                  executionEnvironment,
-                 rootRepository.getBuckConfig());
+                 rootRepository.getBuckConfig(),
+                 webServer);
          BuckEventBus buildEventBus = new BuckEventBus(clock, buildId)) {
-
       // The ArtifactCache is constructed lazily so that we do not try to connect to Cassandra when
       // running commands such as `buck clean`.
       artifactCacheFactory = new LoggingArtifactCacheFactory(
@@ -582,10 +577,6 @@ public final class Main {
           buildEventBus,
           fileHashCache);
 
-      Optional<WebServer> webServer = getWebServerIfDaemon(
-          context,
-          repositoryFactory,
-          clock);
       eventListeners = addEventListeners(buildEventBus,
           rootRepository.getFilesystem(),
           rootRepository.getBuckConfig(),
@@ -631,19 +622,28 @@ public final class Main {
       }
       JavaUtilsLoggingBuildListener.ensureLogFileIsWritten(rootRepository.getFilesystem());
 
-      CachingBuildEngine buildEngine = new CachingBuildEngine();
+      CachingBuildEngine buildEngine =
+          new CachingBuildEngine(
+              rootRepository.getBuckConfig().getSkipLocalBuildChainDepth().or(1L));
       Optional<ProcessManager> processManager;
       if (platform == Platform.WINDOWS) {
         processManager = Optional.absent();
       } else {
         processManager = Optional.<ProcessManager>of(new PkillProcessManager(processExecutor));
       }
+      BuckConfig buckConfig = rootRepository.getBuckConfig();
+      Supplier<AndroidPlatformTarget> androidPlatformTargetSupplier =
+          createAndroidPlatformTargetSupplier(
+              rootRepository.getAndroidDirectoryResolver(),
+              buckConfig,
+              buildEventBus);
+
       exitCode = executingCommand.execute(remainingArgs,
-          rootRepository.getBuckConfig(),
+          buckConfig,
           new CommandRunnerParams(
               console,
               rootRepository,
-              rootRepository.getAndroidDirectoryResolver(),
+              androidPlatformTargetSupplier,
               buildEngine,
               artifactCacheFactory,
               buildEventBus,
@@ -652,21 +652,9 @@ public final class Main {
               clientEnvironment,
               rootRepository.getBuckConfig().createDefaultJavaPackageFinder(),
               objectMapper,
-              fileHashCache,
               clock,
               processManager));
-
       parser.cleanCache();
-
-      // If the Daemon is running and serving web traffic, print the URL to the Chrome Trace.
-      if (webServer.isPresent()) {
-        Optional<Integer> port = webServer.get().getPort();
-        if (port.isPresent()) {
-          buildEventBus.post(ConsoleEvent.info(
-              "See trace at http://localhost:%s/trace/%s", port.get(), buildId));
-        }
-      }
-
       buildEventBus.post(CommandEvent.finished(commandName, remainingArgs, isDaemon, exitCode));
     } catch (Throwable t) {
       LOG.debug(t, "Failing build on exception.");
@@ -686,11 +674,75 @@ public final class Main {
       try {
         eventListener.outputTrace(buildId);
       } catch (RuntimeException e) {
-        System.err.println("Skipping over non-fatal error");
-        e.printStackTrace();
+        PrintStream stdErr = console.getStdErr();
+        stdErr.println("Skipping over non-fatal error");
+        e.printStackTrace(stdErr);
       }
     }
     return exitCode;
+  }
+
+  @VisibleForTesting
+  static Supplier<AndroidPlatformTarget> createAndroidPlatformTargetSupplier(
+      final AndroidDirectoryResolver androidDirectoryResolver,
+      final BuckConfig buckConfig,
+      final BuckEventBus eventBus) {
+    // TODO(mbolin): Only one such Supplier should be created per Repository per Buck execution.
+    // Currently, only one Supplier is created per Buck execution because Main creates the Supplier
+    // and passes it from above all the way through, but it is not parameterized by Repository. It
+    // seems like the Repository concept is not fully baked, so this is likely one of many
+    // multi-Repository issues that need to be addressed to support it properly.
+    //
+    // TODO(mbolin): Every build rule that uses AndroidPlatformTarget must include the result of its
+    // getName() method in its RuleKey.
+    return new Supplier<AndroidPlatformTarget>() {
+
+      @Nullable
+      private AndroidPlatformTarget androidPlatformTarget;
+
+      @Nullable
+      private NoAndroidSdkException exception;
+
+      @Override
+      public AndroidPlatformTarget get() {
+        if (androidPlatformTarget != null) {
+          return androidPlatformTarget;
+        } else if (exception != null) {
+          throw exception;
+        }
+
+        Optional<Path> androidSdkDirOption = androidDirectoryResolver.findAndroidSdkDirSafe();
+        if (!androidSdkDirOption.isPresent()) {
+          exception = new NoAndroidSdkException();
+          throw exception;
+        }
+
+        String androidPlatformTargetId;
+        Optional<String> target = buckConfig.getAndroidTarget();
+        if (target.isPresent()) {
+          androidPlatformTargetId = target.get();
+        } else {
+          androidPlatformTargetId = AndroidPlatformTarget.DEFAULT_ANDROID_PLATFORM_TARGET;
+          eventBus.post(ConsoleEvent.warning(
+              "No Android platform target specified. Using default: %s",
+              androidPlatformTargetId));
+        }
+
+        Optional<AndroidPlatformTarget> androidPlatformTargetOptional = AndroidPlatformTarget
+            .getTargetForId(
+                androidPlatformTargetId,
+                androidDirectoryResolver,
+                buckConfig.getAaptOverride());
+        if (androidPlatformTargetOptional.isPresent()) {
+          androidPlatformTarget = androidPlatformTargetOptional.get();
+          return androidPlatformTarget;
+        } else {
+          exception = NoAndroidSdkException.createExceptionForPlatformThatCannotBeFound(
+              androidPlatformTargetId);
+          throw exception;
+        }
+      }
+    };
   }
 
   /**
@@ -825,7 +877,8 @@ public final class Main {
 
 
 
-    JavacOptions javacOptions = new JavaBuckConfig(config).getDefaultJavacOptions();
+    JavacOptions javacOptions = new JavaBuckConfig(config)
+        .getDefaultJavacOptions(new ProcessExecutor(console));
 
     eventListenersBuilder.add(MissingSymbolsHandler.createListener(
             projectFilesystem,
@@ -836,14 +889,12 @@ public final class Main {
             javacOptions,
             environment));
 
+    eventListenersBuilder.addAll(externalEventsListeners);
+
     ImmutableList<BuckEventListener> eventListeners = eventListenersBuilder.build();
 
     for (BuckEventListener eventListener : eventListeners) {
       buckEvents.register(eventListener);
-    }
-
-    if (externalEventsListener.isPresent()) {
-      buckEvents.register(externalEventsListener.get());
     }
 
     return eventListeners;
@@ -854,7 +905,8 @@ public final class Main {
       Console console,
       Verbosity verbosity,
       ExecutionEnvironment executionEnvironment,
-      BuckConfig config) {
+      BuckConfig config,
+      Optional<WebServer> webServer) {
     if (Platform.WINDOWS != Platform.detect() &&
         console.getAnsi().isAnsiTerminal() &&
         !verbosity.shouldPrintCommand() &&
@@ -863,7 +915,8 @@ public final class Main {
           console,
           clock,
           executionEnvironment,
-          config.isTreatingAssumptionsAsErrors());
+          config.isTreatingAssumptionsAsErrors(),
+          webServer);
       superConsole.startRenderScheduler(SUPER_CONSOLE_REFRESH_RATE.getDuration(),
           SUPER_CONSOLE_REFRESH_RATE.getUnit());
       return superConsole;
@@ -878,14 +931,7 @@ public final class Main {
    * @param hashCache A cache of file content hashes, used to avoid reading and hashing input files.
    */
   private static RuleKeyBuilderFactory createRuleKeyBuilderFactory(final FileHashCache hashCache) {
-    return new RuleKeyBuilderFactory() {
-      @Override
-      public Builder newInstance(BuildRule buildRule, SourcePathResolver resolver) {
-        RuleKey.Builder builder = RuleKey.builder(buildRule, resolver, hashCache);
-        builder.setReflectively("buckVersionUid", BUCK_VERSION_UID);
-        return builder;
-      }
-    };
+    return new DefaultRuleKeyBuilderFactory(hashCache);
   }
 
   @VisibleForTesting
@@ -1089,4 +1135,5 @@ public final class Main {
           slayerTimeout.getUnit());
     }
   }
+
 }

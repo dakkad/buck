@@ -93,7 +93,7 @@ public class AppleResource extends AbstractBuildRule {
     BuildTarget target = params.getBuildTarget();
     // TODO(user): This is hokey, just a hack to get started.
     // TODO(grp): Support copying into a bundle's resources subdirectory.
-    this.outputDirectory = BuildTargets.getBinPath(target, "%s.app");
+    this.outputDirectory = BuildTargets.getScratchPath(target, "%s.app");
   }
 
   /**
@@ -108,13 +108,6 @@ public class AppleResource extends AbstractBuildRule {
    */
   public ImmutableSortedSet<SourcePath> getFiles() {
     return files;
-  }
-
-  /**
-   * Returns a map of variant files to evaluate for this resource rule.
-   */
-  public ImmutableMap<String, ImmutableMap<String, SourcePath>> getVariants() {
-    return variants;
   }
 
   @Override

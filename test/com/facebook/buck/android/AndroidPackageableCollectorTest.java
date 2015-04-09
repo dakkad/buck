@@ -74,7 +74,9 @@ public class AndroidPackageableCollectorTest {
         NdkLibraryBuilder
             .createNdkLibrary(BuildTargetFactory.newInstance(
                 "//java/com/facebook/native_library:library"),
-                pathResolver)
+                pathResolver,
+                ruleResolver,
+                projectFilesystem)
             .addSrc(Paths.get("Android.mk"))
             .setIsAsset(false).build();
     ruleResolver.addToIndex(ndkLibrary);
@@ -105,7 +107,9 @@ public class AndroidPackageableCollectorTest {
         .setResolver(pathResolver)
         .setBuildTarget(manifestTarget)
         .setManifest(
-            new PathSourcePath(Paths.get("java/src/com/facebook/module/AndroidManifest.xml")))
+            new PathSourcePath(
+                projectFilesystem,
+                Paths.get("java/src/com/facebook/module/AndroidManifest.xml")))
         .setAssets(Paths.get("assets"))
         .build();
     ruleResolver.addToIndex(manifestRule);
@@ -155,11 +159,6 @@ public class AndroidPackageableCollectorTest {
             "transitive dependencies",
         ImmutableSet.of(Paths.get("assets")),
         packageableCollection.getAssetsDirectories());
-    assertEquals(
-        "Because manifest file was passed an AndroidResourceRule it should be added to the " +
-            "transitive dependencies",
-        ImmutableSet.of(Paths.get("java/src/com/facebook/module/AndroidManifest.xml")),
-        packageableCollection.getManifestFiles());
     assertEquals(
         "Because a native library was declared as a dependency, it should be added to the " +
             "transitive dependencies.",

@@ -24,6 +24,7 @@ import static org.junit.Assert.assertTrue;
 
 import com.facebook.buck.event.BuckEventBusFactory;
 import com.facebook.buck.graph.MutableDirectedGraph;
+import com.facebook.buck.io.MorePaths;
 import com.facebook.buck.io.ProjectFilesystem;
 import com.facebook.buck.java.JavaPackageFinder;
 import com.facebook.buck.model.BuildId;
@@ -39,17 +40,23 @@ import com.facebook.buck.rules.FakeBuildRule;
 import com.facebook.buck.rules.FakeBuildableContext;
 import com.facebook.buck.rules.ImmutableBuildContext;
 import com.facebook.buck.rules.RuleKey;
+import com.facebook.buck.rules.RuleKeyBuilderFactory;
 import com.facebook.buck.rules.SourcePathResolver;
 import com.facebook.buck.rules.TestSourcePath;
+import com.facebook.buck.rules.keys.DefaultRuleKeyBuilderFactory;
 import com.facebook.buck.step.Step;
 import com.facebook.buck.step.StepFailedException;
 import com.facebook.buck.step.StepRunner;
 import com.facebook.buck.step.TestExecutionContext;
+import com.facebook.buck.testutil.FakeProjectFilesystem;
 import com.facebook.buck.testutil.MoreAsserts;
 import com.facebook.buck.timing.DefaultClock;
+import com.facebook.buck.util.DefaultFileHashCache;
+import com.facebook.buck.util.FileHashCache;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.FutureCallback;
+import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 
 import org.easymock.EasyMock;
@@ -78,8 +85,9 @@ public class ExportFileTest {
 
   @Test
   public void shouldSetSrcAndOutToNameParameterIfNeitherAreSet() throws IOException {
+    ProjectFilesystem projectFilesystem = new FakeProjectFilesystem();
     ExportFile exportFile = (ExportFile) ExportFileBuilder.newExportFileBuilder(target)
-        .build(new BuildRuleResolver());
+        .build(new BuildRuleResolver(), projectFilesystem);
 
     List<Step> steps = exportFile.getBuildSteps(context, new FakeBuildableContext());
 
@@ -87,7 +95,7 @@ public class ExportFileTest {
         "The output directory should be created and then the file should be copied there.",
         ImmutableList.of(
             "mkdir -p buck-out/gen",
-            "cp example.html buck-out/gen/example.html"),
+            "cp " + projectFilesystem.resolve("example.html") + " buck-out/gen/example.html"),
         steps,
         TestExecutionContext.newInstance());
     assertEquals(Paths.get("buck-out/gen/example.html"), exportFile.getPathToOutputFile());
@@ -95,9 +103,10 @@ public class ExportFileTest {
 
   @Test
   public void shouldSetOutToNameParamValueIfSrcIsSet() throws IOException {
+    ProjectFilesystem projectFilesystem = new FakeProjectFilesystem();
     ExportFile exportFile = (ExportFile) ExportFileBuilder.newExportFileBuilder(target)
         .setOut("fish")
-        .build(new BuildRuleResolver());
+        .build(new BuildRuleResolver(), projectFilesystem);
 
     List<Step> steps = exportFile.getBuildSteps(context, new FakeBuildableContext());
 
@@ -105,7 +114,7 @@ public class ExportFileTest {
         "The output directory should be created and then the file should be copied there.",
         ImmutableList.of(
             "mkdir -p buck-out/gen",
-            "cp example.html buck-out/gen/fish"),
+            "cp " + projectFilesystem.resolve("example.html") + " buck-out/gen/fish"),
         steps,
         TestExecutionContext.newInstance());
     assertEquals(Paths.get("buck-out/gen/fish"), exportFile.getPathToOutputFile());
@@ -113,10 +122,11 @@ public class ExportFileTest {
 
   @Test
   public void shouldSetOutAndSrcAndNameParametersSeparately() throws IOException {
+    ProjectFilesystem projectFilesystem = new FakeProjectFilesystem();
     ExportFile exportFile = (ExportFile) ExportFileBuilder.newExportFileBuilder(target)
         .setSrc(new TestSourcePath("chips"))
         .setOut("fish")
-        .build(new BuildRuleResolver());
+        .build(new BuildRuleResolver(), projectFilesystem);
 
     List<Step> steps = exportFile.getBuildSteps(context, new FakeBuildableContext());
 
@@ -124,7 +134,7 @@ public class ExportFileTest {
         "The output directory should be created and then the file should be copied there.",
         ImmutableList.of(
             "mkdir -p buck-out/gen",
-            "cp chips buck-out/gen/fish"),
+            "cp " + projectFilesystem.resolve("chips") + " buck-out/gen/fish"),
         steps,
         TestExecutionContext.newInstance());
     assertEquals(Paths.get("buck-out/gen/fish"), exportFile.getPathToOutputFile());
@@ -132,6 +142,7 @@ public class ExportFileTest {
 
   @Test
   public void shouldSetInputsFromSourcePaths() {
+    ProjectFilesystem projectFilesystem = new FakeProjectFilesystem();
     ExportFileBuilder builder = ExportFileBuilder.newExportFileBuilder(target)
         .setSrc(new TestSourcePath("chips"))
         .setOut("cake");
@@ -139,7 +150,7 @@ public class ExportFileTest {
     ExportFile exportFile = (ExportFile) builder
         .build(new BuildRuleResolver());
 
-    assertIterablesEquals(singleton(Paths.get("chips")), exportFile.getInputsToCompareToOutput());
+    assertIterablesEquals(singleton(Paths.get("chips")), exportFile.getSource());
 
     BuildRuleResolver ruleResolver = new BuildRuleResolver();
     FakeBuildRule rule = new FakeBuildRule(
@@ -147,14 +158,14 @@ public class ExportFileTest {
         BuildTargetFactory.newInstance("//example:one"),
         new SourcePathResolver(ruleResolver));
 
-    builder.setSrc(new BuildTargetSourcePath(rule.getBuildTarget()));
+    builder.setSrc(new BuildTargetSourcePath(projectFilesystem, rule.getBuildTarget()));
     exportFile = (ExportFile) builder.build(ruleResolver);
-    assertTrue(Iterables.isEmpty(exportFile.getInputsToCompareToOutput()));
+    assertTrue(Iterables.isEmpty(exportFile.getSource()));
 
     builder.setSrc(null);
     exportFile = (ExportFile) builder.build(new BuildRuleResolver());
     assertIterablesEquals(
-        singleton(Paths.get("example.html")), exportFile.getInputsToCompareToOutput());
+        singleton(Paths.get("example.html")), exportFile.getSource());
   }
 
   @Test
@@ -168,25 +179,39 @@ public class ExportFileTest {
 
   @Test
   public void modifyingTheContentsOfTheFileChangesTheRuleKey() throws IOException {
-    Path temp = Files.createTempFile("example", "file");
+    Path root = Files.createTempDirectory("root");
+    FakeProjectFilesystem filesystem = new FakeProjectFilesystem(root.toFile());
+    Path temp = Files.createTempFile(root, "example", "file");
     temp.toFile().deleteOnExit();
+
+    FileHashCache hashCache = new DefaultFileHashCache(filesystem);
+    RuleKeyBuilderFactory ruleKeyFactory = new DefaultRuleKeyBuilderFactory(hashCache);
 
     Files.write(temp, "I like cheese".getBytes(UTF_8));
 
     ExportFileBuilder builder = ExportFileBuilder
         .newExportFileBuilder(BuildTargetFactory.newInstance("//some:file"))
-        .setSrc(new TestSourcePath(temp.toAbsolutePath().toString()));
+        .setSrc(new TestSourcePath(MorePaths.relativize(root, temp).toString()));
 
-    ExportFile rule = (ExportFile) builder.build(new BuildRuleResolver());
+    ExportFile rule = (ExportFile) builder.build(new BuildRuleResolver(), filesystem);
 
-    RuleKey original = rule.getRuleKey();
+    RuleKey original = ruleKeyFactory
+            .newInstance(rule, new SourcePathResolver(new BuildRuleResolver()))
+            .build()
+            .getTotalRuleKey();
 
     Files.write(temp, "I really like cheese".getBytes(UTF_8));
 
     // Create a new rule. The FileHashCache held by the existing rule will retain a reference to the
     // previous content of the file, so we need to create an identical rule.
-    rule = (ExportFile) builder.build(new BuildRuleResolver());
-    RuleKey refreshed = rule.getRuleKey();
+    rule = (ExportFile) builder.build(new BuildRuleResolver(), filesystem);
+
+    hashCache = new DefaultFileHashCache(filesystem);
+    ruleKeyFactory = new DefaultRuleKeyBuilderFactory(hashCache);
+    RuleKey refreshed = ruleKeyFactory
+        .newInstance(rule, new SourcePathResolver(new BuildRuleResolver()))
+        .build()
+        .getTotalRuleKey();
 
     assertNotEquals(original, refreshed);
   }
@@ -198,47 +223,55 @@ public class ExportFileTest {
         .setEventBus(BuckEventBusFactory.newInstance())
         .setClock(new DefaultClock())
         .setBuildId(new BuildId())
-        .setJavaPackageFinder(new JavaPackageFinder() {
-          @Override
-          public String findJavaPackageFolderForPath(String pathRelativeToProjectRoot) {
-            return null;
-          }
+        .setJavaPackageFinder(
+            new JavaPackageFinder() {
+              @Override
+              public Path findJavaPackageFolder(Path pathRelativeToProjectRoot) {
+                return null;
+              }
 
-          @Override
-          public String findJavaPackageForPath(String pathRelativeToProjectRoot) {
-            return null;
-          }
-        })
+              @Override
+              public String findJavaPackage(Path pathRelativeToProjectRoot) {
+                return null;
+              }
+
+              @Override
+              public String findJavaPackage(BuildTarget buildTarget) {
+                return null;
+              }
+            })
         .setActionGraph(new ActionGraph(new MutableDirectedGraph<BuildRule>()))
-        .setStepRunner(new StepRunner() {
-          @Override
-          public void runStep(Step step) throws StepFailedException {
-            // Do nothing.
-          }
+        .setStepRunner(
+            new StepRunner() {
+              @Override
+              public void runStep(Step step) throws StepFailedException {
+                // Do nothing.
+              }
 
-          @Override
-          public void runStepForBuildTarget(Step step, BuildTarget buildTarget)
-              throws StepFailedException {
-            // Do nothing.
-          }
+              @Override
+              public void runStepForBuildTarget(Step step, BuildTarget buildTarget)
+                  throws StepFailedException {
+                // Do nothing.
+              }
 
-          @Override
-          public <T> ListenableFuture<T> runStepsAndYieldResult(
-              List<Step> steps, Callable<T> interpretResults, BuildTarget buildTarget) {
-            return null;
-          }
+              @Override
+              public <T> ListenableFuture<T> runStepsAndYieldResult(
+                  List<Step> steps, Callable<T> interpretResults, BuildTarget buildTarget) {
+                return null;
+              }
 
-          @Override
-          public void runStepsInParallelAndWait(List<Step> steps) throws StepFailedException {
-            // Do nothing.
-          }
+              @Override
+              public void runStepsInParallelAndWait(List<Step> steps) throws StepFailedException {
+                // Do nothing.
+              }
 
-          @Override
-          public <T> void addCallback(
-              ListenableFuture<List<T>> allBuiltDeps, FutureCallback<List<T>> futureCallback) {
-            // Do nothing.
-          }
-        })
+              @Override
+              public <T> ListenableFuture<Void> addCallback(
+                  ListenableFuture<List<T>> allBuiltDeps, FutureCallback<List<T>> futureCallback) {
+                // Do nothing.
+                return Futures.immediateFuture(null);
+              }
+            })
         .build();
   }
 }

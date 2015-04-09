@@ -17,8 +17,8 @@
 package com.facebook.buck.android;
 
 import static com.facebook.buck.java.JavaCompilationConstants.DEFAULT_JAVAC_OPTIONS;
-import static com.facebook.buck.util.BuckConstant.BIN_DIR;
-import static com.facebook.buck.util.BuckConstant.BIN_PATH;
+import static com.facebook.buck.util.BuckConstant.SCRATCH_DIR;
+import static com.facebook.buck.util.BuckConstant.SCRATCH_PATH;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -81,7 +81,8 @@ public class AaptPackageResourcesTest {
         DEFAULT_JAVAC_OPTIONS,
         /* rDotJavaNeedsDexing */ false,
         /* shouldBuildStringSourceMap */ false,
-        /* shouldWarnIfMissingResources */ false);
+        /* shouldWarnIfMissingResources */ false,
+        /* skipCrunchPngs */ false);
 
     // Build up the parameters needed to invoke createAllAssetsDirectory().
     ImmutableList.Builder<Step> commands = ImmutableList.builder();
@@ -145,7 +146,8 @@ public class AaptPackageResourcesTest {
         DEFAULT_JAVAC_OPTIONS,
         /* rDotJavaNeedsDexing */ false,
         /* shouldBuildStringSourceMap */ false,
-        /* shouldWarnIfMissingResources */ false);
+        /* shouldWarnIfMissingResources */ false,
+        /* skipCrunchPngs */ false);
 
     // Build up the parameters needed to invoke createAllAssetsDirectory().
     Set<Path> assetsDirectories = ImmutableSet.of(resourceOne.getAssets());
@@ -173,7 +175,7 @@ public class AaptPackageResourcesTest {
     assertTrue(allAssetsDirectory.isPresent());
     assertEquals(
         "Even though there is only one assets directory, the one in " +
-            BIN_DIR +
+            SCRATCH_DIR +
             " should be used.",
         aaptPackageResources.getPathToAllAssetsDirectory(),
         allAssetsDirectory.get());
@@ -222,7 +224,8 @@ public class AaptPackageResourcesTest {
         DEFAULT_JAVAC_OPTIONS,
         /* rDotJavaNeedsDexing */ false,
         /* shouldBuildStringSourceMap */ false,
-        /* shouldWarnIfMissingResources */ false);
+        /* shouldWarnIfMissingResources */ false,
+        /* skipCrunchPngs */ false);
 
     AndroidResource resourceOne = (AndroidResource) ruleResolver.getRule(
         BuildTargetFactory.newInstance("//facebook/base:libraryOne_resources"));
@@ -266,13 +269,15 @@ public class AaptPackageResourcesTest {
 
     // Verify that an assets/ directory will be created and passed to aapt.
     assertTrue(allAssetsDirectory.isPresent());
-    assertEquals(BIN_PATH.resolve("facebook/base/__assets_apk#aapt_package__"),
+    assertEquals(
+        SCRATCH_PATH.resolve("facebook/base/__assets_apk#aapt_package__"),
         allAssetsDirectory.get());
 
     List<? extends Step> observedCommands = commands.build();
     assertEquals(4, observedCommands.size());
     assertEquals(
-        new MakeCleanDirectoryStep(BIN_PATH.resolve("facebook/base/__assets_apk#aapt_package__")),
+        new MakeCleanDirectoryStep(
+            SCRATCH_PATH.resolve("facebook/base/__assets_apk#aapt_package__")),
         observedCommands.get(0));
 
     ImmutableSet<Step> remainingCommands = ImmutableSet.copyOf(observedCommands.subList(1, 4));
@@ -280,15 +285,15 @@ public class AaptPackageResourcesTest {
         ImmutableSet.<Step>of(
             new MkdirAndSymlinkFileStep(
                 Paths.get("facebook/base/assets1/guava-10.0.1-fork.dex.1.jar"),
-                BIN_PATH.resolve(
+                SCRATCH_PATH.resolve(
                     "facebook/base/__assets_apk#aapt_package__/guava-10.0.1-fork.dex.1.jar")),
             new MkdirAndSymlinkFileStep(
                 Paths.get("facebook/base/assets2/fonts/Theinhardt-Medium.otf"),
-                BIN_PATH.resolve(
+                SCRATCH_PATH.resolve(
                     "facebook/base/__assets_apk#aapt_package__/fonts/Theinhardt-Medium.otf")),
             new MkdirAndSymlinkFileStep(
                 Paths.get("facebook/base/assets2/fonts/Theinhardt-Regular.otf"),
-                BIN_PATH.resolve(
+                SCRATCH_PATH.resolve(
                     "facebook/base/__assets_apk#aapt_package__/fonts/Theinhardt-Regular.otf"))),
         remainingCommands);
   }

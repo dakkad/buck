@@ -17,11 +17,9 @@
 package com.facebook.buck.cxx;
 
 import com.facebook.buck.model.BuildTarget;
-import com.facebook.buck.model.BuildTargets;
 import com.facebook.buck.rules.BuildRule;
 import com.facebook.buck.rules.BuildRuleParams;
 import com.facebook.buck.rules.BuildRuleType;
-import com.facebook.buck.rules.ImmutableBuildRuleType;
 import com.facebook.buck.rules.SourcePath;
 import com.facebook.buck.rules.SourcePathResolver;
 import com.google.common.base.Suppliers;
@@ -37,18 +35,7 @@ public class Archives {
 
   private Archives() {}
 
-  private static final BuildRuleType ARCHIVE_TYPE = ImmutableBuildRuleType.of("archive");
-
-  /**
-   * Given a {@link com.facebook.buck.model.BuildTarget} identifying an
-   * {@link com.facebook.buck.cxx.Archive}, return an output path suitable for use as the
-   * generated archive.
-   */
-  public static Path getArchiveOutputPath(BuildTarget target) {
-    return BuildTargets.getGenPath(
-        target,
-        "%s/lib" + target.getShortName() + ".a");
-  }
+  private static final BuildRuleType ARCHIVE_TYPE = BuildRuleType.of("archive");
 
   /**
    * Construct an {@link com.facebook.buck.cxx.Archive} from a

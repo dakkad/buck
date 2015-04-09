@@ -17,8 +17,10 @@
 package com.facebook.buck.cli;
 
 import static org.easymock.EasyMock.capture;
+import static org.easymock.EasyMock.newCapture;
 import static org.junit.Assert.assertEquals;
 
+import com.facebook.buck.android.AndroidPlatformTarget;
 import com.facebook.buck.event.BuckEventBusFactory;
 import com.facebook.buck.io.ProjectFilesystem;
 import com.facebook.buck.java.FakeJavaPackageFinder;
@@ -28,15 +30,14 @@ import com.facebook.buck.rules.ArtifactCache;
 import com.facebook.buck.rules.CachingBuildEngine;
 import com.facebook.buck.rules.Repository;
 import com.facebook.buck.rules.TestRepositoryBuilder;
-import com.facebook.buck.testutil.FakeFileHashCache;
 import com.facebook.buck.testutil.TestConsole;
 import com.facebook.buck.timing.DefaultClock;
 import com.facebook.buck.util.BuckConstant;
-import com.facebook.buck.android.FakeAndroidDirectoryResolver;
 import com.facebook.buck.util.ProcessManager;
 import com.facebook.buck.util.environment.Platform;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Optional;
+import com.google.common.base.Supplier;
 import com.google.common.collect.ImmutableMap;
 
 import org.easymock.Capture;
@@ -63,9 +64,9 @@ public class CleanCommandTest extends EasyMockSupport {
       throws CmdLineException, IOException, InterruptedException {
     // Set up mocks.
     CleanCommand cleanCommand = createCommand();
-    Capture<Path> binDir = new Capture<>();
+    Capture<Path> binDir = newCapture();
     projectFilesystem.rmdir(capture(binDir));
-    Capture<Path> genDir = new Capture<>();
+    Capture<Path> genDir = newCapture();
     projectFilesystem.rmdir(capture(genDir));
 
     replayAll();
@@ -74,7 +75,7 @@ public class CleanCommandTest extends EasyMockSupport {
     CleanCommandOptions options = createOptionsFromArgs();
     int exitCode = cleanCommand.runCommandWithOptions(options);
     assertEquals(0, exitCode);
-    assertEquals(BuckConstant.BIN_PATH, binDir.getValue());
+    assertEquals(BuckConstant.SCRATCH_PATH, binDir.getValue());
     assertEquals(BuckConstant.GEN_PATH, genDir.getValue());
 
     verifyAll();
@@ -85,9 +86,9 @@ public class CleanCommandTest extends EasyMockSupport {
       throws CmdLineException, IOException, InterruptedException {
     // Set up mocks.
     CleanCommand cleanCommand = createCommand();
-    Capture<Path> androidGenDir = new Capture<>();
+    Capture<Path> androidGenDir = newCapture();
     projectFilesystem.rmdir(capture(androidGenDir));
-    Capture<Path> annotationDir = new Capture<>();
+    Capture<Path> annotationDir = newCapture();
     projectFilesystem.rmdir(capture(annotationDir));
 
     replayAll();
@@ -113,10 +114,12 @@ public class CleanCommandTest extends EasyMockSupport {
     projectFilesystem = createMock(ProjectFilesystem.class);
     Repository repository = new TestRepositoryBuilder().setFilesystem(projectFilesystem).build();
 
+    Supplier<AndroidPlatformTarget> androidPlatformTargetSupplier =
+        AndroidPlatformTarget.explodingAndroidPlatformTargetSupplier;
     CommandRunnerParams params = new CommandRunnerParams(
         new TestConsole(),
         repository,
-        new FakeAndroidDirectoryResolver(),
+        androidPlatformTargetSupplier,
         new CachingBuildEngine(),
         new InstanceArtifactCacheFactory(createMock(ArtifactCache.class)),
         BuckEventBusFactory.newInstance(),
@@ -125,7 +128,6 @@ public class CleanCommandTest extends EasyMockSupport {
         ImmutableMap.copyOf(System.getenv()),
         new FakeJavaPackageFinder(),
         new ObjectMapper(),
-        FakeFileHashCache.EMPTY_CACHE,
         new DefaultClock(),
         Optional.<ProcessManager>absent());
     return new CleanCommand(params);

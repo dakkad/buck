@@ -331,7 +331,7 @@ public class DefaultJavaLibrary extends AbstractBuildRule
    *     The return value does not end with a slash.
    */
   private static Path getClassesDir(BuildTarget target) {
-    return BuildTargets.getBinPath(target, "lib__%s__classes");
+    return BuildTargets.getScratchPath(target, "lib__%s__classes");
   }
 
   /**
@@ -444,10 +444,6 @@ public class DefaultJavaLibrary extends AbstractBuildRule
     return javacOptions.getAnnotationProcessingParams();
   }
 
-  public Optional<Path> getProguardConfig() {
-    return proguardConfig;
-  }
-
   @Override
   public ImmutableCollection<Path> getInputsToCompareToOutput() {
     ImmutableList.Builder<Path> builder = ImmutableList.builder();
@@ -469,7 +465,7 @@ public class DefaultJavaLibrary extends AbstractBuildRule
   /**
    * Building a java_library() rule entails compiling the .java files specified in the srcs
    * attribute. They are compiled into a directory under
-   * {@link com.facebook.buck.util.BuckConstant#BIN_DIR}.
+   * {@link com.facebook.buck.util.BuckConstant#SCRATCH_DIR}.
    */
   @Override
   public final ImmutableList<Step> getBuildSteps(
@@ -587,7 +583,7 @@ public class DefaultJavaLibrary extends AbstractBuildRule
 
       steps.add(new CalculateAbiStep(buildableContext, output, abiJar));
     } else {
-      Path scratch = BuildTargets.getBinPath(
+      Path scratch = BuildTargets.getScratchPath(
           target,
           String.format("%%s/%s-temp-abi.jar", target.getShortNameAndFlavorPostfix()));
       steps.add(new MakeCleanDirectoryStep(scratch.getParent()));

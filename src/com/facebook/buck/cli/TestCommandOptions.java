@@ -57,6 +57,10 @@ public class TestCommandOptions extends BuildCommandOptions {
   @Option(name = "--no-results-cache", usage = "Whether to use cached test results.")
   private boolean isResultsCacheDisabled = false;
 
+  @Option(name = "--build-filtered", usage = "Whether to build filtered out tests.")
+  @Nullable
+  private Boolean isBuildFiltered = null;
+
   @Option(
       name = "--ignore-when-dependencies-fail",
       aliases = {"-i"},
@@ -88,6 +92,13 @@ public class TestCommandOptions extends BuildCommandOptions {
           "Randomize the order in which test classes are executed." +
           "WARNING: only works for Java tests!")
   private boolean isShufflingTests;
+
+  @Option(
+      name = "--exclude-transitive-tests",
+      usage =
+          "Only run the tests targets that were specified on the command line (without adding " +
+          "more tests by following dependencies).")
+  private boolean shouldExcludeTransitiveTests;
 
   @AdditionalOptions
   @SuppressFieldNotInitialized
@@ -177,7 +188,24 @@ public class TestCommandOptions extends BuildCommandOptions {
     return isShufflingTests;
   }
 
+  public boolean shouldExcludeTransitiveTests() {
+    return shouldExcludeTransitiveTests;
+  }
+
   public boolean shouldExcludeWin() {
     return testLabelOptions.shouldExcludeWin();
+  }
+
+  public boolean isBuildFiltered() {
+    return isBuildFiltered != null ?
+        isBuildFiltered :
+        getBuckConfig().getBooleanValue("test", "build_filtered_tests", false);
+  }
+
+  public int getNumTestThreads() {
+    if (isDebugEnabled()) {
+      return 1;
+    }
+    return getNumThreads();
   }
 }

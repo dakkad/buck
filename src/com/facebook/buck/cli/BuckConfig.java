@@ -59,9 +59,14 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import com.google.common.hash.Hashing;
 import com.google.common.io.CharStreams;
 import com.google.common.io.Files;
 import com.netflix.astyanax.connectionpool.exceptions.ConnectionException;
+import com.squareup.okhttp.ConnectionPool;
+import com.squareup.okhttp.Interceptor;
+import com.squareup.okhttp.OkHttpClient;
+import com.squareup.okhttp.Response;
 
 import org.ini4j.Ini;
 import org.ini4j.Profile.Section;
@@ -70,12 +75,17 @@ import java.io.File;
 import java.io.IOException;
 import java.io.Reader;
 import java.io.StringReader;
+import java.net.InetAddress;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.net.UnknownHostException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
 import javax.annotation.Nullable;
@@ -107,10 +117,11 @@ public class BuckConfig {
   private static final String DEFAULT_CASSANDRA_PORT = "9160";
   private static final String DEFAULT_CASSANDRA_MODE = CacheMode.readwrite.name();
   private static final String DEFAULT_CASSANDRA_TIMEOUT_SECONDS = "10";
-  private static final String DEFAULT_HTTP_CACHE_MODE = CacheMode.readwrite.name();
-  private static final String DEFAULT_HTTP_CACHE_PORT = "8080";
-  private static final String DEFAULT_HTTP_CACHE_TIMEOUT_SECONDS = "10";
   private static final String DEFAULT_MAX_TRACES = "25";
+
+  private static final String DEFAULT_HTTP_URL = "http://localhost:8080";
+  private static final String DEFAULT_HTTP_CACHE_MODE = CacheMode.readwrite.name();
+  private static final String DEFAULT_HTTP_CACHE_TIMEOUT_SECONDS = "10";
 
   private final ImmutableMap<String, ImmutableMap<String, String>> sectionsToEntries;
 
@@ -448,12 +459,12 @@ public class BuckConfig {
     }
     try {
       BuildTarget target = getBuildTargetForFullyQualifiedTarget(value.get());
-      return Optional.<SourcePath>of(new BuildTargetSourcePath(target));
+      return Optional.<SourcePath>of(new BuildTargetSourcePath(projectFilesystem, target));
     } catch (BuildTargetParseException e) {
       checkPathExists(
           value.get(),
           String.format("Overridden %s:%s path not found: ", section, field));
-      return Optional.<SourcePath>of(new PathSourcePath(Paths.get(value.get())));
+      return Optional.<SourcePath>of(new PathSourcePath(projectFilesystem, Paths.get(value.get())));
     }
   }
 
@@ -640,7 +651,7 @@ public class BuckConfig {
           }
           break;
         case http:
-          ArtifactCache httpArtifactCache = createHttpArtifactCache(buckEventBus, fileHashCache);
+          ArtifactCache httpArtifactCache = createHttpArtifactCache();
           builder.add(httpArtifactCache);
           break;
         }
@@ -659,6 +670,13 @@ public class BuckConfig {
 
   ImmutableList<String> getArtifactCacheModes() {
     return asListWithoutComments(getValue("cache", "mode"));
+  }
+
+  /**
+   * @return the depth of a local build chain which should trigger skipping the cache.
+   */
+  public Optional<Long> getSkipLocalBuildChainDepth() {
+    return getLong("cache", "skip_local_build_chain_depth");
   }
 
   @VisibleForTesting
@@ -746,22 +764,64 @@ public class BuckConfig {
     }
   }
 
-  private ArtifactCache createHttpArtifactCache(
-      BuckEventBus buckEventBus,
-      FileHashCache fileHashCache) {
-    String host = getValue("cache", "http_host").or("localhost");
-    int port = Integer.parseInt(getValue("cache", "http_port").or(DEFAULT_HTTP_CACHE_PORT));
+  private String getLocalhost() {
+    try {
+      return InetAddress.getLocalHost().getHostName();
+    } catch (UnknownHostException e) {
+      return "<unknown>";
+    }
+  }
+
+  private ArtifactCache createHttpArtifactCache() {
+    URL url;
+    try {
+      url = new URL(getValue("cache", "http_url").or(DEFAULT_HTTP_URL));
+    } catch (MalformedURLException e) {
+      throw new HumanReadableException(e, "Malformed [cache]http_url: %s", e.getMessage());
+    }
+
     int timeoutSeconds = Integer.parseInt(
         getValue("cache", "http_timeout_seconds").or(DEFAULT_HTTP_CACHE_TIMEOUT_SECONDS));
+
     boolean doStore = readCacheMode("http_mode", DEFAULT_HTTP_CACHE_MODE);
+
+    // Setup the defaut client to use.
+    OkHttpClient client = new OkHttpClient();
+    final String localhost = getLocalhost();
+    client.networkInterceptors().add(
+        new Interceptor() {
+          @Override
+          public Response intercept(Chain chain) throws IOException {
+            return chain.proceed(
+                chain.request().newBuilder()
+                    .addHeader("X-BuckCache-User", System.getProperty("user.name", "<unknown>"))
+                    .addHeader("X-BuckCache-Host", localhost)
+                    .build());
+          }
+        });
+    client.setConnectTimeout(timeoutSeconds, TimeUnit.SECONDS);
+    client.setConnectionPool(
+        new ConnectionPool(
+            // It's important that this number is greater than the `-j` parallelism,
+            // as if it's too small, we'll overflow the reusable connection pool and
+            // start spamming new connections.  While this isn't the best location,
+            // the other current option is setting this wherever we construct a `Build`
+            // object and have access to the `-j` argument.  However, since that is
+            // created in several places leave it here for now.
+            /* maxIdleConnections */ 200,
+            /* keepAliveDurationMs */ TimeUnit.MINUTES.toMillis(5)));
+
+    // For fetches, use a client with a read timeout.
+    OkHttpClient fetchClient = client.clone();
+    fetchClient.setReadTimeout(timeoutSeconds, TimeUnit.SECONDS);
+
     return new HttpArtifactCache(
-        host,
-        port,
-        timeoutSeconds,
+        fetchClient,
+        client,
+        url,
         doStore,
         projectFilesystem,
-        buckEventBus,
-        fileHashCache);
+        Hashing.crc32());
   }
 
   private boolean readCacheMode(String fieldName, String defaultValue) {
@@ -773,6 +833,10 @@ public class BuckConfig {
       throw new HumanReadableException("Unusable cache.%s: '%s'", fieldName, cacheMode);
     }
     return doStore;
+  }
+
+  public Optional<String> getAndroidTarget() {
+    return getValue("android", "target");
   }
 
   public Optional<String> getNdkVersion() {
@@ -882,18 +946,24 @@ public class BuckConfig {
    * @return the path for the given section and property.
    */
   public Optional<Path> getPath(String sectionName, String name) {
+    return getPath(sectionName, name, true);
+  }
+
+  public Optional<Path> getPath(String sectionName, String name, boolean isRepoRootRelative) {
     Optional<String> pathString = getValue(sectionName, name);
     return pathString.isPresent() ?
-        checkPathExists(
-            pathString.get(),
-            String.format("Overridden %s:%s path not found: ", sectionName, name)) :
+        isRepoRootRelative ?
+            checkPathExists(
+                pathString.get(),
+                String.format("Overridden %s:%s path not found: ", sectionName, name)) :
+            Optional.of(Paths.get(pathString.get())) :
         Optional.<Path>absent();
   }
 
   public Optional<Path> checkPathExists(String pathString, String errorMsg) {
     Path path = Paths.get(pathString);
     if (projectFilesystem.exists(path)) {
-      return Optional.of(projectFilesystem.resolve(path));
+      return Optional.of(projectFilesystem.getPathForRelativePath(path));
     }
     throw new HumanReadableException(errorMsg + path);
   }
@@ -917,11 +987,6 @@ public class BuckConfig {
 
   public ImmutableMap<String, Path> getRepositoryPaths() {
     return repoNamesToPaths;
-  }
-
-  @VisibleForTesting
-  String getProperty(String key, String def) {
-    return System.getProperty(key, def);
   }
 
   /**

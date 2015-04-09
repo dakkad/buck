@@ -85,6 +85,7 @@ public class AndroidBinaryGraphEnhancer {
   private final DexSplitMode dexSplitMode;
   private final ImmutableSet<BuildTarget> buildTargetsToExcludeFromDex;
   private final ImmutableSet<BuildTarget> resourcesToExclude;
+  private final boolean skipCrunchPngs;
   private final JavacOptions javacOptions;
   private final EnumSet<ExopackageMode> exopackageModes;
   private final Keystore keystore;
@@ -112,6 +113,7 @@ public class AndroidBinaryGraphEnhancer {
       DexSplitMode dexSplitMode,
       ImmutableSet<BuildTarget> buildTargetsToExcludeFromDex,
       ImmutableSet<BuildTarget> resourcesToExclude,
+      boolean skipCrunchPngs,
       JavacOptions javacOptions,
       EnumSet<ExopackageMode> exopackageModes,
       Keystore keystore,
@@ -135,6 +137,7 @@ public class AndroidBinaryGraphEnhancer {
     this.dexSplitMode = dexSplitMode;
     this.buildTargetsToExcludeFromDex = buildTargetsToExcludeFromDex;
     this.resourcesToExclude = resourcesToExclude;
+    this.skipCrunchPngs = skipCrunchPngs;
     this.javacOptions = javacOptions;
     this.exopackageModes = exopackageModes;
     this.keystore = keystore;
@@ -209,7 +212,8 @@ public class AndroidBinaryGraphEnhancer {
         javacOptions,
         shouldPreDex,
         shouldBuildStringSourceMap,
-        locales.isEmpty());
+        locales.isEmpty(),
+        skipCrunchPngs);
     ruleResolver.addToIndex(aaptPackageResources);
     enhancedDeps.add(aaptPackageResources);
 
@@ -306,7 +310,9 @@ public class AndroidBinaryGraphEnhancer {
             new Pair<>(
                 targetCpuType,
                 cxxRuntime.getSoname()),
-            new PathSourcePath(platform.getCxxSharedRuntimePath()));
+            new PathSourcePath(
+                buildRuleParams.getProjectFilesystem(),
+                platform.getCxxSharedRuntimePath()));
       }
     }
     ImmutableMap<Pair<TargetCpuType, String>, SourcePath> nativeLinkableLibs =

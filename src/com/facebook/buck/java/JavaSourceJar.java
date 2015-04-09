@@ -25,7 +25,6 @@ import com.facebook.buck.rules.BuildContext;
 import com.facebook.buck.rules.BuildRuleParams;
 import com.facebook.buck.rules.BuildRuleType;
 import com.facebook.buck.rules.BuildableContext;
-import com.facebook.buck.rules.ImmutableBuildRuleType;
 import com.facebook.buck.rules.RuleKey;
 import com.facebook.buck.rules.SourcePath;
 import com.facebook.buck.rules.SourcePathResolver;
@@ -46,7 +45,7 @@ import java.util.Set;
 
 
 public class JavaSourceJar extends AbstractBuildRule {
-  public static final BuildRuleType TYPE = ImmutableBuildRuleType.of("source_jar");
+  public static final BuildRuleType TYPE = BuildRuleType.of("source_jar");
 
   private final ImmutableSortedSet<SourcePath> sources;
   private final Path output;
@@ -60,7 +59,7 @@ public class JavaSourceJar extends AbstractBuildRule {
     this.sources = sources;
     BuildTarget target = params.getBuildTarget();
     this.output = BuildTargets.getGenPath(target, String.format("%%s%s", Javac.SRC_ZIP));
-    this.temp = BuildTargets.getBinPath(target, "%s-srcs");
+    this.temp = BuildTargets.getScratchPath(target, "%s-srcs");
   }
 
   @Override
@@ -90,7 +89,7 @@ public class JavaSourceJar extends AbstractBuildRule {
     // smarts to read the "package" line from a source file.
 
     for (Path source : getResolver().filterInputsToCompareToOutput(sources)) {
-      String packageFolder = packageFinder.findJavaPackageFolderForPath(source.toString());
+      Path packageFolder = packageFinder.findJavaPackageFolder(source);
       Path packageDir = temp.resolve(packageFolder);
       if (seenPackages.add(packageDir)) {
         steps.add(new MkdirStep(packageDir));

@@ -19,7 +19,6 @@ package com.facebook.buck.apple;
 import com.facebook.buck.cxx.CxxDescriptionEnhancer;
 import com.facebook.buck.cxx.CxxLibraryDescription;
 import com.facebook.buck.cxx.CxxPlatform;
-import com.facebook.buck.cxx.CxxSource;
 import com.facebook.buck.model.BuildTarget;
 import com.facebook.buck.model.Flavor;
 import com.facebook.buck.model.FlavorDomain;
@@ -30,12 +29,12 @@ import com.facebook.buck.rules.BuildRuleParams;
 import com.facebook.buck.rules.BuildRuleResolver;
 import com.facebook.buck.rules.BuildRuleType;
 import com.facebook.buck.rules.Description;
-import com.facebook.buck.rules.ImmutableBuildRuleType;
 import com.facebook.buck.rules.SourcePathResolver;
+import com.facebook.buck.util.Optionals;
+import com.google.common.base.Function;
 import com.google.common.base.Optional;
 import com.google.common.base.Predicate;
 import com.google.common.collect.FluentIterable;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
@@ -44,12 +43,13 @@ import java.util.Set;
 
 public class AppleLibraryDescription implements
     Description<AppleNativeTargetDescriptionArg>, Flavored {
-  public static final BuildRuleType TYPE = ImmutableBuildRuleType.of("apple_library");
+  public static final BuildRuleType TYPE = BuildRuleType.of("apple_library");
 
   private static final Set<Flavor> SUPPORTED_FLAVORS = ImmutableSet.of(
       CompilationDatabase.COMPILATION_DATABASE,
-      AbstractAppleNativeTargetBuildRuleDescriptions.HEADERS,
+      AppleDescriptions.HEADERS,
       CxxDescriptionEnhancer.HEADER_SYMLINK_TREE_FLAVOR,
+      CxxDescriptionEnhancer.EXPORTED_HEADER_SYMLINK_TREE_FLAVOR,
       CxxDescriptionEnhancer.STATIC_FLAVOR,
       CxxDescriptionEnhancer.SHARED_FLAVOR,
       ImmutableFlavor.of("default"));
@@ -99,15 +99,13 @@ public class AppleLibraryDescription implements
       BuildRuleResolver resolver,
       A args) {
     SourcePathResolver pathResolver = new SourcePathResolver(resolver);
-    TargetSources targetSources = TargetSources.ofAppleSources(pathResolver, args.srcs.get());
-    Optional<BuildRule> flavoredRule = AbstractAppleNativeTargetBuildRuleDescriptions
+    Optional<BuildRule> flavoredRule = AppleDescriptions
         .createFlavoredRule(
             params,
             resolver,
             args,
             appleConfig,
-            pathResolver,
-            targetSources);
+            pathResolver);
     if (flavoredRule.isPresent()) {
       return flavoredRule.get();
     }
@@ -117,21 +115,27 @@ public class AppleLibraryDescription implements
         CxxLibraryDescription.getTypeAndPlatform(
             params.getBuildTarget(),
             cxxPlatformFlavorDomain);
-    Optional<AppleSdkPaths> appleSdkPaths = Optional.fromNullable(
-        appleCxxPlatformsToAppleSdkPaths.get(typeAndPlatform.getPlatform()));
-    AbstractAppleNativeTargetBuildRuleDescriptions.populateCxxConstructorArg(
+    Optional<AppleSdkPaths> appleSdkPaths = Optionals.bind(
+        typeAndPlatform.getPlatform(),
+        new Function<Map.Entry<Flavor, CxxPlatform>, Optional<AppleSdkPaths>>() {
+          @Override
+          public Optional<AppleSdkPaths> apply(Map.Entry<Flavor, CxxPlatform> input) {
+            return Optional.fromNullable(appleCxxPlatformsToAppleSdkPaths.get(input.getValue()));
+          }
+        });
+    AppleDescriptions.populateCxxLibraryDescriptionArg(
+        pathResolver,
         delegateArg,
         args,
         params.getBuildTarget(),
-        targetSources,
-        appleSdkPaths);
-    delegateArg.exportedPreprocessorFlags = Optional.of(ImmutableList.<String>of());
-    delegateArg.exportedLangPreprocessorFlags = Optional.of(
-        ImmutableMap.<CxxSource.Type, ImmutableList<String>>of());
-    delegateArg.soname = Optional.absent();
-    delegateArg.linkWhole = Optional.of(!isSharedLibraryTarget(params.getBuildTarget()));
+        appleSdkPaths,
+        !isSharedLibraryTarget(params.getBuildTarget()));
 
-    return delegate.createBuildRule(params, resolver, delegateArg, typeAndPlatform);
+    return delegate.createBuildRule(
+        params,
+        resolver,
+        delegateArg,
+        typeAndPlatform);
   }
 
   public static boolean isSharedLibraryTarget(BuildTarget target) {

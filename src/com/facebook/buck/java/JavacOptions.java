@@ -18,6 +18,9 @@ package com.facebook.buck.java;
 
 import com.facebook.buck.rules.RuleKey;
 import com.facebook.buck.rules.RuleKeyAppendable;
+import com.facebook.buck.util.ImmutableProcessExecutorParams;
+import com.facebook.buck.util.ProcessExecutor;
+import com.facebook.buck.util.ProcessExecutorParams;
 import com.facebook.buck.util.immutables.BuckStyleImmutable;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Function;
@@ -25,12 +28,14 @@ import com.google.common.base.Functions;
 import com.google.common.base.Joiner;
 import com.google.common.base.Optional;
 import com.google.common.base.Preconditions;
+import com.google.common.base.Strings;
 import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableList;
 
 import org.immutables.value.Value;
 
 import java.io.File;
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -42,6 +47,8 @@ import java.util.Map;
 @Value.Immutable
 @BuckStyleImmutable
 public abstract class JavacOptions implements RuleKeyAppendable {
+
+  protected abstract Optional<ProcessExecutor> getProcessExecutor();
 
   protected abstract Optional<Path> getJavacPath();
   protected abstract Optional<Path> getJavacJarPath();
@@ -77,7 +84,29 @@ public abstract class JavacOptions implements RuleKeyAppendable {
   public Javac getJavac() {
     Optional<Path> externalJavac = getJavacPath();
     if (externalJavac.isPresent()) {
-      return new ExternalJavac(externalJavac.get());
+
+      if (!getProcessExecutor().isPresent()) {
+        throw new RuntimeException("Misconfigured JavacOptions --- no process executor");
+      }
+
+      ProcessExecutorParams params = ImmutableProcessExecutorParams.builder()
+          .setCommand(ImmutableList.of(externalJavac.get().toString(), "-version"))
+          .build();
+      ProcessExecutor.Result result;
+      try {
+        result = getProcessExecutor().get().launchAndExecute(params);
+      } catch (InterruptedException | IOException e) {
+        throw new RuntimeException(e);
+      }
+
+      Optional<JavacVersion> version;
+      Optional<String> stderr = result.getStderr();
+      if (Strings.isNullOrEmpty(stderr.orNull())) {
+        version = Optional.absent();
+      } else {
+        version = Optional.of((JavacVersion) ImmutableJavacVersion.of(stderr.get()));
+      }
+      return new ExternalJavac(externalJavac.get(), version);
     }
     return new Jsr199Javac(getJavacJarPath());
   }
@@ -89,6 +118,9 @@ public abstract class JavacOptions implements RuleKeyAppendable {
     // Add some standard options.
     optionsBuilder.add("-source", getSourceLevel());
     optionsBuilder.add("-target", getTargetLevel());
+
+    // Set the sourcepath to stop us reading source files out of jars by mistake.
+    optionsBuilder.add("-sourcepath", "");
 
     if (isDebug()) {
       optionsBuilder.add("-g");
@@ -149,15 +181,11 @@ public abstract class JavacOptions implements RuleKeyAppendable {
   public RuleKey.Builder appendToRuleKey(RuleKey.Builder builder, String key) {
     // TODO(simons): Include bootclasspath params.
     builder.setReflectively(key + ".sourceLevel", getSourceLevel())
-        .setReflectively(
-            key + ".javacPath",
-            getJavacPath().transform(Functions.toStringFunction()).orNull())
-        .setReflectively(
-            key + ".javacJarPath",
-            getJavacJarPath().transform(Functions.toStringFunction()).orNull())
         .setReflectively(key + ".targetLevel", getTargetLevel())
         .setReflectively(key + ".extraArguments", Joiner.on(',').join(getExtraArguments()))
         .setReflectively(key + ".debug", isDebug());
+
+    getJavac().appendToRuleKey(builder, "javac");
 
     return getAnnotationProcessingParams().appendToRuleKey(builder, key);
   }
@@ -174,6 +202,7 @@ public abstract class JavacOptions implements RuleKeyAppendable {
     builder.setVerbose(options.isVerbose());
     builder.setProductionBuild(options.isProductionBuild());
 
+    builder.setProcessExecutor(options.getProcessExecutor());
     builder.setJavacPath(options.getJavacPath());
     builder.setJavacJarPath(options.getJavacJarPath());
     builder.setAnnotationProcessingParams(options.getAnnotationProcessingParams());

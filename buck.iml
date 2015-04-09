@@ -53,7 +53,7 @@
     <orderEntry type="library" name="gson-2.2.4" level="project" />
     <orderEntry type="library" name="high-scale-lib-1.1.2" level="project" />
     <orderEntry type="library" name="infer-annotations" level="project" />
-    <orderEntry type="library" name="jetty-all-9.0.4.v20130625" level="project" />
+    <orderEntry type="library" name="jetty" level="project" />
     <orderEntry type="library" name="joda-time-2.2" level="project" />
     <orderEntry type="library" name="libthrift-0.7.0" level="project" />
     <orderEntry type="library" name="log4j-1.2.16" level="project" />
@@ -66,7 +66,10 @@
     <orderEntry type="library" name="infer-annotations" level="project" />
     <orderEntry type="library" name="jacoco" level="project" />
     <orderEntry type="library" name="immutables-annotations" level="project" />
+    <orderEntry type="library" name="okhttp-2.2.0" level="project" />
+    <orderEntry type="library" name="okio-1.2.0" level="project" />
   </component>
+<<<<<<< HEAD
   <component name="org.twodividedbyzero.idea.findbugs">
     <option name="_basePreferences">
       <map>
@@ -266,4 +269,6 @@
       </map>
     </option>
   </component>
+=======
+>>>>>>> upstream/master
 </module>

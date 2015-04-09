@@ -10,6 +10,7 @@ from timing import monotonic_time_nanos
 from tracing import Tracing
 from buck_tool import BuckTool, which, check_output
 from buck_tool import BuckToolException, RestartBuck
+from buck_version import get_clean_buck_version, get_dirty_buck_version
 
 
 JAVA_CLASSPATHS = [
@@ -26,27 +27,23 @@ JAVA_CLASSPATHS = [
     "third-party/java/astyanax/astyanax-thrift-1.56.38.jar",
     "third-party/java/astyanax/cassandra-1.2.3.jar",
     "third-party/java/astyanax/cassandra-thrift-1.2.3.jar",
-    "third-party/java/astyanax/commons-cli-1.1.jar",
-    "third-party/java/astyanax/commons-codec-1.2.jar",
-    "third-party/java/astyanax/commons-lang-2.6.jar",
     "third-party/java/astyanax/high-scale-lib-1.1.2.jar",
-    "third-party/java/astyanax/joda-time-2.2.jar",
-    "third-party/java/astyanax/libthrift-0.7.0.jar",
-    "third-party/java/astyanax/log4j-1.2.16.jar",
-    "third-party/java/astyanax/slf4j-api-1.7.2.jar",
-    "third-party/java/astyanax/slf4j-log4j12-1.7.2.jar",
     "third-party/java/closure-templates/soy-excluding-deps.jar",
+    "third-party/java/commons-cli/commons-cli-1.1.jar",
+    "third-party/java/commons-codec/commons-codec-1.2.jar",
     "third-party/java/commons-compress/commons-compress-1.8.1.jar",
+    "third-party/java/commons-lang/commons-lang-2.6.jar",
     "third-party/java/dd-plist/dd-plist.jar",
     "third-party/java/ddmlib/ddmlib-22.5.3.jar",
-    "third-party/java/eclipse/org.eclipse.core.contenttype_3.4.200.v20130326-1255.jar",
-    "third-party/java/eclipse/org.eclipse.core.jobs_3.5.300.v20130429-1813.jar",
-    "third-party/java/eclipse/org.eclipse.core.resources_3.8.101.v20130717-0806.jar",
-    "third-party/java/eclipse/org.eclipse.core.runtime_3.9.100.v20131218-1515.jar",
+    "third-party/java/eclipse/org.eclipse.core.contenttype_3.4.200.v20140207-1251.jar",
+    "third-party/java/eclipse/org.eclipse.core.jobs_3.6.1.v20141014-1248.jar",
+    "third-party/java/eclipse/org.eclipse.core.resources_3.9.1.v20140825-1431.jar",
+    "third-party/java/eclipse/org.eclipse.core.runtime_3.10.0.v20140318-2214.jar",
     "third-party/java/eclipse/org.eclipse.equinox.common_3.6.200.v20130402-1505.jar",
-    "third-party/java/eclipse/org.eclipse.equinox.preferences_3.5.100.v20130422-1538.jar",
-    "third-party/java/eclipse/org.eclipse.jdt.core_3.9.2.v20140114-1555.jar",
-    "third-party/java/eclipse/org.eclipse.osgi_3.9.1.v20140110-1610.jar",
+    "third-party/java/eclipse/org.eclipse.equinox.preferences_3.5.200.v20140224-1527.jar",
+    "third-party/java/eclipse/org.eclipse.jdt.core.prefs",
+    "third-party/java/eclipse/org.eclipse.jdt.core_3.10.2.v20150120-1634.jar",
+    "third-party/java/eclipse/org.eclipse.osgi_3.10.2.v20150203-1939.jar",
     "third-party/java/gson/gson-2.2.4.jar",
     "third-party/java/guava/guava-18.0.jar",
     "third-party/java/guice/guice-3.0.jar",
@@ -58,12 +55,19 @@ JAVA_CLASSPATHS = [
     "third-party/java/jackson/jackson-core-2.0.5.jar",
     "third-party/java/jackson/jackson-databind-2.0.5.jar",
     "third-party/java/jackson/jackson-datatype-jdk7-2.5.0.jar",
-    "third-party/java/jetty/jetty-all-9.0.4.v20130625.jar",
-    "third-party/java/jetty/servlet-api.jar",
+    "third-party/java/jetty/jetty-all-9.2.10.v20150310.jar",
+    "third-party/java/joda-time/joda-time-2.2.jar",
     "third-party/java/jsr/javax.inject-1.jar",
     "third-party/java/jsr/jsr305.jar",
+    "third-party/java/log4j/log4j-1.2.16.jar",
     "third-party/java/nailgun/nailgun-server-0.9.2-SNAPSHOT.jar",
+    "third-party/java/okhttp/okhttp-2.2.0.jar",
+    "third-party/java/okio/okio-1.2.0.jar",
+    "third-party/java/servlet-api/javax.servlet-api-3.1.0.jar",
+    "third-party/java/slf4j/slf4j-api-1.7.2.jar",
+    "third-party/java/slf4j/slf4j-log4j12-1.7.2.jar",
     "third-party/java/stringtemplate/ST-4.0.8.jar",
+    "third-party/java/thrift/libthrift-0.7.0.jar",
     "third-party/java/xz-java-1.3/xz-1.3.jar",
 ]
 
@@ -250,41 +254,6 @@ class BuckRepo(BuckTool):
             if exitcode is not 0:
                 self._print_ant_failure_and_exit(ant_log_path)
 
-    def _compute_local_hash(self):
-        git_tree_in = check_output(
-            ['git', 'log', '-n1', '--pretty=format:%T', 'HEAD', '--'],
-            cwd=self._buck_dir).strip()
-
-        with EmptyTempFile(prefix='buck-git-index',
-                           dir=self._tmp_dir) as index_file:
-            new_environ = os.environ.copy()
-            new_environ['GIT_INDEX_FILE'] = index_file.name
-            subprocess.check_call(
-                ['git', 'read-tree', git_tree_in],
-                cwd=self._buck_dir,
-                env=new_environ)
-
-            subprocess.check_call(
-                ['git', 'add', '-u'],
-                cwd=self._buck_dir,
-                env=new_environ)
-
-            git_tree_out = check_output(
-                ['git', 'write-tree'],
-                cwd=self._buck_dir,
-                env=new_environ).strip()
-
-        with EmptyTempFile(prefix='buck-version-uid-input',
-                           dir=self._tmp_dir,
-                           closed=False) as uid_input:
-            subprocess.check_call(
-                ['git', 'ls-tree', '--full-tree', git_tree_out],
-                cwd=self._buck_dir,
-                stdout=uid_input)
-            return check_output(
-                ['git', 'hash-object', uid_input.name],
-                cwd=self._buck_dir).strip()
-
     def _build(self):
         with Tracing('BuckRepo._build'):
             if not os.path.exists(self._build_success_file):
@@ -295,6 +264,7 @@ class BuckRepo(BuckTool):
                 self._run_ant_clean(ant)
                 self._run_ant(ant)
                 open(self._build_success_file, 'w').close()
+                print("All done, continuing with build.", file=sys.stderr)
 
     def _has_resource(self, resource):
         return True
@@ -304,15 +274,20 @@ class BuckRepo(BuckTool):
 
     def _get_buck_version_uid(self):
         with Tracing('BuckRepo._get_buck_version_uid'):
-            if not self._is_git:
-                return 'N/A'
 
-            if not self._is_dirty():
-                return self._get_git_revision()
+            # First try to get the "clean" buck version.  If it succeeds,
+            # return it.
+            clean_version = get_clean_buck_version(
+                self._buck_dir,
+                allow_dirty=self._is_buck_repo_dirty_override == "1")
+            if clean_version is not None:
+                return clean_version
 
+            # Otherwise, if there is a .nobuckcheck file, or if there isn't
+            # a .buckversion file, fall back to a "dirty" version.
             if (self._buck_project.has_no_buck_check or
                     not self._buck_project.buck_version):
-                return self._compute_local_hash()
+                return get_dirty_buck_version(self._buck_dir)
 
             if self._has_local_changes():
                 print(textwrap.dedent("""\
@@ -340,7 +315,7 @@ class BuckRepo(BuckTool):
                             cwd=self._buck_dir)
                         raise RestartBuck()
 
-            return self._compute_local_hash()
+            return get_dirty_buck_version(self._buck_dir)
 
     def _get_extra_java_args(self):
         return [
@@ -355,27 +330,3 @@ class BuckRepo(BuckTool):
 
     def _get_java_classpath(self):
         return self._pathsep.join([self._join_buck_dir(p) for p in JAVA_CLASSPATHS])
-
-
-class EmptyTempFile(object):
-
-    def __init__(self, prefix=None, dir=None, closed=True):
-        self.file, self.name = tempfile.mkstemp(prefix=prefix, dir=dir)
-        if closed:
-            os.close(self.file)
-        self.closed = closed
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.close()
-        os.remove(self.name)
-
-    def close(self):
-        if not self.closed:
-            os.close(self.file)
-        self.closed = True
-
-    def fileno(self):
-        return self.file

@@ -21,6 +21,7 @@ import static com.facebook.buck.apple.ProjectGeneratorTestUtils.assertHasSinglet
 import static com.facebook.buck.apple.ProjectGeneratorTestUtils.assertTargetExistsAndReturnTarget;
 import static com.facebook.buck.apple.ProjectGeneratorTestUtils.createDescriptionArgWithDefaults;
 import static com.facebook.buck.apple.ProjectGeneratorTestUtils.getSingletonPhaseByType;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.collection.IsCollectionWithSize.hasSize;
 import static org.hamcrest.collection.IsEmptyIterable.emptyIterable;
 import static org.hamcrest.core.IsNot.not;
@@ -45,6 +46,7 @@ import com.facebook.buck.apple.xcode.xcodeproj.PBXReference;
 import com.facebook.buck.apple.xcode.xcodeproj.PBXResourcesBuildPhase;
 import com.facebook.buck.apple.xcode.xcodeproj.PBXShellScriptBuildPhase;
 import com.facebook.buck.apple.xcode.xcodeproj.PBXTarget;
+import com.facebook.buck.apple.xcode.xcodeproj.SourceTreePath;
 import com.facebook.buck.model.BuildTarget;
 import com.facebook.buck.parser.NoSuchBuildTargetException;
 import com.facebook.buck.rules.BuildRuleResolver;
@@ -52,12 +54,14 @@ import com.facebook.buck.rules.SourcePath;
 import com.facebook.buck.rules.SourcePathResolver;
 import com.facebook.buck.rules.TargetNode;
 import com.facebook.buck.rules.TestSourcePath;
+import com.facebook.buck.rules.coercer.ImmutableFrameworkPath;
+import com.facebook.buck.rules.coercer.SourceWithFlags;
 import com.facebook.buck.shell.GenruleBuilder;
 import com.google.common.base.Optional;
 import com.google.common.base.Predicate;
+import com.google.common.base.Splitter;
 import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSortedSet;
 import com.google.common.collect.Iterables;
@@ -66,6 +70,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.nio.file.Paths;
+import java.util.Set;
 
 public class NewNativeTargetProjectMutatorTest {
   private BuildRuleResolver buildRuleResolver;
@@ -79,16 +84,15 @@ public class NewNativeTargetProjectMutatorTest {
     generatedProject = new PBXProject("TestProject");
     sourcePathResolver = new SourcePathResolver(buildRuleResolver);
     pathRelativizer = new PathRelativizer(
-        Paths.get("/test/project/root/"),
-        Paths.get("/test/project/root/_output"),
-        sourcePathResolver);
+        Paths.get("_output"),
+        sourcePathResolver.getPathFunction());
   }
 
   @Test
   public void shouldCreateTargetAndTargetGroup() throws NoSuchBuildTargetException {
     NewNativeTargetProjectMutator mutator = new NewNativeTargetProjectMutator(
         pathRelativizer,
-        sourcePathResolver);
+        sourcePathResolver.getPathFunction());
     mutator
         .setTargetName("TestTarget")
         .setProduct(
@@ -105,7 +109,7 @@ public class NewNativeTargetProjectMutatorTest {
   public void shouldCreateTargetAndCustomTargetGroup() throws NoSuchBuildTargetException {
     NewNativeTargetProjectMutator mutator = new NewNativeTargetProjectMutator(
         pathRelativizer,
-        sourcePathResolver);
+        sourcePathResolver.getPathFunction());
     mutator
         .setTargetName("TestTarget")
         .setTargetGroupPath(ImmutableList.of("Grandparent", "Parent"))
@@ -125,21 +129,14 @@ public class NewNativeTargetProjectMutatorTest {
   public void testSourceGroups() throws NoSuchBuildTargetException {
     NewNativeTargetProjectMutator mutator = mutatorWithCommonDefaults();
 
-    SourcePath foo = new TestSourcePath("foo.m");
-    SourcePath bar = new TestSourcePath("bar.m");
-    SourcePath baz = new TestSourcePath("baz.m");
-    Iterable<GroupedSource> sources = ImmutableList.of(
-        GroupedSource.ofSourceGroup(
-            "Group1",
-            ImmutableList.of(
-                GroupedSource.ofSourcePath(foo),
-                GroupedSource.ofSourcePath(bar))),
-        GroupedSource.ofSourceGroup(
-            "Group2",
-            ImmutableList.of(
-                GroupedSource.ofSourcePath(baz))));
-    ImmutableMap<SourcePath, String> sourceFlags = ImmutableMap.of(bar, "-Wall");
-    mutator.setSources(sources, sourceFlags);
+    SourcePath foo = new TestSourcePath("Group1/foo.m");
+    SourcePath bar = new TestSourcePath("Group1/bar.m");
+    SourcePath baz = new TestSourcePath("Group2/baz.m");
+    mutator.setSourcesWithFlags(
+        ImmutableSet.of(
+            SourceWithFlags.of(foo),
+            SourceWithFlags.of(bar, ImmutableList.of("-Wall")),
+            SourceWithFlags.of(baz)));
     NewNativeTargetProjectMutator.Result result = mutator.buildTargetAndAddToProject(
         generatedProject);
 
@@ -148,10 +145,10 @@ public class NewNativeTargetProjectMutatorTest {
     PBXGroup group1 = (PBXGroup) Iterables.get(sourcesGroup.getChildren(), 0);
     assertEquals("Group1", group1.getName());
     assertThat(group1.getChildren(), hasSize(2));
-    PBXFileReference fileRefFoo = (PBXFileReference) Iterables.get(group1.getChildren(), 0);
-    assertEquals("foo.m", fileRefFoo.getName());
-    PBXFileReference fileRefBar = (PBXFileReference) Iterables.get(group1.getChildren(), 1);
+    PBXFileReference fileRefBar = (PBXFileReference) Iterables.get(group1.getChildren(), 0);
     assertEquals("bar.m", fileRefBar.getName());
+    PBXFileReference fileRefFoo = (PBXFileReference) Iterables.get(group1.getChildren(), 1);
+    assertEquals("foo.m", fileRefFoo.getName());
 
     PBXGroup group2 = (PBXGroup) Iterables.get(sourcesGroup.getChildren(), 1);
     assertEquals("Group2", group2.getName());
@@ -164,23 +161,11 @@ public class NewNativeTargetProjectMutatorTest {
   public void testLibraryHeaderGroups() throws NoSuchBuildTargetException {
     NewNativeTargetProjectMutator mutator = mutatorWithCommonDefaults();
 
-    SourcePath foo = new TestSourcePath("foo.h");
-    SourcePath bar = new TestSourcePath("bar.h");
-    SourcePath baz = new TestSourcePath("baz.h");
-    Iterable<GroupedSource> sources = ImmutableList.of(
-        GroupedSource.ofSourceGroup(
-            "HeaderGroup1",
-            ImmutableList.of(
-                GroupedSource.ofSourcePath(foo),
-                GroupedSource.ofSourcePath(bar))),
-        GroupedSource.ofSourceGroup(
-            "HeaderGroup2",
-            ImmutableList.of(
-                GroupedSource.ofSourcePath(baz))));
-    ImmutableMap<SourcePath, String> sourceFlags = ImmutableMap.of(
-        bar, "public",
-        baz, "private");
-    mutator.setSources(sources, sourceFlags);
+    SourcePath foo = new TestSourcePath("HeaderGroup1/foo.h");
+    SourcePath bar = new TestSourcePath("HeaderGroup1/bar.h");
+    SourcePath baz = new TestSourcePath("HeaderGroup2/baz.h");
+    mutator.setPublicHeaders(ImmutableSet.of(bar, baz));
+    mutator.setPrivateHeaders(ImmutableSet.of(foo));
     NewNativeTargetProjectMutator.Result result = mutator.buildTargetAndAddToProject(
         generatedProject);
 
@@ -191,10 +176,10 @@ public class NewNativeTargetProjectMutatorTest {
     PBXGroup group1 = (PBXGroup) Iterables.get(sourcesGroup.getChildren(), 0);
     assertEquals("HeaderGroup1", group1.getName());
     assertThat(group1.getChildren(), hasSize(2));
-    PBXFileReference fileRefFoo = (PBXFileReference) Iterables.get(group1.getChildren(), 0);
-    assertEquals("foo.h", fileRefFoo.getName());
-    PBXFileReference fileRefBar = (PBXFileReference) Iterables.get(group1.getChildren(), 1);
+    PBXFileReference fileRefBar = (PBXFileReference) Iterables.get(group1.getChildren(), 0);
     assertEquals("bar.h", fileRefBar.getName());
+    PBXFileReference fileRefFoo = (PBXFileReference) Iterables.get(group1.getChildren(), 1);
+    assertEquals("foo.h", fileRefFoo.getName());
 
     PBXGroup group2 = (PBXGroup) Iterables.get(sourcesGroup.getChildren(), 1);
     assertEquals("HeaderGroup2", group2.getName());
@@ -209,36 +194,35 @@ public class NewNativeTargetProjectMutatorTest {
                 return input instanceof PBXHeadersBuildPhase;
               }
             });
-    PBXBuildFile fooHeaderBuildFile = Iterables.get(headersBuildPhase.getFiles(), 0);
-    assertFalse(
-        "foo.h should not have settings dictionary",
-        fooHeaderBuildFile.getSettings().isPresent());
-    PBXBuildFile barHeaderBuildFile = Iterables.get(headersBuildPhase.getFiles(), 1);
+    PBXBuildFile barHeaderBuildFile = Iterables.get(headersBuildPhase.getFiles(), 0);
     assertTrue(
         "bar.h should have settings dictionary",
         barHeaderBuildFile.getSettings().isPresent());
     NSDictionary barBuildFileSettings = barHeaderBuildFile.getSettings().get();
     NSArray barAttributes = (NSArray) barBuildFileSettings.get("ATTRIBUTES");
     assertArrayEquals(new NSString[]{new NSString("Public")}, barAttributes.getArray());
+    PBXBuildFile fooHeaderBuildFile = Iterables.get(headersBuildPhase.getFiles(), 1);
+    assertFalse(
+        "foo.h should not have settings dictionary",
+        fooHeaderBuildFile.getSettings().isPresent());
     PBXBuildFile bazHeaderBuildFile = Iterables.get(headersBuildPhase.getFiles(), 2);
     assertTrue(
         "baz.h should have settings dictionary",
         bazHeaderBuildFile.getSettings().isPresent());
     NSDictionary blechBuildFileSettings = bazHeaderBuildFile.getSettings().get();
     NSArray blechAttributes = (NSArray) blechBuildFileSettings.get("ATTRIBUTES");
-    assertArrayEquals(new NSString[]{new NSString("Private")}, blechAttributes.getArray());
+    assertArrayEquals(new NSString[]{new NSString("Public")}, blechAttributes.getArray());
   }
 
   @Test
   public void testSuppressCopyHeaderOption() throws NoSuchBuildTargetException {
-    Iterable<GroupedSource> sources = ImmutableList.of(
-        GroupedSource.ofSourcePath(new TestSourcePath("foo.h")));
+    Set<SourcePath> privateHeaders = ImmutableSet.<SourcePath>of(new TestSourcePath("foo"));
 
     {
       NewNativeTargetProjectMutator mutator = mutatorWithCommonDefaults();
       mutator
           .setShouldGenerateCopyHeadersPhase(false)
-          .setSources(sources, ImmutableMap.<SourcePath, String>of());
+          .setPrivateHeaders(privateHeaders);
       NewNativeTargetProjectMutator.Result result = mutator.buildTargetAndAddToProject(
           generatedProject);
 
@@ -252,7 +236,7 @@ public class NewNativeTargetProjectMutatorTest {
       NewNativeTargetProjectMutator mutator = mutatorWithCommonDefaults();
       mutator
           .setShouldGenerateCopyHeadersPhase(true)
-          .setSources(sources, ImmutableMap.<SourcePath, String>of());
+          .setPrivateHeaders(privateHeaders);
       NewNativeTargetProjectMutator.Result result = mutator.buildTargetAndAddToProject(
           generatedProject);
       assertThat(
@@ -264,10 +248,12 @@ public class NewNativeTargetProjectMutatorTest {
 
   @Test
   public void testFrameworkBuildPhase() throws NoSuchBuildTargetException {
-    BuildTarget testBuildTarget = BuildTarget.builder("//foo", "binary").build();
     NewNativeTargetProjectMutator mutator = mutatorWithCommonDefaults();
     mutator.setFrameworks(
-        ImmutableSet.of(FrameworkPath.fromString(testBuildTarget, "$SDKROOT/Foo.framework")));
+        ImmutableSet.of(
+            ImmutableFrameworkPath.ofSourceTreePath(
+                new SourceTreePath(
+                    PBXReference.SourceTree.SDKROOT, Paths.get("Foo.framework")))));
     mutator.setArchives(
         ImmutableSet.of(
             new PBXFileReference(
@@ -319,6 +305,40 @@ public class NewNativeTargetProjectMutatorTest {
     NewNativeTargetProjectMutator.Result result =
         mutator.buildTargetAndAddToProject(generatedProject);
     assertTrue(hasShellScriptPhaseToCompileCommonAndSplitAssetCatalogs(result.target));
+  }
+
+  @Test
+  public void assetCatalogsBuildPhaseDoesNotExceedCommandLineLengthWithLotsOfXcassets()
+      throws NoSuchBuildTargetException {
+    ImmutableSet.Builder<AppleAssetCatalogDescription.Arg> assetsBuilder = ImmutableSet.builder();
+    for (int i = 0; i < 10000; i += 2) {
+      AppleAssetCatalogDescription.Arg arg1 = new AppleAssetCatalogDescription.Arg();
+      arg1.dirs = ImmutableSet.of(Paths.get(String.format("AssetCatalog%d.xcassets", i)));
+      arg1.copyToBundles = Optional.of(false);
+      assetsBuilder.add(arg1);
+      AppleAssetCatalogDescription.Arg arg2 = new AppleAssetCatalogDescription.Arg();
+      arg2.dirs = ImmutableSet.of(Paths.get(String.format("AssetCatalog%d.xcassets", i + 1)));
+      arg2.copyToBundles = Optional.of(true);
+      assetsBuilder.add(arg2);
+    }
+
+    NewNativeTargetProjectMutator mutator = mutatorWithCommonDefaults();
+    mutator.setAssetCatalogs(
+        Paths.get("compile_asset_catalogs"),
+        assetsBuilder.build());
+    NewNativeTargetProjectMutator.Result result =
+        mutator.buildTargetAndAddToProject(generatedProject);
+
+    PBXShellScriptBuildPhase assetCatalogBuildPhase = getAssetCatalogBuildPhase(
+        result.target.getBuildPhases());
+
+    for (String line : Splitter.on('\n').split(assetCatalogBuildPhase.getShellScript())) {
+      int lineLength = line.length();
+      assertThat(
+          "Line length of generated asset catalog build phase should not be super long",
+          lineLength,
+          lessThan(1024));
+    }
   }
 
   @Test
@@ -387,7 +407,7 @@ public class NewNativeTargetProjectMutatorTest {
   private NewNativeTargetProjectMutator mutatorWithCommonDefaults() {
     NewNativeTargetProjectMutator mutator = new NewNativeTargetProjectMutator(
         pathRelativizer,
-        sourcePathResolver);
+        sourcePathResolver.getPathFunction());
     mutator
         .setTargetName("TestTarget")
         .setProduct(
@@ -428,9 +448,9 @@ public class NewNativeTargetProjectMutatorTest {
     return candidates.get(0);
   }
 
-  private boolean hasShellScriptPhaseToCompileCommonAndSplitAssetCatalogs(PBXTarget target) {
+  private PBXShellScriptBuildPhase getAssetCatalogBuildPhase(Iterable<PBXBuildPhase> buildPhases) {
     PBXShellScriptBuildPhase assetCatalogBuildPhase = null;
-    for (PBXBuildPhase phase : target.getBuildPhases()) {
+    for (PBXBuildPhase phase : buildPhases) {
       if (phase.getClass().equals(PBXShellScriptBuildPhase.class)) {
         PBXShellScriptBuildPhase shellScriptBuildPhase = (PBXShellScriptBuildPhase) phase;
         if (shellScriptBuildPhase.getShellScript().contains("compile_asset_catalogs")) {
@@ -439,6 +459,12 @@ public class NewNativeTargetProjectMutatorTest {
       }
     }
     assertNotNull(assetCatalogBuildPhase);
+    return assetCatalogBuildPhase;
+  }
+
+  private boolean hasShellScriptPhaseToCompileCommonAndSplitAssetCatalogs(PBXTarget target) {
+    PBXShellScriptBuildPhase assetCatalogBuildPhase = getAssetCatalogBuildPhase(
+        target.getBuildPhases());
 
     boolean foundCommonAssetCatalogCompileCommand = false;
     boolean foundSplitAssetCatalogCompileCommand = false;

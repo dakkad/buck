@@ -17,12 +17,15 @@
 package com.facebook.buck.cli;
 
 import com.facebook.buck.apple.AppleBuildRules;
+import com.facebook.buck.apple.AppleBundleDescription;
+import com.facebook.buck.apple.AppleLibraryDescription;
 import com.facebook.buck.apple.AppleTestDescription;
 import com.facebook.buck.apple.ProjectGenerator;
+import com.facebook.buck.apple.SchemeActionType;
 import com.facebook.buck.apple.WorkspaceAndProjectGenerator;
-import com.facebook.buck.apple.XcodeProjectConfigDescription;
 import com.facebook.buck.apple.XcodeWorkspaceConfigDescription;
 import com.facebook.buck.java.JavaLibraryDescription;
+import com.facebook.buck.java.intellij.IntellijConfig;
 import com.facebook.buck.java.intellij.Project;
 import com.facebook.buck.json.BuildFileParseException;
 import com.facebook.buck.log.Logger;
@@ -30,14 +33,17 @@ import com.facebook.buck.model.BuildTarget;
 import com.facebook.buck.model.BuildTargetException;
 import com.facebook.buck.model.FilesystemBackedBuildFileTree;
 import com.facebook.buck.model.HasBuildTarget;
+import com.facebook.buck.parser.BuildTargetSpec;
 import com.facebook.buck.parser.ParserConfig;
 import com.facebook.buck.parser.TargetNodePredicateSpec;
+import com.facebook.buck.parser.TargetNodeSpec;
 import com.facebook.buck.python.PythonBuckConfig;
 import com.facebook.buck.rules.ActionGraph;
 import com.facebook.buck.rules.AssociatedTargetNodePredicate;
+import com.facebook.buck.rules.BuildRule;
 import com.facebook.buck.rules.BuildRuleResolver;
+import com.facebook.buck.rules.BuildRuleType;
 import com.facebook.buck.rules.ProjectConfig;
-import com.facebook.buck.rules.ProjectConfigDescription;
 import com.facebook.buck.rules.SourcePathResolver;
 import com.facebook.buck.rules.TargetGraph;
 import com.facebook.buck.rules.TargetGraphAndTargets;
@@ -49,6 +55,7 @@ import com.facebook.buck.util.HumanReadableException;
 import com.facebook.buck.util.ProcessManager;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Charsets;
+import com.google.common.base.Function;
 import com.google.common.base.Functions;
 import com.google.common.base.Optional;
 import com.google.common.base.Preconditions;
@@ -56,17 +63,26 @@ import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
 import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.ImmutableSortedSet;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Ordering;
+import com.google.common.collect.Sets;
 import com.google.common.io.Files;
 
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.nio.file.Path;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+
+import javax.annotation.Nullable;
 
 public class ProjectCommand extends AbstractCommandRunner<ProjectCommandOptions> {
 
@@ -113,30 +129,44 @@ public class ProjectCommand extends AbstractCommandRunner<ProjectCommandOptions>
       checkForAndKillXcodeIfRunning(options.getIdePrompt());
     }
 
-    TargetGraph fullGraph;
-    try {
-      fullGraph = getParser().buildTargetGraphForTargetNodeSpecs(
-          ImmutableList.of(
-              new TargetNodePredicateSpec(
-                  Predicates.<TargetNode<?>>alwaysTrue(),
-                  getProjectFilesystem().getIgnorePaths())),
-          new ParserConfig(options.getBuckConfig()),
-          getBuckEventBus(),
-          console,
-          environment,
-          options.getEnableProfiling());
-    } catch (BuildTargetException | BuildFileParseException e) {
-      throw new HumanReadableException(e);
-    }
-
     ImmutableSet<BuildTarget> passedInTargetsSet =
         getBuildTargets(options.getArgumentsFormattedAsBuildTargets());
+    ProjectGraphParser projectGraphParser = ProjectGraphParsers.createProjectGraphParser(
+        getParser(),
+        new ParserConfig(options.getBuckConfig()),
+        getBuckEventBus(),
+        console,
+        environment,
+        options.getEnableProfiling());
+
+    TargetGraph projectGraph = projectGraphParser.buildTargetGraphForTargetNodeSpecs(
+        getTargetNodeSpecsForIde(
+            options.getIde(),
+            passedInTargetsSet,
+            getProjectFilesystem().getIgnorePaths()));
+
+    ProjectPredicates projectPredicates = ProjectPredicates.forIde(options.getIde());
+
+    ImmutableSet<BuildTarget> graphRoots;
+    if (!passedInTargetsSet.isEmpty()) {
+      // TODO(mkosiba): The generator should be able to do this without a dummy target.
+      ImmutableSet<BuildTarget> supplementalGraphRoots =
+          getRootBuildTargetsForIntelliJ(options.getIde(), projectGraph, projectPredicates);
+      graphRoots = Sets.union(passedInTargetsSet, supplementalGraphRoots).immutableCopy();
+    } else {
+      graphRoots = getRootsFromPredicate(
+          projectGraph,
+          projectPredicates.getProjectRootsPredicate());
+    }
+
     TargetGraphAndTargets targetGraphAndTargets = createTargetGraph(
-        fullGraph,
-        options.getIde(),
-        passedInTargetsSet,
-        options.getDefaultExcludePaths(),
-        options.isWithTests());
+          projectGraph,
+          graphRoots,
+          projectGraphParser,
+          projectPredicates.getAssociatedProjectPredicate(),
+          options.isWithTests(),
+          options.getIde(),
+          getProjectFilesystem().getIgnorePaths());
 
     if (options.getDryRun()) {
       for (TargetNode<?> targetNode : targetGraphAndTargets.getTargetGraph().getNodes()) {
@@ -149,7 +179,7 @@ public class ProjectCommand extends AbstractCommandRunner<ProjectCommandOptions>
     switch (options.getIde()) {
       case INTELLIJ:
         return runIntellijProjectGenerator(
-            fullGraph,
+            projectGraph,
             targetGraphAndTargets,
             passedInTargetsSet,
             options);
@@ -164,11 +194,34 @@ public class ProjectCommand extends AbstractCommandRunner<ProjectCommandOptions>
     }
   }
 
+  public static ImmutableSet<BuildTarget> getRootBuildTargetsForIntelliJ(
+      ProjectCommandOptions.Ide ide,
+      TargetGraph projectGraph,
+      ProjectPredicates projectPredicates) {
+    if (ide != ProjectCommandOptions.Ide.INTELLIJ) {
+      return ImmutableSet.of();
+    }
+    return getRootsFromPredicate(
+        projectGraph,
+        Predicates.and(
+            new Predicate<TargetNode<?>>() {
+
+              @Override
+              public boolean apply(TargetNode<?> input) {
+                return input.getBuildTarget() != null &&
+                    input.getBuildTarget().getBasePathWithSlash().isEmpty();
+              }
+            },
+            projectPredicates.getProjectRootsPredicate()
+        )
+    );
+  }
+
   /**
    * Run intellij specific project generation actions.
    */
   int runIntellijProjectGenerator(
-      TargetGraph fullGraph,
+      TargetGraph projectGraph,
       TargetGraphAndTargets targetGraphAndTargets,
       ImmutableSet<BuildTarget> passedInTargetsSet,
       ProjectCommandOptions options)
@@ -177,16 +230,13 @@ public class ProjectCommand extends AbstractCommandRunner<ProjectCommandOptions>
     // configuration files.
     ActionGraph actionGraph = targetGraphTransformer.apply(targetGraphAndTargets.getTargetGraph());
 
-    try (ExecutionContext executionContext = createExecutionContext(
-            options,
-            actionGraph)) {
-
+    try (ExecutionContext executionContext = createExecutionContext()) {
       Project project = new Project(
           new SourcePathResolver(new BuildRuleResolver(actionGraph.getNodes())),
           FluentIterable
               .from(actionGraph.getNodes())
               .filter(ProjectConfig.class)
-              .toSet(),
+              .toSortedSet(Ordering.natural()),
           actionGraph,
           options.getBasePathToAliasMap(),
           options.getJavaPackageFinder(),
@@ -196,9 +246,11 @@ public class ProjectCommand extends AbstractCommandRunner<ProjectCommandOptions>
               new ParserConfig(options.getBuckConfig()).getBuildFileName()),
           getProjectFilesystem(),
           options.getPathToDefaultAndroidManifest(),
+          new IntellijConfig(options.getBuckConfig()),
           options.getPathToPostProcessScript(),
           new PythonBuckConfig(options.getBuckConfig()).getPythonInterpreter(),
-          getObjectMapper());
+          getObjectMapper(),
+          options.isAndroidAutoGenerateDisabled());
 
       File tempDir = Files.createTempDir();
       File tempFile = new File(tempDir, "project.json");
@@ -218,7 +270,7 @@ public class ProjectCommand extends AbstractCommandRunner<ProjectCommandOptions>
         if (options.shouldProcessAnnotations()) {
           try {
             additionalInitialTargets = getAnnotationProcessingTargets(
-                fullGraph,
+                projectGraph,
                 passedInTargetsSet);
           } catch (BuildTargetException | BuildFileParseException e) {
             throw new HumanReadableException(e);
@@ -264,7 +316,7 @@ public class ProjectCommand extends AbstractCommandRunner<ProjectCommandOptions>
   }
 
   ImmutableList<String> getAnnotationProcessingTargets(
-      TargetGraph fullGraph,
+      TargetGraph projectGraph,
       ImmutableSet<BuildTarget> passedInTargetsSet)
       throws BuildTargetException, BuildFileParseException, IOException, InterruptedException {
     ImmutableSet<BuildTarget> buildTargets;
@@ -272,7 +324,7 @@ public class ProjectCommand extends AbstractCommandRunner<ProjectCommandOptions>
       buildTargets = passedInTargetsSet;
     } else {
       buildTargets = getRootsFromPredicate(
-          fullGraph,
+          projectGraph,
           ANNOTATION_PREDICATE);
     }
     return FluentIterable
@@ -285,7 +337,7 @@ public class ProjectCommand extends AbstractCommandRunner<ProjectCommandOptions>
    * Run xcode specific project generation actions.
    */
   int runXcodeProjectGenerator(
-      TargetGraphAndTargets targetGraphAndTargets,
+      final TargetGraphAndTargets targetGraphAndTargets,
       ImmutableSet<BuildTarget> passedInTargetsSet,
       ProjectCommandOptions options)
       throws IOException, InterruptedException {
@@ -313,32 +365,77 @@ public class ProjectCommand extends AbstractCommandRunner<ProjectCommandOptions>
       optionsBuilder.addAll(ProjectGenerator.SEPARATED_PROJECT_OPTIONS);
     }
     LOG.debug("Generating workspace for config targets %s", targets);
-    Map<TargetNode<?>, ProjectGenerator> projectGenerators = new HashMap<>();
+    Map<Path, ProjectGenerator> projectGenerators = new HashMap<>();
     ImmutableSet<TargetNode<?>> testTargetNodes = targetGraphAndTargets.getAssociatedTests();
     ImmutableSet<TargetNode<AppleTestDescription.Arg>> groupableTests =
       options.getCombineTestBundles()
           ? AppleBuildRules.filterGroupableTests(testTargetNodes)
           : ImmutableSet.<TargetNode<AppleTestDescription.Arg>>of();
-    for (BuildTarget workspaceTarget : targets) {
-      TargetNode<?> workspaceNode = Preconditions.checkNotNull(
-          targetGraphAndTargets.getTargetGraph().get(workspaceTarget));
-      if (workspaceNode.getType() != XcodeWorkspaceConfigDescription.TYPE) {
+    ImmutableSet.Builder<BuildTarget> requiredBuildTargetsBuilder = ImmutableSet.builder();
+    for (final BuildTarget inputTarget : targets) {
+      TargetNode<?> inputNode = Preconditions.checkNotNull(
+          targetGraphAndTargets.getTargetGraph().get(inputTarget));
+      XcodeWorkspaceConfigDescription.Arg workspaceArgs;
+      BuildRuleType type = inputNode.getType();
+      if (type == XcodeWorkspaceConfigDescription.TYPE) {
+        TargetNode<XcodeWorkspaceConfigDescription.Arg> castedWorkspaceNode =
+          castToXcodeWorkspaceTargetNode(inputNode);
+        workspaceArgs = castedWorkspaceNode.getConstructorArg();
+      } else if (canGenerateImplicitWorkspaceForType(type)) {
+        workspaceArgs = createImplicitWorkspaceArgs(inputNode);
+      } else {
         throw new HumanReadableException(
-            "%s must be a xcode_workspace_config",
-            workspaceTarget);
+            "%s must be a xcode_workspace_config, apple_bundle, or apple_library",
+            inputNode);
       }
       WorkspaceAndProjectGenerator generator = new WorkspaceAndProjectGenerator(
           getProjectFilesystem(),
           targetGraphAndTargets.getTargetGraph(),
-          castToXcodeWorkspaceTargetNode(workspaceNode),
+          workspaceArgs,
+          inputTarget,
           optionsBuilder.build(),
           combinedProject,
-          new ParserConfig(options.getBuckConfig()).getBuildFileName());
+          new ParserConfig(options.getBuckConfig()).getBuildFileName(),
+          new Function<TargetNode<?>, Path>() {
+            @Nullable
+            @Override
+            public Path apply(TargetNode<?> input) {
+              TargetGraphToActionGraph targetGraphToActionGraph = new TargetGraphToActionGraph(
+                  getBuckEventBus(),
+                  new BuildTargetNodeToBuildRuleTransformer());
+              TargetGraph subgraph = targetGraphAndTargets.getTargetGraph().getSubgraph(
+                  ImmutableSet.of(
+                      input));
+              ActionGraph actionGraph = Preconditions.checkNotNull(
+                  targetGraphToActionGraph.apply(subgraph));
+              BuildRule rule = Preconditions.checkNotNull(
+                  actionGraph.findBuildRuleByTarget(input.getBuildTarget()));
+              return rule.getPathToOutputFile();
+            }
+          });
       generator.setGroupableTests(groupableTests);
       generator.generateWorkspaceAndDependentProjects(projectGenerators);
+      ImmutableSet<BuildTarget> requiredBuildTargetsForWorkspace =
+          generator.getRequiredBuildTargets();
+      LOG.debug(
+          "Required build targets for workspace %s: %s",
+          inputTarget,
+          requiredBuildTargetsForWorkspace);
+      requiredBuildTargetsBuilder.addAll(requiredBuildTargetsForWorkspace);
     }
 
-    return 0;
+    int exitCode = 0;
+    ImmutableSet<BuildTarget> requiredBuildTargets = requiredBuildTargetsBuilder.build();
+    if (!requiredBuildTargets.isEmpty()) {
+      BuildCommand buildCommand = new BuildCommand(getCommandRunnerParams());
+      BuildCommandOptions buildCommandOptions = new BuildCommandOptions(options.getBuckConfig());
+      buildCommandOptions.setArguments(
+          FluentIterable.from(requiredBuildTargets)
+              .transform(Functions.toStringFunction())
+              .toList());
+      exitCode = buildCommand.runCommandWithOptions(buildCommandOptions);
+    }
+    return exitCode;
   }
 
   @SuppressWarnings(value = "unchecked")
@@ -408,115 +505,93 @@ public class ProjectCommand extends AbstractCommandRunner<ProjectCommandOptions>
       (result.get().isEmpty() || result.get().toLowerCase(Locale.US).startsWith("y"));
   }
 
-  private static ImmutableSet<BuildTarget> getRootsFromPredicate(
-      TargetGraph fullGraph,
+  @VisibleForTesting
+  static ImmutableSet<BuildTarget> getRootsFromPredicate(
+      TargetGraph projectGraph,
       Predicate<TargetNode<?>> rootsPredicate) {
     return FluentIterable
-        .from(fullGraph.getNodes())
+        .from(projectGraph.getNodes())
         .filter(rootsPredicate)
         .transform(HasBuildTarget.TO_TARGET)
         .toSet();
   }
 
-  @VisibleForTesting
-  static TargetGraphAndTargets createTargetGraph(
-      TargetGraph fullGraph,
-      ProjectCommandOptions.Ide targetIde,
-      final ImmutableSet<BuildTarget> passedInTargetsSet,
-      final ImmutableSet<String> defaultExcludePaths,
-      boolean withTests) {
-    Predicate<TargetNode<?>> projectRootsPredicate;
-    AssociatedTargetNodePredicate associatedProjectPredicate;
-
-    // Prepare the predicates to create the project graph based on the IDE.
-    switch (targetIde) {
-      case INTELLIJ:
-        projectRootsPredicate = new Predicate<TargetNode<?>>() {
-          @Override
-          public boolean apply(TargetNode<?> input) {
-            return input.getType() == ProjectConfigDescription.TYPE;
-          }
-        };
-        associatedProjectPredicate = new AssociatedTargetNodePredicate() {
-          @Override
-          public boolean apply(TargetNode<?> targetNode, TargetGraph targetGraph) {
-            ProjectConfigDescription.Arg projectArg;
-            if (targetNode.getType() == ProjectConfigDescription.TYPE) {
-              projectArg = (ProjectConfigDescription.Arg) targetNode.getConstructorArg();
-            } else {
-              return false;
-            }
-
-            BuildTarget projectTarget = null;
-            if (projectArg.srcTarget.isPresent()) {
-              projectTarget = projectArg.srcTarget.get();
-            } else if (projectArg.testTarget.isPresent()) {
-              projectTarget = projectArg.testTarget.get();
-            }
-            return (projectTarget != null && targetGraph.get(projectTarget) != null);
-          }
-        };
-        break;
-      case XCODE:
-        projectRootsPredicate = new Predicate<TargetNode<?>>() {
-          @Override
-          public boolean apply(TargetNode<?> input) {
-            if (XcodeWorkspaceConfigDescription.TYPE != input.getType()) {
-              return false;
-            }
-
-            String targetName = input.getBuildTarget().getFullyQualifiedName();
-            for (String prefix : defaultExcludePaths) {
-              if (targetName.startsWith("//" + prefix) &&
-                  !passedInTargetsSet.contains(input.getBuildTarget())) {
-                LOG.debug(
-                    "Ignoring build target %s (exclude_paths contains %s)",
-                    input.getBuildTarget(),
-                    prefix);
-                return false;
-              }
-            }
-            return true;
-          }
-        };
-        associatedProjectPredicate = new AssociatedTargetNodePredicate() {
-          @Override
-          public boolean apply(
-              TargetNode<?> targetNode, TargetGraph targetGraph) {
-            XcodeProjectConfigDescription.Arg projectArg;
-            if (targetNode.getType() == XcodeProjectConfigDescription.TYPE) {
-              projectArg = (XcodeProjectConfigDescription.Arg) targetNode.getConstructorArg();
-            } else {
-              return false;
-            }
-
-            for (BuildTarget includedBuildTarget : projectArg.rules) {
-              if (targetGraph.get(includedBuildTarget) != null) {
-                return true;
-              }
-            }
-
-            return false;
-          }
-        };
-        break;
-      default:
-        // unreachable
-        throw new IllegalStateException("'ide' should always be of type 'INTELLIJ' or 'XCODE'");
-    }
-
-    ImmutableSet<BuildTarget> graphRoots;
-    if (!passedInTargetsSet.isEmpty()) {
-      graphRoots = passedInTargetsSet;
+  private static Iterable<? extends TargetNodeSpec> getTargetNodeSpecsForIde(
+      ProjectCommandOptions.Ide ide,
+      Collection<BuildTarget> passedInBuildTargets,
+      ImmutableSet<Path> ignoreDirs
+  ) {
+    if (ide == ProjectCommandOptions.Ide.XCODE &&
+        !passedInBuildTargets.isEmpty()) {
+      return Iterables.transform(
+          passedInBuildTargets,
+          BuildTargetSpec.TO_BUILD_TARGET_SPEC);
     } else {
-      graphRoots = getRootsFromPredicate(fullGraph, projectRootsPredicate);
+      return ImmutableList.of(
+          new TargetNodePredicateSpec(
+              Predicates.<TargetNode<?>>alwaysTrue(),
+              ignoreDirs));
+    }
+  }
+
+  private static TargetGraphAndTargets createTargetGraph(
+      TargetGraph projectGraph,
+      ImmutableSet<BuildTarget> graphRoots,
+      ProjectGraphParser projectGraphParser,
+      AssociatedTargetNodePredicate associatedProjectPredicate,
+      boolean isWithTests,
+      ProjectCommandOptions.Ide ide,
+      ImmutableSet<Path> ignoreDirs
+  )
+    throws IOException, InterruptedException {
+
+    TargetGraph resultProjectGraph;
+    ImmutableSet<BuildTarget> explicitTestTargets;
+
+    if (isWithTests) {
+        explicitTestTargets = TargetGraphAndTargets.getExplicitTestTargets(
+            graphRoots,
+            projectGraph);
+        resultProjectGraph =
+            projectGraphParser.buildTargetGraphForTargetNodeSpecs(
+                getTargetNodeSpecsForIde(
+                    ide,
+                    Sets.union(graphRoots, explicitTestTargets),
+                    ignoreDirs));
+    } else {
+      resultProjectGraph = projectGraph;
+      explicitTestTargets = ImmutableSet.of();
     }
 
     return TargetGraphAndTargets.create(
         graphRoots,
-        fullGraph,
+        resultProjectGraph,
         associatedProjectPredicate,
-        withTests);
+        isWithTests,
+        explicitTestTargets);
+  }
+
+  private boolean canGenerateImplicitWorkspaceForType(BuildRuleType type) {
+    // We weren't given a workspace target, but we may have been given something that could
+    // still turn into a workspace (for example, a library or an actual app rule). If that's the
+    // case we still want to generate a workspace.
+    return type == AppleBundleDescription.TYPE ||
+           type == AppleLibraryDescription.TYPE;
+  }
+
+  /**
+   * @param sourceTargetNode - The TargetNode which will act as our fake workspaces `src_target`
+   * @return Workspace Args that describe a generic Xcode workspace containing `src_target` and its
+   * tests
+   */
+  private XcodeWorkspaceConfigDescription.Arg createImplicitWorkspaceArgs(
+      TargetNode<?> sourceTargetNode) {
+    XcodeWorkspaceConfigDescription.Arg workspaceArgs = new XcodeWorkspaceConfigDescription.Arg();
+    workspaceArgs.srcTarget = Optional.of(sourceTargetNode.getBuildTarget());
+    workspaceArgs.actionConfigNames = Optional.of(ImmutableMap.<SchemeActionType, String>of());
+    workspaceArgs.extraTests = Optional.of(ImmutableSortedSet.<BuildTarget>of());
+    workspaceArgs.workspaceName = Optional.absent();
+    return workspaceArgs;
   }
 
   @Override

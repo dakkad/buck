@@ -42,7 +42,9 @@ import com.google.common.collect.Lists;
 
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 
 import java.io.IOException;
 import java.lang.reflect.Type;
@@ -51,11 +53,15 @@ import java.nio.file.Paths;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class TypeCoercerTest {
   private final TypeCoercerFactory typeCoercerFactory = new TypeCoercerFactory();
   private final BuildTargetParser targetParser = new BuildTargetParser();
   private final FakeProjectFilesystem filesystem = new FakeProjectFilesystem();
+
+  @Rule
+  public ExpectedException exception = ExpectedException.none();
 
   @Test
   public void coercingStringMapOfIntListsShouldBeIdentity()
@@ -219,6 +225,55 @@ public class TypeCoercerTest {
 
   @Test
   public void coerceToEitherLeftOrRight() throws NoSuchFieldException, CoerceFailedException {
+    Type type = TestFields.class.getField("eitherStringSetOrStringToStringMap").getGenericType();
+    TypeCoercer<?> coercer = typeCoercerFactory.typeCoercerForType(type);
+
+    Set<String> inputSet = ImmutableSet.of("a", "b", "x");
+    Map<String, String> inputMap = ImmutableMap.of(
+        "key1", "One",
+        "key2", "Two");
+
+    assertEquals(
+        Either.ofLeft(inputSet),
+        coercer.coerce(targetParser, filesystem, Paths.get(""), inputSet));
+    assertEquals(
+        Either.ofRight(inputMap),
+        coercer.coerce(targetParser, filesystem, Paths.get(""), inputMap));
+  }
+
+  @Test
+  public void coercedEitherThrowsOnAccessingMissingLeft()
+      throws NoSuchFieldException, CoerceFailedException {
+    Type type = TestFields.class.getField("eitherStringSetOrStringToStringMap").getGenericType();
+    TypeCoercer<?> coercer = typeCoercerFactory.typeCoercerForType(type);
+
+    Map<String, String> inputMap = ImmutableMap.of(
+        "key1", "One",
+        "key2", "Two");
+    Either<?, ?> either = (Either<?, ?>)
+        coercer.coerce(targetParser, filesystem, Paths.get(""), inputMap);
+    assertEquals(inputMap, either.getRight());
+    exception.expect(RuntimeException.class);
+    either.getLeft();
+  }
+
+  @Test
+  public void coercedEitherThrowsOnAccessingMissingRight()
+      throws NoSuchFieldException, CoerceFailedException {
+    Type type = TestFields.class.getField("eitherStringSetOrStringToStringMap").getGenericType();
+    TypeCoercer<?> coercer = typeCoercerFactory.typeCoercerForType(type);
+
+    Set<String> inputSet = ImmutableSet.of("a", "b", "x");
+    Either<?, ?> either = (Either<?, ?>)
+        coercer.coerce(targetParser, filesystem, Paths.get(""), inputSet);
+    assertEquals(inputSet, either.getLeft());
+    exception.expect(RuntimeException.class);
+    either.getRight();
+  }
+
+  @Test
+  public void coerceToEitherLeftOrRightWithCollections()
+      throws NoSuchFieldException, CoerceFailedException {
     Type type = TestFields.class.getField("eitherStringOrStringList").getGenericType();
     TypeCoercer<?> coercer = typeCoercerFactory.typeCoercerForType(type);
 
@@ -311,55 +366,54 @@ public class TypeCoercerTest {
 
   @Test
   public void coercingAppleSourcePaths() throws NoSuchFieldException, CoerceFailedException {
-    Type type = TestFields.class.getField("listOfAppleSources").getGenericType();
+    Type type = TestFields.class.getField("listOfSourcesWithFlags").getGenericType();
     TypeCoercer<?> coercer = typeCoercerFactory.typeCoercerForType(type);
 
     ImmutableList<String> input = ImmutableList.of("foo.m", "bar.m");
     Object result = coercer.coerce(targetParser, filesystem, Paths.get(""), input);
-    ImmutableList<AppleSource> expectedResult = ImmutableList.of(
-        AppleSource.ofSourcePath(new TestSourcePath("foo.m")),
-        AppleSource.ofSourcePath(new TestSourcePath("bar.m")));
+    ImmutableList<SourceWithFlags> expectedResult = ImmutableList.of(
+        SourceWithFlags.of(new TestSourcePath("foo.m")),
+        SourceWithFlags.of(new TestSourcePath("bar.m")));
     assertEquals(expectedResult, result);
   }
 
   @Test
   public void coercingAppleSourcePathsWithFlags()
       throws NoSuchFieldException, CoerceFailedException {
-    Type type = TestFields.class.getField("listOfAppleSources").getGenericType();
+    Type type = TestFields.class.getField("listOfSourcesWithFlags").getGenericType();
     TypeCoercer<?> coercer = typeCoercerFactory.typeCoercerForType(type);
 
     ImmutableList<?> input = ImmutableList.of(
-        ImmutableList.of("foo.m", "-Wall"),
-        ImmutableList.of("bar.m", "-fobjc-arc"));
+        ImmutableList.of("foo.m", ImmutableList.of("-Wall", "-Werror")),
+        ImmutableList.of("bar.m", ImmutableList.of("-fobjc-arc")));
     Object result = coercer.coerce(targetParser, filesystem, Paths.get(""), input);
-    ImmutableList<AppleSource> expectedResult = ImmutableList.of(
-        AppleSource.ofSourcePathWithFlags(
-            new Pair<SourcePath, String>(new TestSourcePath("foo.m"), "-Wall")),
-        AppleSource.ofSourcePathWithFlags(
-            new Pair<SourcePath, String>(new TestSourcePath("bar.m"), "-fobjc-arc")));
+    ImmutableList<SourceWithFlags> expectedResult = ImmutableList.of(
+        SourceWithFlags.of(
+            new TestSourcePath("foo.m"), ImmutableList.of("-Wall", "-Werror")),
+        SourceWithFlags.of(
+            new TestSourcePath("bar.m"), ImmutableList.of("-fobjc-arc")));
     assertEquals(expectedResult, result);
   }
 
   @Test
   public void coercingHeterogeneousAppleSourceGroups()
       throws NoSuchFieldException, CoerceFailedException {
-    Type type = TestFields.class.getField("listOfAppleSources").getGenericType();
+    Type type = TestFields.class.getField("listOfSourcesWithFlags").getGenericType();
     TypeCoercer<?> coercer = typeCoercerFactory.typeCoercerForType(type);
 
     ImmutableList<?> input = ImmutableList.of(
         "Group1/foo.m",
-        ImmutableList.of("Group1/bar.m", "-Wall"),
+        ImmutableList.of("Group1/bar.m", ImmutableList.of("-Wall", "-Werror")),
         "Group2/baz.m",
-        ImmutableList.of("Group2/blech.m", "-fobjc-arc"));
+        ImmutableList.of("Group2/blech.m", ImmutableList.of("-fobjc-arc")));
     Object result = coercer.coerce(targetParser, filesystem, Paths.get(""), input);
-    ImmutableList<AppleSource> expectedResult = ImmutableList.of(
-        AppleSource.ofSourcePath(new TestSourcePath("Group1/foo.m")),
-        AppleSource.ofSourcePathWithFlags(
-            new Pair<SourcePath, String>(new TestSourcePath("Group1/bar.m"), "-Wall")),
-        AppleSource.ofSourcePath(new TestSourcePath("Group2/baz.m")),
-        AppleSource.ofSourcePathWithFlags(
-            new Pair<SourcePath, String>(
-                new TestSourcePath("Group2/blech.m"), "-fobjc-arc")));
+    ImmutableList<SourceWithFlags> expectedResult = ImmutableList.of(
+        SourceWithFlags.of(new TestSourcePath("Group1/foo.m")),
+        SourceWithFlags.of(
+            new TestSourcePath("Group1/bar.m"), ImmutableList.of("-Wall", "-Werror")),
+        SourceWithFlags.of(new TestSourcePath("Group2/baz.m")),
+        SourceWithFlags.of(
+            new TestSourcePath("Group2/blech.m"), ImmutableList.of("-fobjc-arc")));
     assertEquals(expectedResult, result);
   }
 
@@ -583,14 +637,16 @@ public class TypeCoercerTest {
     public ImmutableSortedSet<String> sortedSetOfStrings;
     public List<String> superclassOfImmutableList;
     public Map<String, String> superclassOfImmutableMap;
+    @SuppressWarnings("PMD.LooseCoupling")
     public LinkedList<Integer> subclassOfList;
     public Object object;
     public ImmutableMap<String, ImmutableList<BuildTarget>> stringMapOfListOfBuildTargets;
     public Map<Optional<Integer>, String> optionalIntegerMapOfStrings;
     public String primitiveString;
     public Either<String, List<String>> eitherStringOrStringList;
+    public Either<Set<String>, Map<String, String>> eitherStringSetOrStringToStringMap;
     public Pair<Path, String> pairOfPathsAndStrings;
-    public ImmutableList<AppleSource> listOfAppleSources;
+    public ImmutableList<SourceWithFlags> listOfSourcesWithFlags;
     public ImmutableSortedSet<Label> labels;
     public ImmutableList<TestEnum> listOfTestEnums;
     public ImmutableMap<String, Path> stringMapOfPaths;

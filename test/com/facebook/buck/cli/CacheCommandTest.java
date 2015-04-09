@@ -19,6 +19,8 @@ package com.facebook.buck.cli;
 import static org.easymock.EasyMock.capture;
 import static org.easymock.EasyMock.eq;
 import static org.easymock.EasyMock.expect;
+import static org.easymock.EasyMock.isA;
+import static org.easymock.EasyMock.newCapture;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.startsWith;
 import static org.junit.Assert.assertEquals;
@@ -43,7 +45,7 @@ public class CacheCommandTest extends EasyMockSupport {
       throws IOException, InterruptedException {
     Console console = createMock(Console.class);
     console.printErrorText("No cache keys specified.");
-    CommandRunnerParamsForTesting commandRunnerParams = CommandRunnerParamsForTesting
+    CommandRunnerParams commandRunnerParams = CommandRunnerParamsForTesting
         .builder()
         .setConsole(console)
         .build();
@@ -68,15 +70,15 @@ public class CacheCommandTest extends EasyMockSupport {
     expect(
         cache.fetch(
             eq(new RuleKey(ruleKeyHash)),
-            capture(new Capture<File>())))
+            isA(File.class)))
         .andReturn(CacheResult.CASSANDRA_HIT);
     ArtifactCacheFactory artifactCacheFactory = new InstanceArtifactCacheFactory(cache);
 
     Console console = createMock(Console.class);
-    Capture<String> successMessage = new Capture<>();
+    Capture<String> successMessage = newCapture();
     console.printSuccess(capture(successMessage));
 
-    CommandRunnerParamsForTesting commandRunnerParams = CommandRunnerParamsForTesting.builder()
+    CommandRunnerParams commandRunnerParams = CommandRunnerParamsForTesting.builder()
         .setConsole(console)
         .setArtifactCacheFactory(artifactCacheFactory)
         .build();
@@ -106,14 +108,14 @@ public class CacheCommandTest extends EasyMockSupport {
     expect(
         cache.fetch(
             eq(new RuleKey(ruleKeyHash)),
-            capture(new Capture<File>())))
+            isA(File.class)))
         .andReturn(CacheResult.MISS);
     ArtifactCacheFactory artifactCacheFactory = new InstanceArtifactCacheFactory(cache);
 
     Console console = createMock(Console.class);
     console.printErrorText("Failed to retrieve an artifact with id " + ruleKeyHash + ".");
 
-    CommandRunnerParamsForTesting commandRunnerParams = CommandRunnerParamsForTesting.builder()
+    CommandRunnerParams commandRunnerParams = CommandRunnerParamsForTesting.builder()
         .setConsole(console)
         .setArtifactCacheFactory(artifactCacheFactory)
         .build();

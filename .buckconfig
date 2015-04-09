@@ -4,10 +4,14 @@
     src_roots = src, test
 [alias]
     buck = //programs:buck
+    buck-win = //programs:buck-no-nailgun
     buck-android-support = //src/com/facebook/buck/android/support:buck-android-support
     hmaptool = //src/com/facebook/buck/apple/clang:hmaptool
+    maven-importer = //src/com/facebook/buck/maven:resolver
 [buildfile]
     includes = //DEFS
+[download]
+    maven_repo = https://repo1.maven.org/maven2
 [project]
     ; Directories that do not contain input files.
     ; All of these directories should also appear in the "ignore_dirs" list
@@ -20,7 +24,9 @@
       src/com/facebook/buck/cli/quickstart, \
       test/com/facebook/buck/android/testdata, \
       test/com/facebook/buck/apple/testdata, \
+      test/com/facebook/buck/apple/xcode/testdata, \
       test/com/facebook/buck/cli/testdata, \
+      test/com/facebook/buck/d/testdata, \
       test/com/facebook/buck/java/testdata, \
       test/com/facebook/buck/java/intellij/testdata, \
       test/com/facebook/buck/junit/testdata, \

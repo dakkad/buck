@@ -99,7 +99,7 @@ public class CopyNativeLibraries extends AbstractBuildRule {
   }
 
   private Path getBinPath() {
-    return BuildTargets.getBinPath(getBuildTarget(), "__native_libs_%s__");
+    return BuildTargets.getScratchPath(getBuildTarget(), "__native_libs_%s__");
   }
 
   @Override
@@ -150,7 +150,7 @@ public class CopyNativeLibraries extends AbstractBuildRule {
               .resolve(entry.getKey().getSecond());
       NdkCxxPlatform platform =
           Preconditions.checkNotNull(nativePlatforms.get(entry.getKey().getFirst()));
-      Path objcopy = getResolver().getPath(platform.getObjcopy());
+      Path objcopy = platform.getObjcopy();
       steps.add(new MkdirStep(destination.getParent()));
       steps.add(
           new ObjcopyStep(

@@ -24,10 +24,14 @@ import com.facebook.buck.model.BuildTarget;
 import com.facebook.buck.model.BuildTargetFactory;
 import com.facebook.buck.rules.BuildRuleResolver;
 import com.facebook.buck.rules.SourcePathResolver;
+import com.facebook.buck.testutil.TestConsole;
 import com.facebook.buck.testutil.integration.BuckBuildLog;
 import com.facebook.buck.testutil.integration.DebuggableTemporaryFolder;
 import com.facebook.buck.testutil.integration.ProjectWorkspace;
 import com.facebook.buck.testutil.integration.TestDataHelper;
+import com.facebook.buck.util.ImmutableProcessExecutorParams;
+import com.facebook.buck.util.ProcessExecutor;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 
 import org.junit.Before;
@@ -35,26 +39,35 @@ import org.junit.Rule;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 
 public class CxxLexYaccIntegrationTest {
 
   @Rule
   public DebuggableTemporaryFolder tmp = new DebuggableTemporaryFolder();
 
-  private void assumeExists(Path path) {
-    assumeTrue(String.format("Cannot find %s", path), Files.exists(path));
+  private void assumeExists(Tool tool) throws InterruptedException, IOException {
+    ImmutableList<String> command = ImmutableList
+        .<String>builder()
+        .addAll(tool.getCommandPrefix(new SourcePathResolver(new BuildRuleResolver())))
+        .add("--help")
+        .build();
+    ProcessExecutor.Result result = new ProcessExecutor(new TestConsole())
+        .launchAndExecute(
+            ImmutableProcessExecutorParams
+                .builder()
+                .setCommand(command)
+                .build());
+    assumeTrue(String.format("Cannot execute %s", command), result.getExitCode() == 0);
   }
 
   @Before
-  public void setUp() {
-    SourcePathResolver pathResolver = new SourcePathResolver(new BuildRuleResolver());
-    CxxPlatform cxxBuckConfig = DefaultCxxPlatforms.build(new FakeBuckConfig());
+  public void setUp() throws InterruptedException, IOException {
+    CxxPlatform cxxBuckConfig = DefaultCxxPlatforms.build(
+        new CxxBuckConfig(new FakeBuckConfig()));
     assumeTrue(cxxBuckConfig.getLex().isPresent());
     assumeTrue(cxxBuckConfig.getYacc().isPresent());
-    assumeExists(pathResolver.getPath(cxxBuckConfig.getLex().get()));
-    assumeExists(pathResolver.getPath(cxxBuckConfig.getYacc().get()));
+    assumeExists(cxxBuckConfig.getLex().get());
+    assumeExists(cxxBuckConfig.getYacc().get());
   }
 
   @Test
@@ -63,37 +76,38 @@ public class CxxLexYaccIntegrationTest {
         this, "lexyacc", tmp);
     workspace.setUp();
 
-    CxxPlatform cxxPlatform = DefaultCxxPlatforms.build(new FakeBuckConfig());
+    CxxPlatform cxxPlatform = DefaultCxxPlatforms.build(
+        new CxxBuckConfig(new FakeBuckConfig()));
     BuildTarget target = BuildTargetFactory.newInstance("//foo:main");
+    CxxSourceRuleFactory cxxSourceRuleFactory = CxxSourceRuleFactoryHelper.of(target, cxxPlatform);
     BuildTarget binaryTarget = CxxDescriptionEnhancer.createCxxLinkTarget(target);
     String sourceName = "main.cpp";
     String yaccSourceName = "mainy.yy";
     String yaccSourceFull = "foo/" + yaccSourceName;
     BuildTarget yaccTarget = CxxDescriptionEnhancer.createYaccBuildTarget(target, yaccSourceName);
-    BuildTarget yaccPreprocessTarget = CxxPreprocessables.createPreprocessBuildTarget(
-        target,
-        cxxPlatform.getFlavor(),
-        CxxSource.Type.CXX,
-        /* pic */ false,
-        yaccSourceName + ".cc");
-    BuildTarget yaccCompileTarget = CxxCompilableEnhancer.createCompileBuildTarget(
-        target,
-        cxxPlatform.getFlavor(),
-        yaccSourceName + ".cc",
-        /* pic */ false);
-    BuildTarget preprocessTarget = CxxPreprocessables.createPreprocessBuildTarget(
-        target,
-        cxxPlatform.getFlavor(),
-        CxxSource.Type.CXX,
-        /* pic */ false,
-        sourceName);
-    BuildTarget compileTarget = CxxCompilableEnhancer.createCompileBuildTarget(
-        target,
-        cxxPlatform.getFlavor(),
-        sourceName,
-        /* pic */ false);
+    BuildTarget yaccPreprocessTarget =
+        cxxSourceRuleFactory.createPreprocessBuildTarget(
+            yaccSourceName + ".cc",
+            CxxSource.Type.CXX,
+            CxxSourceRuleFactory.PicType.PDC);
+    BuildTarget yaccCompileTarget =
+        cxxSourceRuleFactory.createCompileBuildTarget(
+            yaccSourceName + ".cc",
+            CxxSourceRuleFactory.PicType.PDC);
+    BuildTarget preprocessTarget =
+        cxxSourceRuleFactory.createPreprocessBuildTarget(
+            sourceName,
+            CxxSource.Type.CXX,
+            CxxSourceRuleFactory.PicType.PDC);
+    BuildTarget compileTarget =
+        cxxSourceRuleFactory.createCompileBuildTarget(
+            sourceName,
+            CxxSourceRuleFactory.PicType.PDC);
     BuildTarget headerSymlinkTreeTarget =
-        CxxDescriptionEnhancer.createHeaderSymlinkTreeTarget(target, cxxPlatform.getFlavor());
+        CxxDescriptionEnhancer.createHeaderSymlinkTreeTarget(
+            target,
+            cxxPlatform.getFlavor(),
+            CxxDescriptionEnhancer.HeaderVisibility.PRIVATE);
 
     // Do a clean build, verify that it succeeds, and check that all expected targets built
     // successfully.

@@ -40,14 +40,12 @@ import com.facebook.buck.rules.BuildRuleType;
 import com.facebook.buck.rules.Description;
 import com.facebook.buck.rules.FakeBuildRule;
 import com.facebook.buck.rules.FakeRepositoryFactory;
-import com.facebook.buck.rules.ImmutableBuildRuleType;
 import com.facebook.buck.rules.NonCheckingBuildRuleFactoryParams;
 import com.facebook.buck.rules.NoopArtifactCache;
 import com.facebook.buck.rules.Repository;
 import com.facebook.buck.rules.SourcePathResolver;
 import com.facebook.buck.rules.TargetNode;
 import com.facebook.buck.rules.TestRepositoryBuilder;
-import com.facebook.buck.testutil.FakeFileHashCache;
 import com.facebook.buck.testutil.FakeProjectFilesystem;
 import com.facebook.buck.testutil.TestConsole;
 import com.facebook.buck.util.environment.Platform;
@@ -76,7 +74,7 @@ public class AuditOwnerCommandTest {
 
     @Override
     public BuildRuleType getBuildRuleType() {
-      return ImmutableBuildRuleType.of("fake_rule");
+      return BuildRuleType.of("fake_rule");
     }
 
     @Override
@@ -199,7 +197,7 @@ public class AuditOwnerCommandTest {
     BuckEventBus eventBus = BuckEventBusFactory.newInstance();
     AndroidDirectoryResolver androidDirectoryResolver = new FakeAndroidDirectoryResolver();
     Repository repository = new TestRepositoryBuilder().setFilesystem(filesystem).build();
-    return new AuditOwnerCommand(new CommandRunnerParams(
+    return new AuditOwnerCommand(CommandRunnerParamsForTesting.createCommandRunnerParamsForTesting(
         console,
         new FakeRepositoryFactory(),
         repository,
@@ -210,8 +208,7 @@ public class AuditOwnerCommandTest {
         Platform.detect(),
         ImmutableMap.copyOf(System.getenv()),
         new FakeJavaPackageFinder(),
-        new ObjectMapper(),
-        FakeFileHashCache.EMPTY_CACHE));
+        new ObjectMapper()));
   }
 
   @Test

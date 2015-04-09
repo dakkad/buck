@@ -52,7 +52,7 @@ class CompilerXml {
    */
   private static final ImmutableSet<String> TOP_LEVEL_EXCLUDE_DIRS = ImmutableSet.of(
       Project.ANDROID_GEN_DIR,
-      BuckConstant.BIN_DIR,
+      BuckConstant.SCRATCH_DIR,
       BuckConstant.GEN_DIR);
 
   private final List<Module> modules;
@@ -84,13 +84,13 @@ class CompilerXml {
 
     // Exclude several files associated with each module.
     for (Module module : modules) {
-      String url = "file://$PROJECT_DIR$/" + module.getModuleDirectoryPathWithSlash();
-      buffer.append("      <file url=\"" + url + "BUCK\" />\n");
+      String url = "file://$PROJECT_DIR$/" + module.getModuleDirectoryPath();
+      buffer.append("      <file url=\"" + url + "/BUCK\" />\n");
 
       if (module.isAndroidModule()) {
         buffer.append("      <directory url=\"" + url +
-            "gen\" includeSubdirectories=\"true\" />\n");
-        buffer.append("      <file url=\"" + url + "project.properties\" />\n");
+            "/gen\" includeSubdirectories=\"true\" />\n");
+        buffer.append("      <file url=\"" + url + "/project.properties\" />\n");
       }
     }
     buffer.append("    </excludeFromCompile>\n");

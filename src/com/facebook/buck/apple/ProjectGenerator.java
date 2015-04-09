@@ -43,24 +43,28 @@ import com.facebook.buck.model.BuildTarget;
 import com.facebook.buck.model.BuildTargets;
 import com.facebook.buck.model.HasTests;
 import com.facebook.buck.parser.NoSuchBuildTargetException;
-import com.facebook.buck.rules.BuildRuleResolver;
 import com.facebook.buck.rules.BuildRuleType;
+import com.facebook.buck.rules.BuildTargetSourcePath;
 import com.facebook.buck.rules.PathSourcePath;
 import com.facebook.buck.rules.SourcePath;
-import com.facebook.buck.rules.SourcePathResolver;
 import com.facebook.buck.rules.TargetGraph;
 import com.facebook.buck.rules.TargetNode;
 import com.facebook.buck.rules.coercer.Either;
+import com.facebook.buck.rules.coercer.FrameworkPath;
+import com.facebook.buck.rules.coercer.SourceWithFlags;
+import com.facebook.buck.shell.ExportFileDescription;
 import com.facebook.buck.shell.GenruleDescription;
 import com.facebook.buck.util.BuckConstant;
 import com.facebook.buck.util.HumanReadableException;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Charsets;
 import com.google.common.base.Function;
+import com.google.common.base.Functions;
 import com.google.common.base.Joiner;
 import com.google.common.base.Optional;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Predicate;
+import com.google.common.base.Predicates;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
@@ -71,7 +75,6 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableMultimap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSetMultimap;
-import com.google.common.collect.ImmutableSortedMap;
 import com.google.common.collect.ImmutableSortedSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
@@ -151,7 +154,27 @@ public class ProjectGenerator {
           PosixFilePermission.GROUP_READ,
           PosixFilePermission.OTHERS_READ));
 
-  private final SourcePathResolver sourcePathResolver;
+  public static final Function<
+      TargetNode<AppleNativeTargetDescriptionArg>,
+      Iterable<String>> GET_LINKER_FLAGS =
+      new Function<TargetNode<AppleNativeTargetDescriptionArg>, Iterable<String>>() {
+        @Override
+        public Iterable<String> apply(TargetNode<AppleNativeTargetDescriptionArg> input) {
+          return input.getConstructorArg().linkerFlags.get();
+        }
+      };
+
+  public static final Function<
+      TargetNode<AppleNativeTargetDescriptionArg>,
+      Iterable<String>> GET_EXPORTED_PREPROCESSOR_FLAGS =
+      new Function<TargetNode<AppleNativeTargetDescriptionArg>, Iterable<String>>() {
+        @Override
+        public Iterable<String> apply(TargetNode<AppleNativeTargetDescriptionArg> input) {
+          return input.getConstructorArg().exportedPreprocessorFlags.get();
+        }
+      };
+
+  private final Function<SourcePath, Path> sourcePathResolver;
   private final TargetGraph targetGraph;
   private final ProjectFilesystem projectFilesystem;
   private final Path outputDirectory;
@@ -178,6 +201,9 @@ public class ProjectGenerator {
   private List<Path> headerMaps;
   private final ImmutableSet.Builder<PBXTarget> buildableCombinedTestTargets =
       ImmutableSet.builder();
+  private final ImmutableSet.Builder<BuildTarget> requiredBuildTargetsBuilder =
+      ImmutableSet.builder();
+  private final Function<TargetNode<?>, Path> outputPathOfNode;
 
   /**
    * Populated while generating project configurations, in order to collect the possible
@@ -195,19 +221,26 @@ public class ProjectGenerator {
       Path outputDirectory,
       String projectName,
       String buildFileName,
-      Set<Option> options) {
+      Set<Option> options,
+      Function<TargetNode<?>, Path> outputPathOfNode) {
+    this.sourcePathResolver = new Function<SourcePath, Path>() {
+      @Override
+      public Path apply(SourcePath input) {
+        return resolveSourcePath(input);
+      }
+    };
+
     this.targetGraph = targetGraph;
     this.initialTargets = ImmutableSet.copyOf(initialTargets);
     this.projectFilesystem = projectFilesystem;
-    this.sourcePathResolver = new SourcePathResolver(new BuildRuleResolver());
     this.outputDirectory = outputDirectory;
     this.projectName = projectName;
     this.buildFileName = buildFileName;
     this.options = ImmutableSet.copyOf(options);
+    this.outputPathOfNode = outputPathOfNode;
 
     this.projectPath = outputDirectory.resolve(projectName + ".xcodeproj");
     this.pathRelativizer = new PathRelativizer(
-        projectFilesystem.getRootPath(),
         outputDirectory,
         sourcePathResolver);
 
@@ -218,7 +251,7 @@ public class ProjectGenerator {
         this.pathRelativizer.outputDirToRootRelative(Paths.get(".")));
 
     this.placedAssetCatalogBuildPhaseScript =
-        BuckConstant.BIN_PATH.resolve("xcode-scripts/compile_asset_catalogs_build_phase.sh");
+        BuckConstant.SCRATCH_PATH.resolve("xcode-scripts/compile_asset_catalogs_build_phase.sh");
 
     this.project = new PBXProject(projectName);
     this.headerMaps = new ArrayList<>();
@@ -285,6 +318,11 @@ public class ProjectGenerator {
     return buildableCombinedTestTargets.build();
   }
 
+  public ImmutableSet<BuildTarget> getRequiredBuildTargets() {
+    Preconditions.checkState(projectGenerated, "Must have called createXcodeProjects");
+    return requiredBuildTargetsBuilder.build();
+  }
+
   public void createXcodeProjects() throws IOException {
     LOG.debug("Creating projects for targets %s", initialTargets);
 
@@ -322,7 +360,7 @@ public class ProjectGenerator {
 
       if (shouldPlaceAssetCatalogCompiler) {
         Path placedAssetCatalogCompilerPath = projectFilesystem.getPathForRelativePath(
-            BuckConstant.BIN_PATH.resolve(
+            BuckConstant.SCRATCH_PATH.resolve(
                 "xcode-scripts/compile_asset_catalogs.py"));
         LOG.debug("Ensuring asset catalog is copied to path [%s]", placedAssetCatalogCompilerPath);
         projectFilesystem.createParentDirs(placedAssetCatalogCompilerPath);
@@ -402,7 +440,7 @@ public class ProjectGenerator {
         }
       }
       for (SourcePath file : arg.files) {
-        if (!projectFilesystem.isFile(sourcePathResolver.getPath(file))) {
+        if (!projectFilesystem.isFile(sourcePathResolver.apply(file))) {
           throw new HumanReadableException(
               "%s specified in the files parameter of %s is not a regular file",
               file.toString(), resource.toString());
@@ -421,7 +459,8 @@ public class ProjectGenerator {
     Optional<Path> infoPlistPath;
     if (targetNode.getConstructorArg().getInfoPlist().isPresent()) {
       infoPlistPath = Optional.of(
-          sourcePathResolver.getPath(targetNode.getConstructorArg().getInfoPlist().get()));
+          Preconditions.checkNotNull(
+              sourcePathResolver.apply(targetNode.getConstructorArg().getInfoPlist().get())));
     } else {
       infoPlistPath = Optional.absent();
     }
@@ -434,7 +473,7 @@ public class ProjectGenerator {
         "%s." + getExtensionString(targetNode.getConstructorArg().getExtension()),
         infoPlistPath,
         /* includeFrameworks */ true,
-        collectRecursiveResources(ImmutableList.of(targetNode)),
+        AppleResources.collectRecursiveResources(targetGraph, ImmutableList.of(targetNode)),
         collectRecursiveAssetCatalogs(ImmutableList.of(targetNode)));
 
     // -- copy any binary and bundle targets into this bundle
@@ -494,15 +533,11 @@ public class ProjectGenerator {
 
   private void writeHeaderMap(
       HeaderMap headerMap,
-      TargetNode<? extends AppleNativeTargetDescriptionArg> targetNode,
-      HeaderMapType headerMapType)
+      Path headerMapFile)
       throws IOException {
     if (headerMap.getNumEntries() == 0) {
       return;
     }
-    Path headerMapFile = AbstractAppleNativeTargetBuildRuleDescriptions
-        .getPathToHeaderMap(targetNode, headerMapType)
-        .get();
     headerMaps.add(headerMapFile);
     projectFilesystem.mkdirs(headerMapFile.getParent());
     if (shouldGenerateReadOnlyFiles()) {
@@ -529,6 +564,7 @@ public class ProjectGenerator {
       ImmutableSet<AppleAssetCatalogDescription.Arg> assetCatalogs)
       throws IOException {
     Optional<String> targetGid = targetNode.getConstructorArg().gid;
+    LOG.debug("Generating binary target for node %s (GID %s)", targetNode, targetGid);
     if (targetGid.isPresent()) {
       // Check if we have used this hardcoded GID before.
       // If not, remember it so we don't use it again.
@@ -547,12 +583,13 @@ public class ProjectGenerator {
     final BuildTarget buildTarget = buildTargetNode.getBuildTarget();
 
     String productName = getProductName(buildTarget);
-    TargetSources sources = TargetSources.ofAppleSources(
-        sourcePathResolver,
-        targetNode.getConstructorArg().srcs.get());
+    AppleNativeTargetDescriptionArg arg = targetNode.getConstructorArg();
     NewNativeTargetProjectMutator mutator = new NewNativeTargetProjectMutator(
         pathRelativizer,
         sourcePathResolver);
+    ImmutableSet<SourcePath> exportedHeaders =
+        ImmutableSet.copyOf(getHeaderSourcePaths(arg.exportedHeaders));
+    ImmutableSet<SourcePath> headers = ImmutableSet.copyOf(getHeaderSourcePaths(arg.headers));
     mutator
         .setTargetName(getXcodeTargetName(buildTarget))
         .setProduct(
@@ -562,7 +599,10 @@ public class ProjectGenerator {
         .setGid(targetGid)
         .setShouldGenerateCopyHeadersPhase(
             !targetNode.getConstructorArg().getUseBuckHeaderMaps())
-        .setSources(sources.getSrcs(), sources.getPerFileFlags())
+        .setSourcesWithFlags(ImmutableSet.copyOf(arg.srcs.get()))
+        .setExtraXcodeSources(ImmutableSet.copyOf(arg.extraXcodeSources.get()))
+        .setPublicHeaders(exportedHeaders)
+        .setPrivateHeaders(headers)
         .setResources(resources);
 
     if (options.contains(Option.CREATE_DIRECTORY_STRUCTURE)) {
@@ -579,10 +619,7 @@ public class ProjectGenerator {
 
     if (includeFrameworks) {
       ImmutableSet.Builder<FrameworkPath> frameworksBuilder = ImmutableSet.builder();
-      frameworksBuilder.addAll(
-          Iterables.transform(
-              targetNode.getConstructorArg().frameworks.get(),
-              FrameworkPath.transformFromString(targetNode.getBuildTarget())));
+      frameworksBuilder.addAll(targetNode.getConstructorArg().frameworks.get());
       frameworksBuilder.addAll(collectRecursiveFrameworkDependencies(ImmutableList.of(targetNode)));
       mutator.setFrameworks(frameworksBuilder.build());
       mutator.setArchives(
@@ -595,12 +632,12 @@ public class ProjectGenerator {
     ImmutableList.Builder<TargetNode<?>> postScriptPhases = ImmutableList.builder();
     if (bundle.isPresent() && targetNode != bundle.get()) {
       collectBuildScriptDependencies(
-          targetGraph.getAll(bundle.get().getDeps()),
+          targetGraph.getAll(bundle.get().getDeclaredDeps()),
           preScriptPhases,
           postScriptPhases);
     }
     collectBuildScriptDependencies(
-        targetGraph.getAll(targetNode.getDeps()),
+        targetGraph.getAll(targetNode.getDeclaredDeps()),
         preScriptPhases,
         postScriptPhases);
     mutator.setPreBuildRunScriptPhases(preScriptPhases.build());
@@ -617,7 +654,7 @@ public class ProjectGenerator {
 
     SourceTreePath buckFilePath = new SourceTreePath(
         PBXReference.SourceTree.SOURCE_ROOT,
-        pathRelativizer.outputPathToBuildTargetPath(buildTarget, Paths.get(buildFileName)));
+        pathRelativizer.outputPathToBuildTargetPath(buildTarget).resolve(buildFileName));
     PBXFileReference buckReference =
         targetGroup.getOrCreateFileReferenceBySourceTreePath(buckFilePath);
     buckReference.setExplicitFileType(Optional.of("text.script.python"));
@@ -633,7 +670,7 @@ public class ProjectGenerator {
     }
     Optional<SourcePath> prefixHeaderOptional = targetNode.getConstructorArg().prefixHeader;
     if (prefixHeaderOptional.isPresent()) {
-        Path prefixHeaderRelative = sourcePathResolver.getPath(prefixHeaderOptional.get());
+        Path prefixHeaderRelative = sourcePathResolver.apply(prefixHeaderOptional.get());
         Path prefixHeaderPath = pathRelativizer.outputDirToRootRelative(prefixHeaderRelative);
         extraSettingsBuilder.put("GCC_PREFIX_HEADER", prefixHeaderPath.toString());
         extraSettingsBuilder.put("GCC_PRECOMPILE_PREFIX_HEADER", "YES");
@@ -678,16 +715,25 @@ public class ProjectGenerator {
                     collectRecursiveHeaderSearchPaths(targetNode).iterator(),
                     collectRecursiveHeaderMaps(targetNode).iterator())))
         .put(
-            "USER_HEADER_SEARCH_PATHS",
-            Joiner.on(' ').join(collectUserHeaderMaps(targetNode)))
-        .put(
             "LIBRARY_SEARCH_PATHS",
             Joiner.on(' ').join(
-                collectRecursiveLibrarySearchPaths(ImmutableSet.of(targetNode), false)))
+                collectRecursiveLibrarySearchPaths(ImmutableSet.of(targetNode))))
         .put(
             "FRAMEWORK_SEARCH_PATHS",
             Joiner.on(' ').join(
-                collectRecursiveFrameworkSearchPaths(ImmutableList.of(targetNode), false)));
+                collectRecursiveFrameworkSearchPaths(ImmutableList.of(targetNode))))
+        .put(
+            "OTHER_CFLAGS",
+            Joiner
+                .on(' ')
+                .join(
+                    Iterables.concat(
+                        targetNode.getConstructorArg().compilerFlags.get(),
+                        targetNode.getConstructorArg().preprocessorFlags.get(),
+                        collectRecursiveExportedPreprocessorFlags(ImmutableList.of(targetNode)))))
+        .put(
+            "OTHER_LDFLAGS",
+            Joiner.on(' ').join(collectRecursiveLinkerFlags(ImmutableList.of(targetNode))));
 
     setTargetBuildConfigurations(
         new Function<String, Path>() {
@@ -705,11 +751,22 @@ public class ProjectGenerator {
 
     // -- phases
     if (targetNode.getConstructorArg().getUseBuckHeaderMaps()) {
-      addHeaderMapsForHeaders(
-          targetNode,
-          targetNode.getConstructorArg().headerPathPrefix,
-          sources.getSrcs(),
-          ImmutableSortedMap.copyOf(sources.getPerFileFlags()));
+      Path headerPathPrefix =
+          AppleDescriptions.getHeaderPathPrefix(arg, targetNode.getBuildTarget());
+      createHeaderMap(
+          sourcePathResolver,
+          AppleDescriptions.convertAppleHeadersToPublicCxxHeaders(
+              sourcePathResolver,
+              headerPathPrefix,
+              arg),
+          AppleDescriptions.getPathToHeaderMap(targetNode, HeaderMapType.PUBLIC_HEADER_MAP).get());
+      createHeaderMap(
+          sourcePathResolver,
+          AppleDescriptions.convertAppleHeadersToPrivateCxxHeaders(
+              sourcePathResolver,
+              headerPathPrefix,
+              arg),
+          AppleDescriptions.getPathToHeaderMap(targetNode, HeaderMapType.TARGET_HEADER_MAP).get());
     }
 
     // Use Core Data models from immediate dependencies only.
@@ -743,6 +800,17 @@ public class ProjectGenerator {
     return target;
   }
 
+  private Iterable<SourcePath> getHeaderSourcePaths(
+      Optional<Either<ImmutableSortedSet<SourcePath>, ImmutableMap<String, SourcePath>>> headers) {
+    if (!headers.isPresent()) {
+      return ImmutableList.of();
+    } else if (headers.get().isLeft()) {
+      return headers.get().getLeft();
+    } else {
+      return headers.get().getRight().values();
+    }
+  }
+
   private void generateCombinedTestTarget(
       final String productName,
       AppleTestBundleParamsKey key,
@@ -761,12 +829,12 @@ public class ProjectGenerator {
             productName,
             Paths.get(productName + "." + getExtensionString(key.getExtension())))
         .setShouldGenerateCopyHeadersPhase(false)
-        .setSources(
-            ImmutableList.of(
-                GroupedSource.ofSourcePath(new PathSourcePath(emptyFileWithExtension("c")))),
-            ImmutableMap.<SourcePath, String>of())
+        .setSourcesWithFlags(
+            ImmutableSet.of(
+                SourceWithFlags.of(
+                    new PathSourcePath(projectFilesystem, emptyFileWithExtension("c")))))
         .setArchives(Sets.union(collectRecursiveLibraryDependencies(tests), testLibs.build()))
-        .setResources(collectRecursiveResources(tests))
+        .setResources(AppleResources.collectRecursiveResources(targetGraph, tests))
         .setAssetCatalogs(
             getAndMarkAssetCatalogBuildScript(),
             collectRecursiveAssetCatalogs(tests));
@@ -774,10 +842,7 @@ public class ProjectGenerator {
     ImmutableSet.Builder<FrameworkPath> frameworksBuilder = ImmutableSet.builder();
     frameworksBuilder.addAll(collectRecursiveFrameworkDependencies(tests));
     for (TargetNode<AppleTestDescription.Arg> test : tests) {
-      frameworksBuilder.addAll(
-          Iterables.transform(
-              test.getConstructorArg().frameworks.get(),
-              FrameworkPath.transformFromString(test.getBuildTarget())));
+      frameworksBuilder.addAll(test.getConstructorArg().frameworks.get());
     }
     mutator.setFrameworks(frameworksBuilder.build());
 
@@ -796,7 +861,7 @@ public class ProjectGenerator {
       overrideBuildSettingsBuilder.put(
           "INFOPLIST_FILE",
           pathRelativizer.outputDirToRootRelative(
-                sourcePathResolver.getPath(key.getInfoPlist().get())).toString());
+                sourcePathResolver.apply(key.getInfoPlist().get())).toString());
     }
     setTargetBuildConfigurations(
         new Function<String, Path>() {
@@ -815,9 +880,9 @@ public class ProjectGenerator {
             "WRAPPER_EXTENSION", getExtensionString(key.getExtension())),
         ImmutableMap.of(
             "FRAMEWORK_SEARCH_PATHS", Joiner.on(' ').join(
-                collectRecursiveFrameworkSearchPaths(tests, true)),
+                collectRecursiveFrameworkSearchPaths(tests)),
             "LIBRARY_SEARCH_PATHS", Joiner.on(' ').join(
-                collectRecursiveLibrarySearchPaths(tests, true))));
+                collectRecursiveLibrarySearchPaths(tests))));
     buildableCombinedTestTargets.add(result.target);
   }
 
@@ -834,7 +899,6 @@ public class ProjectGenerator {
   /**
    * Create target level configuration entries.
    *
-   * @param configurationNameToXcconfigPath
    * @param target      Xcode target for which the configurations will be set.
    * @param targetGroup Xcode group in which the configuration file references will be placed.
    * @param configurations  Configurations as extracted from the BUCK file.
@@ -887,7 +951,7 @@ public class ProjectGenerator {
           combinedOverrideConfigs.entrySet());
 
       Path xcconfigPath = configurationNameToXcconfigPath.apply(configurationEntry.getKey());
-      projectFilesystem.mkdirs(xcconfigPath.getParent());
+      projectFilesystem.mkdirs(Preconditions.checkNotNull(xcconfigPath).getParent());
 
       StringBuilder stringBuilder = new StringBuilder();
       for (Map.Entry<String, String> entry : entries) {
@@ -936,117 +1000,19 @@ public class ProjectGenerator {
     }
   }
 
-  /**
-   * Create header map files and write them to disk.
-   *
-   * @param groupedSources Source files to include in the header map.
-   *                       Implementation files in the source groups are ignored.
-   * @param sourceFlags    Source path to flag mapping.
-   */
-  private void addHeaderMapsForHeaders(
-      TargetNode<? extends AppleNativeTargetDescriptionArg> targetNode,
-      Optional<String> headerPathPrefix,
-      Iterable<GroupedSource> groupedSources,
-      ImmutableMap<SourcePath, String> sourceFlags) throws IOException {
-    HeaderMap.Builder publicMapBuilder = HeaderMap.builder();
-    HeaderMap.Builder targetMapBuilder = HeaderMap.builder();
-    HeaderMap.Builder targetUserMapBuilder = HeaderMap.builder();
-    addGroupedSourcesToHeaderMaps(
-        publicMapBuilder,
-        targetMapBuilder,
-        targetUserMapBuilder,
-        Paths.get(headerPathPrefix.or(getProductName(targetNode.getBuildTarget()))),
-        groupedSources,
-        sourceFlags);
-    writeHeaderMap(publicMapBuilder.build(), targetNode, HeaderMapType.PUBLIC_HEADER_MAP);
-    writeHeaderMap(targetMapBuilder.build(), targetNode, HeaderMapType.TARGET_HEADER_MAP);
-    writeHeaderMap(targetUserMapBuilder.build(), targetNode, HeaderMapType.TARGET_USER_HEADER_MAP);
-  }
-
-  private void addGroupedSourcesToHeaderMaps(
-      HeaderMap.Builder publicHeaderMap,
-      HeaderMap.Builder targetHeaderMap,
-      HeaderMap.Builder targetUserHeaderMap,
-      Path prefix,
-      Iterable<GroupedSource> groupedSources,
-      ImmutableMap<SourcePath, String> sourceFlags) {
-    for (GroupedSource groupedSource : groupedSources) {
-      switch (groupedSource.getType()) {
-        case SOURCE_PATH:
-          if (sourcePathResolver.isSourcePathExtensionInSet(
-              groupedSource.getSourcePath().get(),
-              FileExtensions.CLANG_HEADERS)) {
-            addSourcePathToHeaderMaps(
-                groupedSource.getSourcePath().get(),
-                prefix,
-                publicHeaderMap,
-                targetHeaderMap,
-                targetUserHeaderMap,
-                sourceFlags);
-          }
-          break;
-        case SOURCE_GROUP:
-          addGroupedSourcesToHeaderMaps(
-              publicHeaderMap,
-              targetHeaderMap,
-              targetUserHeaderMap,
-              prefix,
-              groupedSource.getSourceGroup().get(),
-              sourceFlags);
-          break;
-        default:
-          throw new RuntimeException("Unhandled grouped source type: " + groupedSource.getType());
-      }
-    }
-  }
-
-  private void addHeaderMapEntry(
-      HeaderMap.Builder builder,
-      String builderName,
-      String key,
-      Path value) {
-    builder.add(key, value);
+  private void createHeaderMap(
+      Function<SourcePath, Path> pathResolver,
+      Map<String, SourcePath> contents,
+      Path headerMapFile) throws IOException {
     LOG.verbose(
-        "Adding %s mapping %s -> %s",
-        builderName,
-        key,
-        value);
-  }
-
-  private void addSourcePathToHeaderMaps(
-      SourcePath headerPath,
-      Path prefix,
-      HeaderMap.Builder publicHeaderMap,
-      HeaderMap.Builder targetHeaderMap,
-      HeaderMap.Builder targetUserHeaderMap,
-      ImmutableMap<SourcePath, String> sourceFlags) {
-    HeaderVisibility visibility = HeaderVisibility.PROJECT;
-    String headerFlags = sourceFlags.get(headerPath);
-    if (headerFlags != null) {
-      visibility = HeaderVisibility.fromString(headerFlags);
+        "Writing header map file to %s with contents %s",
+        headerMapFile,
+        contents);
+    HeaderMap.Builder builder = HeaderMap.builder();
+    for (Map.Entry<String, SourcePath> entry : contents.entrySet()) {
+      builder.add(entry.getKey(), projectFilesystem.resolve(pathResolver.apply(entry.getValue())));
     }
-    String fileName = sourcePathResolver.getPath(headerPath).getFileName().toString();
-    String prefixedFileName = prefix.resolve(fileName).toString();
-    Path value =
-        projectFilesystem.getPathForRelativePath(sourcePathResolver.getPath(headerPath))
-            .toAbsolutePath().normalize();
-
-    // Add an entry Prefix/File.h -> AbsolutePathTo/File.h
-    // to targetHeaderMap and possibly publicHeaderMap
-    addHeaderMapEntry(targetHeaderMap, "target", prefixedFileName, value);
-    if (visibility == HeaderVisibility.PUBLIC) {
-      addHeaderMapEntry(publicHeaderMap, "public", prefixedFileName, value);
-    }
-
-    // Add an entry File.h -> AbsolutePathTo/File.h
-    // to targetUserHeaderMap
-    addHeaderMapEntry(targetUserHeaderMap, "target-user", fileName, value);
-    if (visibility == HeaderVisibility.PRIVATE) {
-      throw new HumanReadableException(
-          "Xcode's so-called 'private' headers have been deprecated in the new header map mode. " +
-          "Please declare '" + fileName + "' as public, " +
-          "or use the default visibility (i.e. by target) instead.");
-    }
+    writeHeaderMap(builder.build(), headerMapFile);
   }
 
   private void addCoreDataModelBuildPhase(
@@ -1241,7 +1207,7 @@ public class ProjectGenerator {
   private String getHeaderMapRelativePath(
       TargetNode<? extends AppleNativeTargetDescriptionArg> targetNode,
       HeaderMapType headerMapType) {
-    Optional<Path> filePath = AbstractAppleNativeTargetBuildRuleDescriptions.getPathToHeaderMap(
+    Optional<Path> filePath = AppleDescriptions.getPathToHeaderMap(
         targetNode,
         headerMapType);
     Preconditions.checkState(filePath.isPresent(), "%s does not have a header map.", targetNode);
@@ -1361,6 +1327,7 @@ public class ProjectGenerator {
 
     if (targetNode.getConstructorArg().getUseBuckHeaderMaps()) {
       builder.add(getHeaderMapRelativePath(targetNode, HeaderMapType.TARGET_HEADER_MAP));
+      builder.add(getHeaderMapRelativePath(targetNode, HeaderMapType.PUBLIC_HEADER_MAP));
     }
 
     for (TargetNode<?> input :
@@ -1377,22 +1344,6 @@ public class ProjectGenerator {
     }
 
     addHeaderMapsForSourceUnderTest(targetNode, builder, HeaderMapType.TARGET_HEADER_MAP);
-
-    return builder.build();
-  }
-
-  private ImmutableSet<String> collectUserHeaderMaps(
-      TargetNode<? extends AppleNativeTargetDescriptionArg> targetNode) {
-    ImmutableSet.Builder<String> builder = ImmutableSet.builder();
-
-    if (targetNode.getConstructorArg().getUseBuckHeaderMaps()) {
-      builder.add(
-          getHeaderMapRelativePath(
-              targetNode,
-              HeaderMapType.TARGET_USER_HEADER_MAP));
-    }
-
-    addHeaderMapsForSourceUnderTest(targetNode, builder, HeaderMapType.TARGET_USER_HEADER_MAP);
 
     return builder.build();
   }
@@ -1436,15 +1387,14 @@ public class ProjectGenerator {
   }
 
   private <T> ImmutableSet<String> collectRecursiveLibrarySearchPaths(
-      Iterable<TargetNode<T>> targetNodes,
-      boolean includeInputs) {
+      Iterable<TargetNode<T>> targetNodes) {
     return FluentIterable
         .from(targetNodes)
         .transformAndConcat(
-            newRecursiveRuleDependencyTransformer(
+            AppleBuildRules.newRecursiveRuleDependencyTransformer(
+                targetGraph,
                 AppleBuildRules.RecursiveDependenciesMode.LINKING,
                 ImmutableSet.of(AppleLibraryDescription.TYPE)))
-        .append(includeInputs ? targetNodes : ImmutableList.<TargetNode<?>>of())
         .transform(
             new Function<TargetNode<?>, String>() {
               @Override
@@ -1452,19 +1402,22 @@ public class ProjectGenerator {
                 return getTargetOutputPath(input);
               }
             })
+        .append(
+            collectRecursiveSearchPathsForFrameworkPaths(
+                targetNodes,
+                FrameworkPath.FrameworkType.LIBRARY))
         .toSet();
   }
 
   private <T> ImmutableSet<String> collectRecursiveFrameworkSearchPaths(
-      Iterable<TargetNode<T>> targetNodes,
-      boolean includeInputs) {
+      Iterable<TargetNode<T>> targetNodes) {
     return FluentIterable
         .from(targetNodes)
         .transformAndConcat(
-            newRecursiveRuleDependencyTransformer(
+            AppleBuildRules.newRecursiveRuleDependencyTransformer(
+                targetGraph,
                 AppleBuildRules.RecursiveDependenciesMode.LINKING,
                 ImmutableSet.of(AppleBundleDescription.TYPE)))
-        .append(includeInputs ? targetNodes : ImmutableList.<TargetNode<?>>of())
         .filter(
             new Predicate<TargetNode<?>>() {
               @Override
@@ -1479,6 +1432,10 @@ public class ProjectGenerator {
                 return getTargetOutputPath(input);
               }
             })
+        .append(
+            collectRecursiveSearchPathsForFrameworkPaths(
+                targetNodes,
+                FrameworkPath.FrameworkType.FRAMEWORK))
         .toSet();
   }
 
@@ -1487,7 +1444,8 @@ public class ProjectGenerator {
     return FluentIterable
         .from(targetNodes)
         .transformAndConcat(
-            newRecursiveRuleDependencyTransformer(
+            AppleBuildRules.newRecursiveRuleDependencyTransformer(
+                targetGraph,
                 AppleBuildRules.RecursiveDependenciesMode.LINKING,
                 AppleBuildRules.XCODE_TARGET_BUILD_RULE_TYPES))
         .transformAndConcat(
@@ -1499,12 +1457,76 @@ public class ProjectGenerator {
                 if (library.isPresent() &&
                     !AppleLibraryDescription.isSharedLibraryTarget(
                         library.get().getBuildTarget())) {
-                  return Iterables.transform(
-                      library.get().getConstructorArg().frameworks.get(),
-                      FrameworkPath.transformFromString(input.getBuildTarget()));
+                  return library.get().getConstructorArg().frameworks.get();
                 } else {
                   return ImmutableList.of();
                 }
+              }
+            });
+  }
+
+  private <T> Iterable<String> collectRecursiveSearchPathsForFrameworkPaths(
+      Iterable<TargetNode<T>> targetNodes,
+      final FrameworkPath.FrameworkType type) {
+    return FluentIterable
+        .from(targetNodes)
+        .transformAndConcat(
+            AppleBuildRules.newRecursiveRuleDependencyTransformer(
+                targetGraph,
+                AppleBuildRules.RecursiveDependenciesMode.LINKING,
+                ImmutableSet.of(AppleLibraryDescription.TYPE)))
+        .append(targetNodes)
+        .transformAndConcat(
+            new Function<TargetNode<?>, Iterable<String>>() {
+              @Override
+              public Iterable<String> apply(TargetNode<?> input) {
+                return input
+                    .castArg(AppleNativeTargetDescriptionArg.class)
+                    .transform(getTargetFrameworkSearchPaths(type))
+                    .or(ImmutableSet.<String>of());
+              }
+            });
+  }
+
+  private <T> Iterable<String> collectRecursiveExportedPreprocessorFlags(
+      Iterable<TargetNode<T>> targetNodes) {
+    return FluentIterable
+        .from(targetNodes)
+        .transformAndConcat(
+            AppleBuildRules.newRecursiveRuleDependencyTransformer(
+                targetGraph,
+                AppleBuildRules.RecursiveDependenciesMode.BUILDING,
+                ImmutableSet.of(AppleLibraryDescription.TYPE)))
+        .append(targetNodes)
+        .transformAndConcat(
+            new Function<TargetNode<?>, Iterable<? extends String>>() {
+              @Override
+              public Iterable<? extends String> apply(TargetNode<?> input) {
+                return input
+                    .castArg(AppleNativeTargetDescriptionArg.class)
+                    .transform(GET_EXPORTED_PREPROCESSOR_FLAGS)
+                    .or(ImmutableSet.<String>of());
+              }
+            });
+  }
+
+  private <T> Iterable<String> collectRecursiveLinkerFlags(Iterable<TargetNode<T>> targetNodes) {
+    return FluentIterable
+        .from(targetNodes)
+        .transformAndConcat(
+            AppleBuildRules.newRecursiveRuleDependencyTransformer(
+                targetGraph,
+                AppleBuildRules.RecursiveDependenciesMode.LINKING,
+                ImmutableSet.of(AppleLibraryDescription.TYPE)))
+        .append(targetNodes)
+        .transformAndConcat(
+            new Function<TargetNode<?>, Iterable<? extends String>>() {
+              @Override
+              public Iterable<String> apply(TargetNode<?> input) {
+                return input
+                    .castArg(AppleNativeTargetDescriptionArg.class)
+                    .transform(GET_LINKER_FLAGS)
+                    .or(ImmutableSet.<String>of());
               }
             });
   }
@@ -1514,7 +1536,8 @@ public class ProjectGenerator {
     return FluentIterable
         .from(targetNodes)
         .transformAndConcat(
-            newRecursiveRuleDependencyTransformer(
+            AppleBuildRules.newRecursiveRuleDependencyTransformer(
+                targetGraph,
                 AppleBuildRules.RecursiveDependenciesMode.LINKING,
                 AppleBuildRules.XCODE_TARGET_BUILD_RULE_TYPES))
         .filter(
@@ -1533,17 +1556,27 @@ public class ProjectGenerator {
             }).toSet();
   }
 
-  private Function<TargetNode<?>, Iterable<TargetNode<?>>> newRecursiveRuleDependencyTransformer(
-      final AppleBuildRules.RecursiveDependenciesMode mode,
-      final ImmutableSet<BuildRuleType> types) {
-    return new Function<TargetNode<?>, Iterable<TargetNode<?>>>() {
+  private Function<
+      TargetNode<AppleNativeTargetDescriptionArg>,
+      Iterable<String>> getTargetFrameworkSearchPaths(final FrameworkPath.FrameworkType type) {
+
+    final Predicate<FrameworkPath> byType = Predicates.compose(
+        Predicates.equalTo(type),
+        FrameworkPath.getFrameworkTypeFunction(sourcePathResolver));
+
+    final Function<FrameworkPath, Path> toSearchPath = FrameworkPath
+        .getUnexpandedSearchPathFunction(
+            sourcePathResolver,
+            pathRelativizer.outputDirToRootRelative());
+
+    return new Function<TargetNode<AppleNativeTargetDescriptionArg>, Iterable<String>>() {
       @Override
-      public Iterable<TargetNode<?>> apply(TargetNode<?> input) {
-        return AppleBuildRules.getRecursiveTargetNodeDependenciesOfTypes(
-            targetGraph,
-            mode,
-            input,
-            Optional.of(types));
+      public Iterable<String> apply(TargetNode<AppleNativeTargetDescriptionArg> input) {
+        return FluentIterable
+            .from(input.getConstructorArg().frameworks.get())
+            .filter(byType)
+            .transform(toSearchPath)
+            .transform(Functions.toStringFunction());
       }
     };
   }
@@ -1578,13 +1611,18 @@ public class ProjectGenerator {
   }
 
   private PBXFileReference getLibraryFileReference(TargetNode<?> targetNode) {
+    // Don't re-use the productReference from other targets in this project.
+    // File references set as a productReference don't work with custom paths.
+    SourceTreePath productsPath = getProductsSourceTreePath(targetNode);
+
     if (targetNode.getType().equals(AppleLibraryDescription.TYPE) ||
         targetNode.getType().equals(AppleBundleDescription.TYPE)) {
-      // Don't re-use the productReference from other targets in this project.
-      // File references set as a productReference don't work with custom paths.
-      SourceTreePath productsPath = getProductsSourceTreePath(targetNode);
       return project.getMainGroup()
           .getOrCreateChildGroupByName("Frameworks")
+          .getOrCreateFileReferenceBySourceTreePath(productsPath);
+    } else if (targetNode.getType().equals(AppleBinaryDescription.TYPE)) {
+      return project.getMainGroup()
+          .getOrCreateChildGroupByName("Dependencies")
           .getOrCreateFileReferenceBySourceTreePath(productsPath);
     } else {
       throw new RuntimeException("Unexpected type: " + targetNode.getType());
@@ -1621,30 +1659,6 @@ public class ProjectGenerator {
   }
 
   /**
-   * Collect resources from recursive dependencies.
-   *
-   * @param targetNodes {@link TargetNode} at the tip of the traversal.
-   * @return The recursive resource buildables.
-   */
-  private <T> ImmutableSet<AppleResourceDescription.Arg> collectRecursiveResources(
-      Iterable<TargetNode<T>> targetNodes) {
-    return FluentIterable
-        .from(targetNodes)
-        .transformAndConcat(
-            newRecursiveRuleDependencyTransformer(
-                AppleBuildRules.RecursiveDependenciesMode.COPYING,
-                ImmutableSet.of(AppleResourceDescription.TYPE)))
-        .transform(
-            new Function<TargetNode<?>, AppleResourceDescription.Arg>() {
-              @Override
-              public AppleResourceDescription.Arg apply(TargetNode<?> input) {
-                return (AppleResourceDescription.Arg) input.getConstructorArg();
-              }
-            })
-        .toSet();
-  }
-
-  /**
    * Collect asset catalogs from recursive dependencies.
    */
   private <T> ImmutableSet<AppleAssetCatalogDescription.Arg> collectRecursiveAssetCatalogs(
@@ -1652,7 +1666,8 @@ public class ProjectGenerator {
     return FluentIterable
         .from(targetNodes)
         .transformAndConcat(
-            newRecursiveRuleDependencyTransformer(
+            AppleBuildRules.newRecursiveRuleDependencyTransformer(
+                targetGraph,
                 AppleBuildRules.RecursiveDependenciesMode.COPYING,
                 ImmutableSet.of(AppleAssetCatalogDescription.TYPE)))
         .transform(
@@ -1736,8 +1751,7 @@ public class ProjectGenerator {
   }
 
   private Path emptyFileWithExtension(String extension) {
-    Path path = projectFilesystem.getPathForRelativePath(
-        BuckConstant.GEN_PATH.resolve("xcode-scripts/emptyFile." + extension));
+    Path path = BuckConstant.GEN_PATH.resolve("xcode-scripts/emptyFile." + extension);
     if (!projectFilesystem.exists(path)) {
       try {
         projectFilesystem.createParentDirs(path);
@@ -1747,6 +1761,35 @@ public class ProjectGenerator {
       }
     }
     return path;
+  }
+
+  private Path resolveSourcePath(SourcePath sourcePath) {
+    if (sourcePath instanceof PathSourcePath) {
+      return ((PathSourcePath) sourcePath).getRelativePath();
+    }
+    Preconditions.checkArgument(sourcePath instanceof BuildTargetSourcePath);
+    BuildTargetSourcePath buildTargetSourcePath = (BuildTargetSourcePath) sourcePath;
+    BuildTarget buildTarget = buildTargetSourcePath.getTarget();
+    TargetNode<?> node = Preconditions.checkNotNull(targetGraph.get(buildTarget));
+    Optional<TargetNode<ExportFileDescription.Arg>> exportFileNode = node.castArg(
+        ExportFileDescription.Arg.class);
+    if (!exportFileNode.isPresent()) {
+      Path output = outputPathOfNode.apply(node);
+      if (output == null) {
+        throw new HumanReadableException(
+            "The target '%s' does not have an output.",
+            node.getBuildTarget());
+      }
+      requiredBuildTargetsBuilder.add(buildTarget);
+      return output;
+    }
+
+    Optional<SourcePath> src = exportFileNode.get().getConstructorArg().src;
+    if (!src.isPresent()) {
+      return buildTarget.getBasePath().resolve(buildTarget.getShortNameAndFlavorPostfix());
+    }
+
+    return resolveSourcePath(src.get());
   }
 
   /**

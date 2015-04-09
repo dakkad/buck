@@ -19,6 +19,7 @@ package com.facebook.buck.shell;
 import com.facebook.buck.io.ProjectFilesystem;
 import com.facebook.buck.model.BuildTargets;
 import com.facebook.buck.rules.AbstractBuildRule;
+import com.facebook.buck.rules.AddToRuleKey;
 import com.facebook.buck.rules.BuildContext;
 import com.facebook.buck.rules.BuildRule;
 import com.facebook.buck.rules.BuildRuleParams;
@@ -37,7 +38,9 @@ import com.facebook.buck.test.TestResults;
 import com.facebook.buck.test.selectors.TestSelectorList;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Functions;
 import com.google.common.base.Optional;
+import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableCollection;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
@@ -55,6 +58,7 @@ import javax.annotation.Nullable;
 @SuppressWarnings("PMD.TestClassWithoutTestCases")
 public class ShTest extends AbstractBuildRule implements TestRule {
 
+  @AddToRuleKey
   private final SourcePath test;
   private final ImmutableSet<Label> labels;
 
@@ -70,7 +74,7 @@ public class ShTest extends AbstractBuildRule implements TestRule {
 
   @Override
   public ImmutableCollection<Path> getInputsToCompareToOutput() {
-    return getResolver().filterInputsToCompareToOutput(ImmutableList.of(test));
+    return ImmutableSet.of();
   }
 
   @Override
@@ -156,7 +160,11 @@ public class ShTest extends AbstractBuildRule implements TestRule {
       return new Callable<TestResults>() {
         @Override
         public TestResults call() throws Exception {
-          return new TestResults(getBuildTarget(), ImmutableList.<TestCaseSummary>of(), contacts);
+          return new TestResults(
+              getBuildTarget(),
+              ImmutableList.<TestCaseSummary>of(),
+              contacts,
+              FluentIterable.from(labels).transform(Functions.toStringFunction()).toSet());
         }
       };
     } else {
@@ -172,7 +180,11 @@ public class ShTest extends AbstractBuildRule implements TestRule {
           TestCaseSummary testCaseSummary = new TestCaseSummary(
               getBuildTarget().getFullyQualifiedName(),
               ImmutableList.of(testResultSummary));
-          return new TestResults(getBuildTarget(), ImmutableList.of(testCaseSummary), contacts);
+          return new TestResults(
+              getBuildTarget(),
+              ImmutableList.of(testCaseSummary),
+              contacts,
+              FluentIterable.from(labels).transform(Functions.toStringFunction()).toSet());
         }
 
       };

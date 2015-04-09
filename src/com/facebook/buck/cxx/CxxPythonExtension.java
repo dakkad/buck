@@ -23,6 +23,7 @@ import com.facebook.buck.rules.BuildRule;
 import com.facebook.buck.rules.BuildRuleParams;
 import com.facebook.buck.rules.BuildRuleResolver;
 import com.facebook.buck.rules.BuildTargetSourcePath;
+import com.facebook.buck.rules.NoopBuildRule;
 import com.facebook.buck.rules.SourcePath;
 import com.facebook.buck.rules.SourcePathResolver;
 import com.google.common.collect.ImmutableMap;
@@ -54,7 +55,9 @@ public class CxxPythonExtension extends NoopBuildRule implements PythonPackagabl
             ruleResolver,
             cxxPlatform.getFlavor(),
             CxxDescriptionEnhancer.SHARED_FLAVOR);
-    SourcePath output = new BuildTargetSourcePath(extension.getBuildTarget());
+    SourcePath output = new BuildTargetSourcePath(
+        extension.getProjectFilesystem(),
+        extension.getBuildTarget());
     return ImmutablePythonPackageComponents.of(
         ImmutableMap.of(module, output),
         ImmutableMap.<Path, SourcePath>of(),

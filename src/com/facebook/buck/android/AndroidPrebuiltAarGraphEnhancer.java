@@ -26,6 +26,7 @@ import com.facebook.buck.model.BuildTarget;
 import com.facebook.buck.model.BuildTargets;
 import com.facebook.buck.model.Flavor;
 import com.facebook.buck.model.ImmutableFlavor;
+import com.facebook.buck.model.UnflavoredBuildTarget;
 import com.facebook.buck.rules.AbstractBuildRule;
 import com.facebook.buck.rules.BuildContext;
 import com.facebook.buck.rules.BuildRule;
@@ -34,8 +35,6 @@ import com.facebook.buck.rules.BuildRuleResolver;
 import com.facebook.buck.rules.BuildRuleType;
 import com.facebook.buck.rules.BuildTargetSourcePath;
 import com.facebook.buck.rules.BuildableContext;
-import com.facebook.buck.rules.ImmutableBuildRuleType;
-import com.facebook.buck.rules.OutputOnlyBuildRule;
 import com.facebook.buck.rules.RuleKey.Builder;
 import com.facebook.buck.rules.SourcePath;
 import com.facebook.buck.rules.SourcePathResolver;
@@ -62,11 +61,9 @@ import javax.annotation.Nullable;
 
 class AndroidPrebuiltAarGraphEnhancer {
 
-  private static final BuildRuleType UNZIP_AAR_TYPE = ImmutableBuildRuleType.of("unzip_aar");
+  private static final BuildRuleType UNZIP_AAR_TYPE = BuildRuleType.of("unzip_aar");
 
   private static final Flavor AAR_UNZIP_FLAVOR = ImmutableFlavor.of("aar_unzip");
-  private static final Flavor AAR_CLASSES_JAR_FLAVOR = ImmutableFlavor.of("aar_classes_jar");
-  private static final Flavor AAR_MANIFEST = ImmutableFlavor.of("aar_manifest");
   private static final Flavor AAR_PREBUILT_JAR_FLAVOR = ImmutableFlavor.of("aar_prebuilt_jar");
   private static final Flavor AAR_ANDROID_RESOURCE_FLAVOR =
       ImmutableFlavor.of("aar_android_resource");
@@ -78,7 +75,8 @@ class AndroidPrebuiltAarGraphEnhancer {
    * Creates a rooted DAG of build rules:
    * <ul>
    *   <li>{@code unzip_aar} depends on the deps specified to the original {@code android_aar}
-   *   <li>{@code prebuilt_jar} depends on {@code unzip_aar}
+   *   <li>{@code classes_jar} depends on {@code unzip_aar}
+   *   <li>{@code prebuilt_jar} depends on {@code unzip_aar} and {@code classes_jar}
    *   <li>{@code android_resource} depends on {@code unzip_aar}
    *   <li>{@code android_library} depends on {@code android_resource}, {@code prebuilt_jar}, and
    *       {@code unzip_aar}
@@ -92,8 +90,10 @@ class AndroidPrebuiltAarGraphEnhancer {
       JavacOptions javacOptions) {
     SourcePathResolver pathResolver = new SourcePathResolver(ruleResolver);
 
+    UnflavoredBuildTarget originalBuildTarget =
+        originalBuildRuleParams.getBuildTarget().checkUnflavored();
+
     // unzip_aar
-    BuildTarget originalBuildTarget = originalBuildRuleParams.getBuildTarget();
     BuildRuleParams unzipAarParams = originalBuildRuleParams.copyWithChanges(
         UNZIP_AAR_TYPE,
         BuildTargets.createFlavoredBuildTarget(originalBuildTarget, AAR_UNZIP_FLAVOR),
@@ -103,49 +103,40 @@ class AndroidPrebuiltAarGraphEnhancer {
     ruleResolver.addToIndex(unzipAar);
 
     // unzip_aar#aar_classes_jar
-    BuildRuleParams classesJarParams = originalBuildRuleParams.copyWithChanges(
-        OutputOnlyBuildRule.TYPE,
-        BuildTargets.createFlavoredBuildTarget(originalBuildTarget, AAR_CLASSES_JAR_FLAVOR),
-        /* declaredDeps */ Suppliers.ofInstance(ImmutableSortedSet.<BuildRule>of(unzipAar)),
-        /* extraDeps */ Suppliers.ofInstance(ImmutableSortedSet.<BuildRule>of()));
-    OutputOnlyBuildRule classesJar = new OutputOnlyBuildRule(
-        classesJarParams,
-        pathResolver,
-        unzipAar.getPathToClassesJar());
-    ruleResolver.addToIndex(classesJar);
+    SourcePath classesJar =
+        new BuildTargetSourcePath(
+            unzipAar.getProjectFilesystem(),
+            unzipAar.getBuildTarget(),
+            unzipAar.getPathToClassesJar());
 
     // prebuilt_jar
     BuildRuleParams prebuiltJarParams = originalBuildRuleParams.copyWithChanges(
         PrebuiltJarDescription.TYPE,
         BuildTargets.createFlavoredBuildTarget(originalBuildTarget, AAR_PREBUILT_JAR_FLAVOR),
-        /* declaredDeps */ Suppliers.ofInstance(ImmutableSortedSet.<BuildRule>of(unzipAar)),
+        /* declaredDeps */
+        Suppliers.ofInstance(ImmutableSortedSet.<BuildRule>of(unzipAar)),
         /* extraDeps */ Suppliers.ofInstance(ImmutableSortedSet.<BuildRule>of()));
     PrebuiltJar prebuiltJar = new PrebuiltJar(
         /* params */ prebuiltJarParams,
         pathResolver,
-        new BuildTargetSourcePath(classesJar.getBuildTarget()),
+        classesJar,
         /* sourceJar */ Optional.<SourcePath>absent(),
         /* gwtJar */ Optional.<SourcePath>absent(),
         /* javadocUrl */ Optional.<String>absent());
     ruleResolver.addToIndex(prebuiltJar);
 
     // unzip_aar#aar_manifest
-    BuildRuleParams manifestParams = originalBuildRuleParams.copyWithChanges(
-        OutputOnlyBuildRule.TYPE,
-        BuildTargets.createFlavoredBuildTarget(originalBuildTarget, AAR_MANIFEST),
-        /* declaredDeps */ Suppliers.ofInstance(ImmutableSortedSet.<BuildRule>of(unzipAar)),
-        /* extraDeps */ Suppliers.ofInstance(ImmutableSortedSet.<BuildRule>of()));
-    OutputOnlyBuildRule manifest = new OutputOnlyBuildRule(
-        manifestParams,
-        pathResolver,
-        unzipAar.getAndroidManifest());
-    ruleResolver.addToIndex(manifest);
+    SourcePath manifest =
+        new BuildTargetSourcePath(
+            unzipAar.getProjectFilesystem(),
+            unzipAar.getBuildTarget(),
+            unzipAar.getAndroidManifest());
 
     // android_resource
     BuildRuleParams androidResourceParams = originalBuildRuleParams.copyWithChanges(
         AndroidResourceDescription.TYPE,
         BuildTargets.createFlavoredBuildTarget(originalBuildTarget, AAR_ANDROID_RESOURCE_FLAVOR),
-        /* declaredDeps */ Suppliers.ofInstance(ImmutableSortedSet.<BuildRule>of(manifest)),
+        /* declaredDeps */ Suppliers.ofInstance(ImmutableSortedSet.<BuildRule>of(unzipAar)),
         /* extraDeps */ Suppliers.ofInstance(ImmutableSortedSet.<BuildRule>of()));
 
     // Because all resources and assets are generated files, we specify them as empty collections.
@@ -161,14 +152,14 @@ class AndroidPrebuiltAarGraphEnhancer {
         /* rDotJavaPackage */ null,
         /* assets */ unzipAar.getAssetsDirectory(),
         assetsSrcs,
-        new BuildTargetSourcePath(manifest.getBuildTarget()),
+        manifest,
         /* hasWhitelistedStrings */ false);
     ruleResolver.addToIndex(androidResource);
 
     // android_library
     BuildRuleParams androidLibraryParams = originalBuildRuleParams.copyWithChanges(
         AndroidLibraryDescription.TYPE,
-        originalBuildTarget,
+        BuildTarget.of(originalBuildTarget),
         /* declaredDeps */ Suppliers.ofInstance(
             ImmutableSortedSet.<BuildRule>of(
                 androidResource,
@@ -179,6 +170,7 @@ class AndroidPrebuiltAarGraphEnhancer {
         androidLibraryParams,
         pathResolver,
         unzipAar.getProguardConfig(),
+        unzipAar.getNativeLibsDirectory(),
         prebuiltJar,
         androidResource,
         javacOptions);
@@ -196,10 +188,10 @@ class AndroidPrebuiltAarGraphEnhancer {
         SourcePath aarFile) {
       super(buildRuleParams, resolver);
       this.aarFile = aarFile;
-      this.unpackDirectory = BuildTargets.getBinPath(
+      this.unpackDirectory = BuildTargets.getScratchPath(
           buildRuleParams.getBuildTarget(),
           "__unpack_%s__");
-      this.uberClassesJar = BuildTargets.getBinPath(
+      this.uberClassesJar = BuildTargets.getScratchPath(
           buildRuleParams.getBuildTarget(),
           "__uber_classes_%s__/classes.jar");
     }
@@ -212,6 +204,7 @@ class AndroidPrebuiltAarGraphEnhancer {
       steps.add(new UnzipStep(getResolver().getPath(aarFile), unpackDirectory));
       steps.add(new TouchStep(getProguardConfig()));
       steps.add(new MkdirStep(getAssetsDirectory()));
+      steps.add(new MkdirStep(getNativeLibsDirectory()));
 
       // We take the classes.jar file that is required to exist in an .aar and merge it with any
       // .jar files under libs/ into an "uber" jar. We do this for simplicity because we do not know
@@ -315,6 +308,10 @@ class AndroidPrebuiltAarGraphEnhancer {
 
     Path getProguardConfig() {
       return unpackDirectory.resolve("proguard.txt");
+    }
+
+    Path getNativeLibsDirectory() {
+      return unpackDirectory.resolve("jni");
     }
   }
 }

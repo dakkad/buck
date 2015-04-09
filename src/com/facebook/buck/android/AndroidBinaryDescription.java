@@ -35,7 +35,6 @@ import com.facebook.buck.rules.BuildRuleType;
 import com.facebook.buck.rules.BuildRules;
 import com.facebook.buck.rules.Description;
 import com.facebook.buck.rules.Hint;
-import com.facebook.buck.rules.ImmutableBuildRuleType;
 import com.facebook.buck.rules.SourcePath;
 import com.facebook.buck.rules.SourcePathResolver;
 import com.facebook.buck.rules.coercer.BuildConfigFields;
@@ -62,7 +61,7 @@ import java.util.regex.Pattern;
 
 public class AndroidBinaryDescription implements Description<AndroidBinaryDescription.Arg> {
 
-  public static final BuildRuleType TYPE = ImmutableBuildRuleType.of("android_binary");
+  public static final BuildRuleType TYPE = BuildRuleType.of("android_binary");
 
   /**
    * By default, assume we have 5MB of linear alloc,
@@ -176,6 +175,7 @@ public class AndroidBinaryDescription implements Description<AndroidBinaryDescri
         dexSplitMode,
         ImmutableSet.copyOf(args.noDx.or(ImmutableSet.<BuildTarget>of())),
         /* resourcesToExclude */ ImmutableSet.<BuildTarget>of(),
+        args.skipCrunchPngs.or(false),
         javacOptions,
         exopackageModes,
         (Keystore) keystore,
@@ -191,7 +191,6 @@ public class AndroidBinaryDescription implements Description<AndroidBinaryDescri
         proGuardConfig.getProguardJarOverride(),
         proGuardConfig.getProguardMaxHeapSize(),
         args.manifest,
-        args.target,
         (Keystore) keystore,
         packageType,
         dexSplitMode,
@@ -211,7 +210,10 @@ public class AndroidBinaryDescription implements Description<AndroidBinaryDescri
             params.getProjectFilesystem()),
         args.preprocessJavaClassesBash,
         rulesToExcludeFromDex,
-        result);
+        result,
+        args.reorderClassesIntraDex,
+        args.dexReorderToolFile,
+        args.dexReorderDataDumpFile);
   }
 
   private DexSplitMode createDexSplitMode(Arg args, EnumSet<ExopackageMode> exopackageModes) {
@@ -265,7 +267,9 @@ public class AndroidBinaryDescription implements Description<AndroidBinaryDescri
   @SuppressFieldNotInitialized
   public static class Arg {
     public SourcePath manifest;
-    public String target;
+    // TODO(mbolin): Support for this field will be dropped as it is no longer used. Keeping it
+    // around is misleading. A deprecation warning should be printed if it is set.
+    public Optional<String> target;
     public BuildTarget keystore;
     public Optional<String> packageType;
     @Hint(isDep = false) public Optional<Set<BuildTarget>> noDx;
@@ -282,6 +286,7 @@ public class AndroidBinaryDescription implements Description<AndroidBinaryDescri
     public Optional<Integer> optimizationPasses;
     public Optional<SourcePath> proguardConfig;
     public Optional<String> resourceCompression;
+    public Optional<Boolean> skipCrunchPngs;
     public Optional<List<String>> primaryDexPatterns;
     public Optional<SourcePath> primaryDexClassesFile;
     public Optional<SourcePath> primaryDexScenarioFile;
@@ -295,6 +300,9 @@ public class AndroidBinaryDescription implements Description<AndroidBinaryDescri
     public Optional<Set<TargetCpuType>> cpuFilters;
     public Optional<ImmutableSortedSet<BuildTarget>> preprocessJavaClassesDeps;
     public Optional<String> preprocessJavaClassesBash;
+    public Optional<Boolean> reorderClassesIntraDex;
+    public Optional<SourcePath> dexReorderToolFile;
+    public Optional<SourcePath> dexReorderDataDumpFile;
 
     /** This will never be absent after this Arg is populated. */
     public Optional<BuildConfigFields> buildConfigValues;

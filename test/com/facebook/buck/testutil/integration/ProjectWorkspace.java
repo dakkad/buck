@@ -207,7 +207,13 @@ public class ProjectWorkspace {
     String[] commandArray = command.toArray(new String[command.size()]);
     Process process = Runtime.getRuntime().exec(commandArray);
     ProcessExecutor executor = new ProcessExecutor(new TestConsole());
-    return executor.execute(process);
+    String currentDir = System.getProperty("user.dir");
+    try {
+      System.setProperty("user.dir", destPath.toAbsolutePath().toString());
+      return executor.execute(process);
+    } finally {
+      System.setProperty("user.dir", currentDir);
+    }
   }
 
   /**
@@ -220,6 +226,7 @@ public class ProjectWorkspace {
       throws IOException {
     return runBuckCommandWithEnvironmentAndContext(
         Optional.<NGContext>absent(),
+        Optional.<BuckEventListener>absent(),
         args);
   }
 
@@ -238,12 +245,27 @@ public class ProjectWorkspace {
 
   public ProcessResult runBuckdCommand(NGContext context, String... args)
       throws IOException {
-    return runBuckCommandWithEnvironmentAndContext(Optional.of(context), args);
+    return runBuckCommandWithEnvironmentAndContext(
+        Optional.of(context),
+        Optional.<BuckEventListener>absent(),
+        args);
+  }
+
+  public ProcessResult runBuckdCommand(
+      NGContext context,
+      BuckEventListener eventListener,
+      String... args)
+      throws IOException {
+    return runBuckCommandWithEnvironmentAndContext(
+        Optional.of(context),
+        Optional.of(eventListener),
+        args);
   }
 
   private ProcessResult runBuckCommandWithEnvironmentAndContext(
-        Optional<NGContext> context,
-        String... args)
+      Optional<NGContext> context,
+      Optional<BuckEventListener> eventListener,
+      String... args)
     throws IOException {
     assertTrue("setUp() must be run before this method is invoked", isSetUp);
     CapturingPrintStream stdout = new CapturingPrintStream();
@@ -262,6 +284,11 @@ public class ProjectWorkspace {
         // empty
       }
     };
+    ImmutableList.Builder<BuckEventListener> eventListeners = ImmutableList.builder();
+    eventListeners.add(capturingEventListener);
+    if (eventListener.isPresent()) {
+      eventListeners.add(eventListener.get());
+    }
 
     // Construct a limited view of the parent environment for the child.
     //
@@ -272,7 +299,15 @@ public class ProjectWorkspace {
         "ANDROID_NDK_REPOSITORY",
         "ANDROID_SDK",
         "PATH",
-        "PATHEXT");
+        "PATHEXT",
+
+        // Needed by ndk-build on Windows
+        "OS",
+        "ProgramW6432",
+        "ProgramFiles(x86)",
+
+        // TODO(#6586154): set TMP variable for ShellSteps
+        "TMP");
     ImmutableMap.Builder<String, String> envBuilder = ImmutableMap.builder();
     for (String variable : inheritedEnvVars) {
       String value = System.getenv(variable);
@@ -282,7 +317,7 @@ public class ProjectWorkspace {
     }
     ImmutableMap<String, String> env = envBuilder.build();
 
-    Main main = new Main(stdout, stderr, Optional.of(capturingEventListener));
+    Main main = new Main(stdout, stderr, eventListeners.build());
     int exitCode = 0;
     try {
       exitCode = main.runMainWithExitCode(
@@ -474,6 +509,10 @@ public class ProjectWorkspace {
           }
           String expectedFileContent = Files.toString(file.toFile(), Charsets.UTF_8);
           String observedFileContent = Files.toString(observedFile, Charsets.UTF_8);
+          // It is possible, on Windows, to have Git keep "\n"-style newlines, or convert them to
+          // "\r\n"-style newlines.  Support both ways by normalizing to "\n"-style newlines.
+          // See https://help.github.com/articles/dealing-with-line-endings/ for more information.
+          expectedFileContent = expectedFileContent.replace("\r\n", "\n");
           observedFileContent = observedFileContent.replace("\r\n", "\n");
           String cleanPathToObservedFile = MoreStrings.withoutSuffix(
               templatePath.relativize(file).toString(), EXPECTED_SUFFIX);

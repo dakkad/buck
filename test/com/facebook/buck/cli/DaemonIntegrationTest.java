@@ -24,20 +24,29 @@ import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.junit.Assume.assumeFalse;
+import static org.junit.Assume.assumeNoException;
+import static org.junit.Assume.assumeNotNull;
 import static org.junit.Assume.assumeTrue;
 
 import com.facebook.buck.android.AssumeAndroidPlatform;
+import com.facebook.buck.android.FakeAndroidDirectoryResolver;
+import com.facebook.buck.event.BuckEventListener;
 import com.facebook.buck.io.ProjectFilesystem;
 import com.facebook.buck.model.BuildId;
 import com.facebook.buck.rules.FakeRepositoryFactory;
 import com.facebook.buck.rules.TestRepositoryBuilder;
+import com.facebook.buck.rules.TestRunEvent;
+import com.facebook.buck.testutil.TestConsole;
 import com.facebook.buck.testutil.integration.DebuggableTemporaryFolder;
+import com.facebook.buck.testutil.integration.DelegatingInputStream;
 import com.facebook.buck.testutil.integration.ProjectWorkspace;
 import com.facebook.buck.testutil.integration.TestContext;
 import com.facebook.buck.testutil.integration.TestDataHelper;
 import com.facebook.buck.timing.FakeClock;
 import com.facebook.buck.util.CapturingPrintStream;
-import com.facebook.buck.android.FakeAndroidDirectoryResolver;
+import com.facebook.buck.util.ImmutableProcessExecutorParams;
+import com.facebook.buck.util.ProcessExecutor;
 import com.facebook.buck.util.environment.Platform;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Charsets;
@@ -47,6 +56,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.eventbus.Subscribe;
 import com.google.common.io.Files;
+import com.google.gson.Gson;
 import com.martiansoftware.nailgun.NGClientListener;
 import com.martiansoftware.nailgun.NGContext;
 
@@ -73,13 +83,30 @@ public class DaemonIntegrationTest {
 
   private static final int SUCCESS_EXIT_CODE = 0;
   private ScheduledExecutorService executorService;
+  private static final Gson gson = new Gson();
 
   @Rule
   public DebuggableTemporaryFolder tmp = new DebuggableTemporaryFolder();
 
   @Before
-  public void setUp() {
+  public void setUp() throws IOException, InterruptedException{
     executorService = Executors.newScheduledThreadPool(5);
+    // We assume watchman has been installed and configured properly on the system, and that setting
+    // up the watch is successful.
+    try {
+      ProcessExecutor.Result result = new ProcessExecutor(new TestConsole()).launchAndExecute(
+          ImmutableProcessExecutorParams.builder()
+              .setCommand(ImmutableList.of("watchman", "watchzzz", tmp.getRootPath().toString()))
+              .build());
+      assumeTrue(result.getStdout().isPresent());
+      Map<String, Object> response = gson.<Map<String, Object>>fromJson(
+          result.getStdout().get(),
+          Map.class);
+      assumeNotNull(response);
+      assumeFalse(response.containsKey("error"));
+    } catch (IOException e) {
+      assumeNoException(e);
+    }
   }
 
   @After
@@ -250,17 +277,33 @@ public class DaemonIntegrationTest {
     assumeTrue(Platform.detect() != Platform.WINDOWS);
 
     final long timeoutMillis = 100;
-    final long intervalMillis = timeoutMillis * 2; // Interval > timeout to trigger disconnection.
     final ProjectWorkspace workspace = TestDataHelper.createProjectWorkspaceForScenario(
         this, "exclusive_execution", tmp);
     workspace.setUp();
 
+    // Start with an input stream that sends heartbeats at a regular rate.
+    final DelegatingInputStream inputStream = new DelegatingInputStream(
+        TestContext.createHeartBeatStream(timeoutMillis / 10));
+
     // Build an NGContext connected to an NGInputStream reading from stream that will timeout.
     try (TestContext context = new TestContext(
         ImmutableMap.copyOf(System.getenv()),
-        TestContext.createHeartBeatStream(intervalMillis),
+        inputStream,
         timeoutMillis)) {
-      ProcessResult result = workspace.runBuckdCommand(context, "test", "//:test");
+      BuckEventListener listener = new BuckEventListener() {
+        @Subscribe
+        @SuppressWarnings("unused")
+        public void onEvent(TestRunEvent.Started event) {
+          // When tests start running, make the heartbeat stream time out.
+          inputStream.setDelegate(TestContext.createHeartBeatStream(2 * timeoutMillis));
+        }
+
+        @Override
+        public void outputTrace(BuildId buildId) throws InterruptedException {
+          // do nothing
+        }
+      };
+      ProcessResult result = workspace.runBuckdCommand(context, listener, "test", "//:test");
       result.assertFailure();
       assertThat(result.getStderr(), containsString("InterruptedException"));
     }
@@ -313,12 +356,29 @@ public class DaemonIntegrationTest {
         this, "exclusive_execution", tmp);
     workspace.setUp();
 
+    // Start with an input stream that sends heartbeats at a regular rate.
+    final DelegatingInputStream inputStream = new DelegatingInputStream(
+        TestContext.createHeartBeatStream(timeoutMillis / 10));
+
     // Build an NGContext connected to an NGInputStream reading from stream that will timeout.
     try (TestContext context = new TestContext(
         ImmutableMap.copyOf(System.getenv()),
-        TestContext.createDisconnectionStream(disconnectMillis),
+        inputStream,
         timeoutMillis)) {
-      ProcessResult result = workspace.runBuckdCommand(context, "test", "//:test");
+      BuckEventListener listener = new BuckEventListener() {
+        @Subscribe
+        @SuppressWarnings("unused")
+        public void onEvent(TestRunEvent.Started event) {
+          // When tests start running, make the heartbeat stream simulate a disconnection.
+          inputStream.setDelegate(TestContext.createDisconnectionStream(disconnectMillis));
+        }
+
+        @Override
+        public void outputTrace(BuildId buildId) throws InterruptedException {
+          // do nothing
+        }
+      };
+      ProcessResult result = workspace.runBuckdCommand(context, listener, "test", "//:test");
       result.assertFailure();
       assertThat(result.getStderr(), containsString("InterruptedException"));
     }
@@ -529,11 +589,11 @@ public class DaemonIntegrationTest {
   private void waitForChange(final Path path) throws IOException, InterruptedException {
 
     class Watcher {
-      private Path path;
+      private Path watchedPath;
       private boolean watchedChange = false;
 
-      public Watcher(Path path) {
-        this.path = path;
+      public Watcher(Path watchedPath) {
+        this.watchedPath = watchedPath;
         watchedChange = false;
       }
 
@@ -543,7 +603,8 @@ public class DaemonIntegrationTest {
 
       @Subscribe
       public synchronized void onEvent(WatchEvent<?> event) throws IOException {
-        if (path.equals(event.context()) || event.kind() == StandardWatchEventKinds.OVERFLOW) {
+        if (watchedPath.equals(event.context()) ||
+            event.kind() == StandardWatchEventKinds.OVERFLOW) {
           watchedChange = true;
         }
       }

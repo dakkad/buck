@@ -16,24 +16,23 @@
 
 package com.facebook.buck.apple;
 
+import com.facebook.buck.cli.BuckConfig;
+import com.facebook.buck.cxx.CxxBuckConfig;
 import com.facebook.buck.cxx.CxxPlatform;
-import com.facebook.buck.cxx.DarwinLinker;
-import com.facebook.buck.cxx.DebugPathSanitizer;
-import com.facebook.buck.cxx.ImmutableCxxPlatform;
-import com.facebook.buck.cxx.SourcePathTool;
+import com.facebook.buck.cxx.CxxPlatforms;
 import com.facebook.buck.cxx.Tool;
+import com.facebook.buck.cxx.VersionedTool;
 import com.facebook.buck.io.MorePaths;
 import com.facebook.buck.model.ImmutableFlavor;
-import com.facebook.buck.rules.PathSourcePath;
-import com.facebook.buck.rules.SourcePath;
 import com.facebook.buck.util.HumanReadableException;
+import com.facebook.buck.util.environment.Platform;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Function;
+import com.google.common.base.Functions;
+import com.google.common.base.Joiner;
 import com.google.common.base.Optional;
-import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.ImmutableList;
 
-import java.io.File;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
@@ -51,15 +50,19 @@ public class AppleCxxPlatforms {
   public static CxxPlatform build(
       ApplePlatform targetPlatform,
       String targetSdkName,
+      String xcodeVersion,
       String targetVersion,
       String targetArchitecture,
-      AppleSdkPaths sdkPaths) {
+      AppleSdkPaths sdkPaths,
+      BuckConfig buckConfig) {
     return buildWithExecutableChecker(
         targetPlatform,
         targetSdkName,
+        xcodeVersion,
         targetVersion,
         targetArchitecture,
         sdkPaths,
+        buckConfig,
         MorePaths.DEFAULT_PATH_IS_EXECUTABLE_CHECKER);
   }
 
@@ -67,25 +70,22 @@ public class AppleCxxPlatforms {
   static CxxPlatform buildWithExecutableChecker(
       ApplePlatform targetPlatform,
       String targetSdkName,
+      String xcodeVersion,
       String targetVersion,
       String targetArchitecture,
       AppleSdkPaths sdkPaths,
+      BuckConfig buckConfig,
       Function<Path, Boolean> pathIsExecutableChecker) {
 
     ImmutableList.Builder<Path> toolSearchPathsBuilder = ImmutableList.builder();
     // Search for tools from most specific to least specific.
     toolSearchPathsBuilder
         .add(sdkPaths.getSdkPath().resolve(USR_BIN))
-        .add(sdkPaths.getPlatformDeveloperPath().resolve(USR_BIN));
+        .add(sdkPaths.getPlatformPath().resolve("Developer").resolve(USR_BIN));
     for (Path toolchainPath : sdkPaths.getToolchainPaths()) {
       toolSearchPathsBuilder.add(toolchainPath.resolve(USR_BIN));
     }
     ImmutableList<Path> toolSearchPaths = toolSearchPathsBuilder.build();
-
-    Tool clangPath = new SourcePathTool(
-        getTool("clang", toolSearchPaths, pathIsExecutableChecker));
-    Tool clangXxPath = new SourcePathTool(
-        getTool("clang++", toolSearchPaths, pathIsExecutableChecker));
 
     ImmutableList.Builder<String> cflagsBuilder = ImmutableList.builder();
     cflagsBuilder.add("-isysroot", sdkPaths.getSdkPath().toString());
@@ -95,7 +95,8 @@ public class AppleCxxPlatforms {
         cflagsBuilder.add("-mmacosx-version-min=" + targetVersion);
         break;
       case IPHONESIMULATOR:
-        // Fall through
+        cflagsBuilder.add("-mios-simulator-version-min=" + targetVersion);
+        break;
       case IPHONEOS:
         cflagsBuilder.add("-mios-version-min=" + targetVersion);
         break;
@@ -103,62 +104,82 @@ public class AppleCxxPlatforms {
     // TODO(user): Add more and better cflags.
     ImmutableList<String> cflags = cflagsBuilder.build();
 
-    return ImmutableCxxPlatform.builder()
-        .setFlavor(ImmutableFlavor.of(targetSdkName + "-" + targetArchitecture))
-        .setAs(clangPath)
-        .setAspp(clangPath)
-        .setCc(clangPath)
-        .addAllCflags(cflags)
-        .setCpp(clangPath)
-        .addAllCppflags(cflags)
-        .setCxx(clangXxPath)
-        .addAllCxxflags(cflags)
-        .setCxxpp(clangXxPath)
-        .addAllCxxppflags(cflags)
-        .setCxxld(clangXxPath)
-        .addAllCxxldflags(cflags)
-        .setLex(getOptionalTool("lex", toolSearchPaths, pathIsExecutableChecker))
-        .setYacc(getOptionalTool("yacc", toolSearchPaths, pathIsExecutableChecker))
-        .setLd(
-            new DarwinLinker(
-                new SourcePathTool(getTool("libtool", toolSearchPaths, pathIsExecutableChecker))))
-        .setAr(new SourcePathTool(getTool("ar", toolSearchPaths, pathIsExecutableChecker)))
-        .setDebugPathSanitizer(Optional.of(
-            new DebugPathSanitizer(
-                250,
-                File.separatorChar,
-                Paths.get("."),
-                ImmutableBiMap.<Path, Path>of())))
-        .setSharedLibraryExtension("dylib")
-        .build();
+    String xcodeAndSdkVersion = Joiner.on(':').join(
+        xcodeVersion,
+        targetSdkName);
+
+    Tool clangPath = new VersionedTool(
+        getToolPath("clang", toolSearchPaths, pathIsExecutableChecker),
+        cflags,
+        "apple-clang",
+        xcodeAndSdkVersion);
+
+    Tool clangXxPath = new VersionedTool(
+        getToolPath("clang++", toolSearchPaths, pathIsExecutableChecker),
+        cflags,
+        "apple-clang++",
+        xcodeAndSdkVersion);
+
+    Tool libtool = new VersionedTool(
+        getToolPath("libtool", toolSearchPaths, pathIsExecutableChecker),
+        ImmutableList.<String>of(),
+        "apple-libtool",
+        xcodeAndSdkVersion);
+
+    Tool ar = new VersionedTool(
+        getToolPath("ar", toolSearchPaths, pathIsExecutableChecker),
+        ImmutableList.<String>of(),
+        "apple-ar",
+        xcodeAndSdkVersion);
+
+    CxxBuckConfig config = new CxxBuckConfig(buckConfig);
+
+    return CxxPlatforms.build(
+        ImmutableFlavor.of(targetSdkName + "-" + targetArchitecture),
+        Platform.MACOS,
+        config,
+        clangPath,
+        clangPath,
+        clangPath,
+        clangXxPath,
+        clangPath,
+        clangXxPath,
+        clangXxPath,
+        Optional.of(CxxPlatform.LinkerType.DARWIN),
+        libtool,
+        ar,
+        getOptionalTool("lex", toolSearchPaths, pathIsExecutableChecker, xcodeAndSdkVersion),
+        getOptionalTool("yacc", toolSearchPaths, pathIsExecutableChecker, xcodeAndSdkVersion));
   }
 
-  private static Optional<SourcePath> getOptionalTool(
+  private static Optional<Path> getOptionalToolPath(
       String tool,
       ImmutableList<Path> toolSearchPaths,
       Function<Path, Boolean> pathIsExecutableChecker) {
-    Optional<Path> toolPath = MorePaths.searchPathsForExecutable(
+    return MorePaths.searchPathsForExecutable(
         Paths.get(tool),
         toolSearchPaths,
         ImmutableList.<String>of(),
         pathIsExecutableChecker);
-    if (toolPath.isPresent()) {
-      return Optional.<SourcePath>of(new PathSourcePath(toolPath.get()));
-    } else {
-      return Optional.<SourcePath>absent();
-    }
   }
 
-  private static SourcePath getTool(
+  private static Optional<Tool> getOptionalTool(
+      String tool,
+      ImmutableList<Path> toolSearchPaths,
+      Function<Path, Boolean> pathIsExecutableChecker,
+      String version) {
+    return getOptionalToolPath(tool, toolSearchPaths, pathIsExecutableChecker)
+        .transform(VersionedTool.fromPath(tool, version))
+        .transform(Functions.<Tool>identity());
+  }
+
+  private static Path getToolPath(
       String tool,
       ImmutableList<Path> toolSearchPaths,
       Function<Path, Boolean> pathIsExecutableChecker) {
-    Optional<SourcePath> result = getOptionalTool(tool, toolSearchPaths, pathIsExecutableChecker);
+    Optional<Path> result = getOptionalToolPath(tool, toolSearchPaths, pathIsExecutableChecker);
     if (!result.isPresent()) {
-      throw new HumanReadableException(
-        "Cannot find tool %s in paths %s",
-        tool,
-        toolSearchPaths);
+      throw new HumanReadableException("Cannot find tool %s in paths %s", tool, toolSearchPaths);
     }
     return result.get();
   }
