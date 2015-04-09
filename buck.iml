@@ -69,7 +69,6 @@
     <orderEntry type="library" name="okhttp-2.2.0" level="project" />
     <orderEntry type="library" name="okio-1.2.0" level="project" />
   </component>
-<<<<<<< HEAD
   <component name="org.twodividedbyzero.idea.findbugs">
     <option name="_basePreferences">
       <map>
@@ -269,6 +268,4 @@
       </map>
     </option>
   </component>
-=======
->>>>>>> upstream/master
 </module>
