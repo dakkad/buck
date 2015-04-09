@@ -22,6 +22,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 
+import com.facebook.buck.android.AndroidPlatformTarget;
 import com.facebook.buck.io.ProjectFilesystem;
 import com.facebook.buck.java.JavaBinaryRuleBuilder;
 import com.facebook.buck.java.JavaLibraryBuilder;
@@ -29,8 +30,8 @@ import com.facebook.buck.java.JavaLibraryDescription;
 import com.facebook.buck.model.BuildTarget;
 import com.facebook.buck.model.BuildTargetFactory;
 import com.facebook.buck.parser.BuildTargetParser;
-import com.facebook.buck.parser.NoSuchBuildTargetException;
 import com.facebook.buck.parser.BuildTargetPatternParser;
+import com.facebook.buck.parser.NoSuchBuildTargetException;
 import com.facebook.buck.rules.AbstractBuildRule;
 import com.facebook.buck.rules.BuildContext;
 import com.facebook.buck.rules.BuildRule;
@@ -50,14 +51,14 @@ import com.facebook.buck.step.fs.MakeCleanDirectoryStep;
 import com.facebook.buck.step.fs.MkdirAndSymlinkFileStep;
 import com.facebook.buck.step.fs.MkdirStep;
 import com.facebook.buck.step.fs.RmStep;
-import com.facebook.buck.android.AndroidPlatformTarget;
+import com.facebook.buck.testutil.FakeProjectFilesystem;
 import com.facebook.buck.util.Ansi;
 import com.facebook.buck.util.Console;
 import com.facebook.buck.util.HumanReadableException;
 import com.facebook.buck.util.Verbosity;
 import com.facebook.buck.util.environment.Platform;
 import com.google.common.base.Function;
-import com.google.common.base.Optional;
+import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSortedSet;
@@ -146,8 +147,12 @@ public class GenruleTest {
         .setOut("AndroidManifest.xml")
         .setSrcs(
             ImmutableList.<SourcePath>of(
-                new PathSourcePath(Paths.get("src/com/facebook/katana/convert_to_katana.py")),
-                new PathSourcePath(Paths.get("src/com/facebook/katana/AndroidManifest.xml"))))
+                new PathSourcePath(
+                    fakeFilesystem,
+                    Paths.get("src/com/facebook/katana/convert_to_katana.py")),
+                new PathSourcePath(
+                    fakeFilesystem,
+                    Paths.get("src/com/facebook/katana/AndroidManifest.xml"))))
         .build(ruleResolver, fakeFilesystem);
 
     // Verify all of the observers of the Genrule.
@@ -162,7 +167,7 @@ public class GenruleTest {
         Paths.get("src/com/facebook/katana/AndroidManifest.xml"));
     assertEquals(
         inputsToCompareToOutputs,
-        ((Genrule) genrule).getInputsToCompareToOutput());
+        ((Genrule) genrule).getSrcs());
 
     // Verify that the shell commands that the genrule produces are correct.
     List<Step> steps = genrule.getBuildSteps(
@@ -293,6 +298,7 @@ public class GenruleTest {
 
   @Test
   public void ensureFilesInSubdirectoriesAreKeptInSubDirectories() throws IOException {
+    ProjectFilesystem projectFilesystem = new FakeProjectFilesystem();
     BuildRuleResolver resolver = new BuildRuleResolver();
     BuildTarget target = BuildTargetFactory.newInstance("//:example");
     BuildRule rule = GenruleBuilder
@@ -300,9 +306,9 @@ public class GenruleTest {
         .setBash("ignored")
         .setSrcs(
             ImmutableList.<SourcePath>of(
-                new PathSourcePath(Paths.get("in-dir.txt")),
-                new PathSourcePath(Paths.get("foo/bar.html")),
-                new PathSourcePath(Paths.get("other/place.txt"))))
+                new PathSourcePath(projectFilesystem, Paths.get("in-dir.txt")),
+                new PathSourcePath(projectFilesystem, Paths.get("foo/bar.html")),
+                new PathSourcePath(projectFilesystem, Paths.get("other/place.txt"))))
         .setOut("example-file")
         .build(resolver);
 
@@ -358,7 +364,7 @@ public class GenruleTest {
         .build(resolver);
 
     ExecutionContext context = TestExecutionContext.newBuilder()
-        .setAndroidPlatformTarget(Optional.of(android))
+        .setAndroidPlatformTargetSupplier(Suppliers.ofInstance(android))
         .build();
 
     ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();

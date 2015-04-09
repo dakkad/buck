@@ -26,33 +26,59 @@ import com.facebook.buck.rules.BuildRuleParams;
 import com.facebook.buck.rules.BuildRuleResolver;
 import com.facebook.buck.rules.BuildRuleType;
 import com.facebook.buck.rules.Description;
-import com.facebook.buck.rules.ImmutableBuildRuleType;
 import com.facebook.buck.rules.ImplicitDepsInferringDescription;
 import com.facebook.buck.rules.SourcePathResolver;
+import com.facebook.buck.rules.SymlinkTree;
 import com.facebook.buck.util.HumanReadableException;
 import com.facebook.infer.annotation.SuppressFieldNotInitialized;
 import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSortedSet;
+import com.google.common.collect.Sets;
+
+import java.util.Set;
 
 public class CxxBinaryDescription implements
     Description<CxxBinaryDescription.Arg>,
     Flavored,
     ImplicitDepsInferringDescription<CxxBinaryDescription.Arg> {
 
-  public static final BuildRuleType TYPE = ImmutableBuildRuleType.of("cxx_binary");
+  public static final BuildRuleType TYPE = BuildRuleType.of("cxx_binary");
 
   private final CxxBuckConfig cxxBuckConfig;
   private final CxxPlatform defaultCxxPlatform;
   private final FlavorDomain<CxxPlatform> cxxPlatforms;
+  private final CxxSourceRuleFactory.Strategy compileStrategy;
 
   public CxxBinaryDescription(
       CxxBuckConfig cxxBuckConfig,
       CxxPlatform defaultCxxPlatform,
-      FlavorDomain<CxxPlatform> cxxPlatforms) {
+      FlavorDomain<CxxPlatform> cxxPlatforms,
+      CxxSourceRuleFactory.Strategy compileStrategy) {
     this.cxxBuckConfig = cxxBuckConfig;
     this.defaultCxxPlatform = defaultCxxPlatform;
     this.cxxPlatforms = cxxPlatforms;
+    this.compileStrategy = compileStrategy;
+  }
+
+  /**
+   * @return a {@link com.facebook.buck.rules.SymlinkTree} for the headers of this C/C++ binary.
+   */
+  public static <A extends Arg> SymlinkTree createHeaderSymlinkTreeBuildRule(
+      BuildRuleParams params,
+      BuildRuleResolver resolver,
+      CxxPlatform cxxPlatform,
+      A args) {
+    return CxxDescriptionEnhancer.createHeaderSymlinkTree(
+        params,
+        resolver,
+        new SourcePathResolver(resolver),
+        cxxPlatform,
+        /* includeLexYaccHeaders */ true,
+        CxxDescriptionEnhancer.parseLexSources(params, resolver, args),
+        CxxDescriptionEnhancer.parseYaccSources(params, resolver, args),
+        CxxDescriptionEnhancer.parseHeaders(params, resolver, args),
+        CxxDescriptionEnhancer.HeaderVisibility.PRIVATE);
   }
 
   @Override
@@ -61,7 +87,7 @@ public class CxxBinaryDescription implements
   }
 
   @Override
-  public <A extends Arg> CxxBinary createBuildRule(
+  public <A extends Arg> BuildRule createBuildRule(
       BuildRuleParams params,
       BuildRuleResolver resolver,
       A args) {
@@ -69,19 +95,60 @@ public class CxxBinaryDescription implements
     // Extract the platform from the flavor, falling back to the default platform if none are
     // found.
     CxxPlatform cxxPlatform;
+    ImmutableSet<Flavor> flavors = ImmutableSet.copyOf(params.getBuildTarget().getFlavors());
     try {
       cxxPlatform = cxxPlatforms
-          .getValue(ImmutableSet.copyOf(params.getBuildTarget().getFlavors()))
+          .getValue(flavors)
           .or(defaultCxxPlatform);
     } catch (FlavorDomainException e) {
       throw new HumanReadableException("%s: %s", params.getBuildTarget(), e.getMessage());
     }
 
-    CxxLink cxxLink = CxxDescriptionEnhancer.createBuildRulesForCxxBinaryDescriptionArg(
-        params,
-        resolver,
-        cxxPlatform,
-        args);
+    if (flavors.contains(CxxDescriptionEnhancer.HEADER_SYMLINK_TREE_FLAVOR)) {
+      flavors = ImmutableSet.copyOf(
+          Sets.difference(
+              flavors,
+              ImmutableSet.of(CxxDescriptionEnhancer.HEADER_SYMLINK_TREE_FLAVOR)));
+      BuildTarget target = BuildTarget
+          .builder(params.getBuildTarget().getUnflavoredBuildTarget())
+          .addAllFlavors(flavors)
+          .build();
+      BuildRuleParams typeParams =
+          params.copyWithChanges(
+              params.getBuildRuleType(),
+              target,
+              Suppliers.ofInstance(params.getDeclaredDeps()),
+              Suppliers.ofInstance(params.getExtraDeps()));
+
+      return createHeaderSymlinkTreeBuildRule(
+          typeParams,
+          resolver,
+          cxxPlatform,
+          args);
+    }
+
+    if (flavors.contains(CxxCompilationDatabase.COMPILATION_DATABASE)) {
+      CxxDescriptionEnhancer.createBuildRulesForCxxBinaryDescriptionArg(
+          params,
+          resolver,
+          cxxPlatform,
+          args,
+          compileStrategy);
+
+      return CxxCompilationDatabase.createCompilationDatabase(
+          params,
+          resolver,
+          new SourcePathResolver(resolver),
+          compileStrategy);
+    }
+
+    CxxLink cxxLink =
+        CxxDescriptionEnhancer.createBuildRulesForCxxBinaryDescriptionArg(
+            params,
+            resolver,
+            cxxPlatform,
+            args,
+            compileStrategy);
 
     // Return a CxxBinary rule as our representative in the action graph, rather than the CxxLink
     // rule above for a couple reasons:
@@ -125,19 +192,22 @@ public class CxxBinaryDescription implements
   }
 
   @Override
-  public boolean hasFlavors(ImmutableSet<Flavor> flavors) {
+  public boolean hasFlavors(ImmutableSet<Flavor> inputFlavors) {
+    Set<Flavor> flavors = inputFlavors;
 
-    if (flavors.isEmpty()) {
-      return true;
+    Set<Flavor> platformFlavors = Sets.intersection(flavors, cxxPlatforms.getFlavors());
+    if (platformFlavors.size() > 1) {
+      return false;
     }
+    flavors = Sets.difference(flavors, platformFlavors);
 
-    for (Flavor flavor : cxxPlatforms.getFlavors()) {
-      if (flavors.equals(ImmutableSet.of(flavor))) {
-        return true;
-      }
-    }
+    flavors = Sets.difference(
+        flavors,
+        ImmutableSet.of(
+            CxxDescriptionEnhancer.HEADER_SYMLINK_TREE_FLAVOR,
+            CxxCompilationDatabase.COMPILATION_DATABASE));
 
-    return false;
+    return flavors.isEmpty();
   }
 
   @SuppressFieldNotInitialized

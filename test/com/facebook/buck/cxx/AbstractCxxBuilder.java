@@ -32,23 +32,20 @@ public class AbstractCxxBuilder<T> extends AbstractNodeBuilder<T> {
 
   public static CxxBuckConfig createDefaultConfig() {
     BuckConfig buckConfig = new FakeBuckConfig();
-    CxxBuckConfig cxxBuckConfig = new CxxBuckConfig(buckConfig);
-    return cxxBuckConfig;
+    return new CxxBuckConfig(buckConfig);
   }
 
   public static CxxPlatform createDefaultPlatform() {
     BuckConfig buckConfig = new FakeBuckConfig();
-    CxxPlatform cxxPlatform = DefaultCxxPlatforms.build(buckConfig);
-    return cxxPlatform;
+    return DefaultCxxPlatforms.build(new CxxBuckConfig(buckConfig));
   }
 
   public static FlavorDomain<CxxPlatform> createDefaultPlatforms() {
     BuckConfig buckConfig = new FakeBuckConfig();
-    CxxPlatform cxxPlatform = DefaultCxxPlatforms.build(buckConfig);
-    FlavorDomain<CxxPlatform> cxxPlatforms = new FlavorDomain<>(
+    CxxPlatform cxxPlatform = DefaultCxxPlatforms.build(new CxxBuckConfig(buckConfig));
+    return new FlavorDomain<>(
         "C/C++ Platform",
         ImmutableMap.of(cxxPlatform.getFlavor(), cxxPlatform));
-    return cxxPlatforms;
   }
 
 }

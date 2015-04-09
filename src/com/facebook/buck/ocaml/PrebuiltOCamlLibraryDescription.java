@@ -21,7 +21,6 @@ import com.facebook.buck.rules.BuildRuleParams;
 import com.facebook.buck.rules.BuildRuleResolver;
 import com.facebook.buck.rules.BuildRuleType;
 import com.facebook.buck.rules.Description;
-import com.facebook.buck.rules.ImmutableBuildRuleType;
 import com.facebook.buck.rules.PathSourcePath;
 import com.facebook.buck.rules.SourcePath;
 import com.facebook.buck.rules.SourcePathResolver;
@@ -40,7 +39,7 @@ import java.nio.file.Path;
 public class PrebuiltOCamlLibraryDescription
     implements Description<PrebuiltOCamlLibraryDescription.Arg> {
 
-  public static final BuildRuleType TYPE = ImmutableBuildRuleType.of("prebuilt_ocaml_library");
+  public static final BuildRuleType TYPE = BuildRuleType.of("prebuilt_ocaml_library");
 
   @Override
   public BuildRuleType getBuildRuleType() {
@@ -54,7 +53,7 @@ public class PrebuiltOCamlLibraryDescription
 
   @Override
   public <A extends Arg> OCamlLibrary createBuildRule(
-      BuildRuleParams params,
+      final BuildRuleParams params,
       BuildRuleResolver resolver,
       final A args) {
 
@@ -71,17 +70,23 @@ public class PrebuiltOCamlLibraryDescription
     final Path libPath = target.getBasePath().resolve(libDir);
     final Path includeDir = libPath.resolve(args.includeDir.or(""));
 
-    final SourcePath staticNativeLibraryPath = new PathSourcePath(libPath.resolve(nativeLib));
+    final SourcePath staticNativeLibraryPath = new PathSourcePath(
+        params.getProjectFilesystem(),
+        libPath.resolve(nativeLib));
     final ImmutableList<SourcePath> staticCLibraryPaths =
         FluentIterable.from(cLibs)
           .transform(new Function<String, SourcePath>() {
                        @Override
                        public SourcePath apply(String input) {
-                         return new PathSourcePath(libPath.resolve(input));
+                         return new PathSourcePath(
+                             params.getProjectFilesystem(),
+                             libPath.resolve(input));
                        }
                      }).toList();
 
-    final SourcePath bytecodeLibraryPath = new PathSourcePath(libPath.resolve(bytecodeLib));
+    final SourcePath bytecodeLibraryPath = new PathSourcePath(
+        params.getProjectFilesystem(),
+        libPath.resolve(bytecodeLib));
 
     return new PrebuiltOCamlLibrary(
         params,

@@ -17,9 +17,12 @@
 package com.facebook.buck.util;
 
 import com.facebook.buck.log.Logger;
+import com.facebook.buck.util.environment.Platform;
 import com.google.common.base.Charsets;
 import com.google.common.base.Optional;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Iterables;
 
 import java.io.IOException;
 import java.io.OutputStreamWriter;
@@ -105,7 +108,15 @@ public class ProcessExecutor {
    */
   Process launchProcess(ProcessExecutorParams params) throws IOException {
 
-    ProcessBuilder pb = new ProcessBuilder(params.getCommand());
+    ImmutableList<String> command = params.getCommand();
+    /* On Windows, we need to escape the arguments we hand off to `CreateProcess`.  See
+     * http://blogs.msdn.com/b/twistylittlepassagesallalike/archive/2011/04/23/everyone-quotes-arguments-the-wrong-way.aspx
+     * for more details.
+     */
+    if (Platform.detect() == Platform.WINDOWS) {
+      command = ImmutableList.copyOf(Iterables.transform(command, Escaper.CREATE_PROCESS_ESCAPER));
+    }
+    ProcessBuilder pb = new ProcessBuilder(command);
     if (params.getDirectory().isPresent()) {
       pb.directory(params.getDirectory().get());
     }
@@ -190,7 +201,6 @@ public class ProcessExecutor {
     // See http://stackoverflow.com/questions/882772/capturing-stdout-when-calling-runtime-exec
     boolean shouldPrintStdOut = options.contains(Option.PRINT_STD_OUT);
     boolean expectingStdOut = options.contains(Option.EXPECTING_STD_OUT);
-    @SuppressWarnings("resource")
     PrintStream stdOutToWriteTo = shouldPrintStdOut ?
         stdOutStream : new CapturingPrintStream();
     InputStreamConsumer stdOut = new InputStreamConsumer(
@@ -202,7 +212,6 @@ public class ProcessExecutor {
 
     boolean shouldPrintStdErr = options.contains(Option.PRINT_STD_ERR);
     boolean expectingStdErr = options.contains(Option.EXPECTING_STD_ERR);
-    @SuppressWarnings("resource")
     PrintStream stdErrToWriteTo = shouldPrintStdErr ?
         stdErrStream : new CapturingPrintStream();
     InputStreamConsumer stdErr = new InputStreamConsumer(

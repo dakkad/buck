@@ -21,6 +21,8 @@ import static org.junit.Assert.assertTrue;
 
 import com.facebook.buck.apple.CompilationDatabase.GenerateCompilationCommandsJson;
 import com.facebook.buck.apple.CompilationDatabase.JsonSerializableDatabaseEntry;
+import com.facebook.buck.apple.xcode.xcodeproj.PBXReference;
+import com.facebook.buck.apple.xcode.xcodeproj.SourceTreePath;
 import com.facebook.buck.io.ProjectFilesystem;
 import com.facebook.buck.model.BuildTarget;
 import com.facebook.buck.model.BuildTargetFactory;
@@ -34,8 +36,8 @@ import com.facebook.buck.rules.PathSourcePath;
 import com.facebook.buck.rules.SourcePath;
 import com.facebook.buck.rules.SourcePathResolver;
 import com.facebook.buck.rules.TestSourcePath;
-import com.facebook.buck.rules.coercer.AppleSource;
-import com.facebook.buck.model.Pair;
+import com.facebook.buck.rules.coercer.FrameworkPath;
+import com.facebook.buck.rules.coercer.SourceWithFlags;
 import com.facebook.buck.step.AbstractExecutionStep;
 import com.facebook.buck.step.ExecutionContext;
 import com.facebook.buck.step.Step;
@@ -54,7 +56,6 @@ import org.junit.Test;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Collection;
 import java.util.List;
 
 public class CompilationDatabaseTest {
@@ -62,7 +63,9 @@ public class CompilationDatabaseTest {
   // These will be initialized by setUpTestValues().
   private BuildRuleResolver testBuildRuleResolver;
   private SourcePathResolver testSourcePathResolver;
-  private TargetSources testTargetSources;
+  private ImmutableSortedSet<SourceWithFlags> testSourcesWithFlags;
+  private ImmutableSortedSet<SourcePath> testPublicHeaders;
+  private ImmutableSortedSet<SourcePath> testPrivateHeaders;
   private BuildTarget testBuildTarget;
   private AppleConfig appleConfig;
 
@@ -75,8 +78,10 @@ public class CompilationDatabaseTest {
         new FakeBuildRuleParamsBuilder(buildTarget).build(),
         testSourcePathResolver,
         appleConfig,
-        testTargetSources,
-        /* frameworks */ ImmutableSortedSet.<String>of(),
+        testSourcesWithFlags,
+        testPublicHeaders,
+        testPrivateHeaders,
+        /* frameworks */ ImmutableSortedSet.<FrameworkPath>of(),
         /* includePaths */ ImmutableSet.<Path>of(),
         /* pchFile */ Optional.<SourcePath>absent());
 
@@ -91,30 +96,30 @@ public class CompilationDatabaseTest {
   public void testGetInputsToCompareToOutput() {
     setUpTestValues();
 
-    Pair<SourcePath, String> publicHeader = new Pair<SourcePath, String>(
-        new TestSourcePath("Foo/Hello.h"),
-        "public");
-    Collection<AppleSource> appleSources = ImmutableList.of(
-        AppleSource.ofSourcePathWithFlags(publicHeader),
-        AppleSource.ofSourcePath(new TestSourcePath("Foo/Hello.m")));
-    TargetSources targetSources = TargetSources.ofAppleSources(
-        testSourcePathResolver,
-        appleSources);
+    ImmutableSortedSet<SourceWithFlags> sourcesWithFlags = ImmutableSortedSet.of(
+        SourceWithFlags.of(new TestSourcePath("Foo/Hello.m")));
+    ImmutableSortedSet<SourcePath> headers = ImmutableSortedSet.<SourcePath>of(
+        new TestSourcePath("Foo/Bye.h"));
+    ImmutableSortedSet<SourcePath> exportedHeaders = ImmutableSortedSet.<SourcePath>of(
+        new TestSourcePath("Foo/Hello.h"));
 
     CompilationDatabase compilationDatabase = new CompilationDatabase(
         new FakeBuildRuleParamsBuilder(testBuildTarget).build(),
         testSourcePathResolver,
         appleConfig,
-        targetSources,
-        /* frameworks */ ImmutableSortedSet.<String>of(),
+        sourcesWithFlags,
+        exportedHeaders,
+        headers,
+        /* frameworks */ ImmutableSortedSet.<FrameworkPath>of(),
         /* includePaths */ ImmutableSet.<Path>of(),
         /* pchFile */ Optional.<SourcePath>absent());
 
     MoreAsserts.assertIterablesEquals(
         "getInputsToCompareToOutput() should contain files in targetSources.",
         ImmutableList.of(
+            Paths.get("Foo/Hello.m"),
             Paths.get("Foo/Hello.h"),
-            Paths.get("Foo/Hello.m")),
+            Paths.get("Foo/Bye.h")),
         compilationDatabase.getInputsToCompareToOutput());
   }
 
@@ -246,38 +251,47 @@ public class CompilationDatabaseTest {
   private void setUpTestValues() {
     testBuildRuleResolver = new BuildRuleResolver();
     testSourcePathResolver = new SourcePathResolver(testBuildRuleResolver);
-    Pair<SourcePath, String> publicHeader = new Pair<SourcePath, String>(
-        new TestSourcePath("foo/Hello.h"),
-        "public"); // Note that "public" should not be included in the clang flags.
-    Collection<AppleSource> appleSources = ImmutableList.of(
-        AppleSource.ofSourcePathWithFlags(publicHeader),
-        AppleSource.ofSourcePath(new TestSourcePath("foo/Hello.m")));
-    testTargetSources = TargetSources.ofAppleSources(testSourcePathResolver, appleSources);
+    testSourcesWithFlags = ImmutableSortedSet.of(
+        SourceWithFlags.of(new TestSourcePath("foo/Hello.m")));
+    testPrivateHeaders = ImmutableSortedSet.of();
+    testPublicHeaders = ImmutableSortedSet.<SourcePath>of(
+        new TestSourcePath("foo/Hello.h"));
     testBuildTarget = BuildTargetFactory.newInstance("//foo:bar");
   }
 
   private CompilationDatabase createTestCompilationDatabase() {
     setUpTestValues();
 
-    ImmutableSortedSet<String> frameworks = ImmutableSortedSet.of(
-        "$SDKROOT/System/Library/Frameworks/CoreLocation.framework",
-        "$SDKROOT/System/Library/Frameworks/Foundation.framework",
-        "$SDKROOT/System/Library/Frameworks/UIKit.framework");
+    ProjectFilesystem projectFilesystem = new FakeProjectFilesystem();
+    ImmutableSortedSet<FrameworkPath> frameworks = ImmutableSortedSet.of(
+        FrameworkPath.ofSourceTreePath(
+            new SourceTreePath(
+                PBXReference.SourceTree.SDKROOT,
+                Paths.get("System/Library/Frameworks/CoreLocation.framework"))),
+        FrameworkPath.ofSourceTreePath(
+            new SourceTreePath(
+                PBXReference.SourceTree.SDKROOT,
+                Paths.get("System/Library/Frameworks/Foundation.framework"))),
+        FrameworkPath.ofSourceTreePath(
+            new SourceTreePath(
+                PBXReference.SourceTree.SDKROOT,
+                Paths.get("System/Library/Frameworks/UIKit.framework"))));
     ImmutableSet<Path> includePaths = ImmutableSet.of(
         Paths.get("/Users/user/src/buck-out/gen/library/lib.hmap"));
-    Optional<SourcePath> pchFile = Optional.<SourcePath>of(new PathSourcePath(Paths.get(
-        "foo/bar.pch")));
+    Optional<SourcePath> pchFile = Optional.<SourcePath>of(
+        new PathSourcePath(projectFilesystem, Paths.get("foo/bar.pch")));
     ImmutableMap<AppleSdk, AppleSdkPaths> appleSdkPaths = ImmutableMap.of(
           (AppleSdk) ImmutableAppleSdk.builder()
               .setName("iphonesimulator8.0")
               .setVersion("8.0")
+              .setXcodeVersion("6A2008a")
               .setApplePlatform(ApplePlatform.IPHONESIMULATOR)
               .addArchitectures("i386", "x86_64")
               .build(),
           (AppleSdkPaths) ImmutableAppleSdkPaths.builder()
               .setDeveloperPath(Paths.get("developerPath"))
               .addToolchainPaths(Paths.get("toolchainPath"))
-              .setPlatformDeveloperPath(Paths.get("platformDeveloperPath"))
+              .setPlatformPath(Paths.get("platformPath"))
               .setSdkPath(Paths.get("/path/to/somewhere" +
                   "/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator8.0.sdk"))
               .build());
@@ -286,7 +300,9 @@ public class CompilationDatabaseTest {
         new FakeBuildRuleParamsBuilder(testBuildTarget).build(),
         testSourcePathResolver,
         appleConfig,
-        testTargetSources,
+        testSourcesWithFlags,
+        testPublicHeaders,
+        testPrivateHeaders,
         frameworks,
         includePaths,
         pchFile);

@@ -133,8 +133,8 @@ RULEKEY_LINE = re.compile(
 
 
 BUCK_LOG_RULEKEY_LINE = re.compile(
-    r'.*\[\w+\](?:\[command:[0-9a-f-]+\])?\[tid:\d+\]'
-    r'\[com.facebook.buck.rules.RuleKey\$Builder\] '
+    r'.*\[[\w ]+\](?:\[command:[0-9a-f-]+\])?\[tid:\d+\]'
+    r'\[com.facebook.buck.rules.RuleKey[\$\.]Builder\] '
     r'RuleKey (?P<rule_key>[0-9a-f]+)='
     r'(?P<rule_key_debug>.*)$')
 

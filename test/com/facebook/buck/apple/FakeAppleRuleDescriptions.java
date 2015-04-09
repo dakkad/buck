@@ -18,14 +18,14 @@ package com.facebook.buck.apple;
 
 import com.facebook.buck.cli.BuckConfig;
 import com.facebook.buck.cli.FakeBuckConfig;
-import com.facebook.buck.cxx.CxxLibraryDescription;
 import com.facebook.buck.cxx.CxxBinaryDescription;
 import com.facebook.buck.cxx.CxxBuckConfig;
+import com.facebook.buck.cxx.CxxLibraryDescription;
 import com.facebook.buck.cxx.CxxPlatform;
+import com.facebook.buck.cxx.CxxSourceRuleFactory;
 import com.facebook.buck.cxx.DefaultCxxPlatforms;
 import com.facebook.buck.model.FlavorDomain;
 import com.facebook.buck.util.environment.Platform;
-
 import com.google.common.base.Functions;
 import com.google.common.collect.ImmutableMap;
 
@@ -51,7 +51,7 @@ public class FakeAppleRuleDescriptions {
       ImmutableAppleSdkPaths.builder()
           .setDeveloperPath(Paths.get("."))
           .addToolchainPaths(Paths.get("Toolchains/XcodeDefault.xctoolchain"))
-          .setPlatformDeveloperPath(Paths.get("Platforms/iPhoneOS.platform/Developer"))
+          .setPlatformPath(Paths.get("Platforms/iPhoneOS.platform"))
           .setSdkPath(Paths.get("Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk"))
           .build();
 
@@ -60,15 +60,17 @@ public class FakeAppleRuleDescriptions {
           ApplePlatform.IPHONEOS,
           "iphoneos",
           "8.0",
+          "8.0",
           "i386",
           DEFAULT_IPHONEOS_SDK_PATHS,
+          new FakeBuckConfig(),
           Functions.forMap(DEFAULT_TOOL_EXECUTABLE_CHECKER, false));
 
   private static final BuckConfig DEFAULT_BUCK_CONFIG = new FakeBuckConfig();
 
   private static final CxxPlatform DEFAULT_PLATFORM = DefaultCxxPlatforms.build(
       Platform.MACOS,
-      DEFAULT_BUCK_CONFIG);
+      new CxxBuckConfig(DEFAULT_BUCK_CONFIG));
 
   private static final FlavorDomain<CxxPlatform> DEFAULT_IPHONEOS_FLAVOR_DOMAIN =
       new FlavorDomain<>(
@@ -91,7 +93,8 @@ public class FakeAppleRuleDescriptions {
         new AppleConfig(DEFAULT_BUCK_CONFIG),
         new CxxLibraryDescription(
             new CxxBuckConfig(DEFAULT_BUCK_CONFIG),
-            DEFAULT_IPHONEOS_FLAVOR_DOMAIN),
+            DEFAULT_IPHONEOS_FLAVOR_DOMAIN,
+            CxxSourceRuleFactory.Strategy.COMBINED_PREPROCESS_AND_COMPILE),
         DEFAULT_IPHONEOS_FLAVOR_DOMAIN,
         DEFAULT_CXX_PLATFORM_TO_APPLE_SDK_PATHS);
 
@@ -104,7 +107,8 @@ public class FakeAppleRuleDescriptions {
         new CxxBinaryDescription(
             new CxxBuckConfig(DEFAULT_BUCK_CONFIG),
             DEFAULT_IPHONEOS_PLATFORM,
-            DEFAULT_IPHONEOS_FLAVOR_DOMAIN),
+            DEFAULT_IPHONEOS_FLAVOR_DOMAIN,
+            CxxSourceRuleFactory.Strategy.COMBINED_PREPROCESS_AND_COMPILE),
         DEFAULT_IPHONEOS_FLAVOR_DOMAIN,
         DEFAULT_CXX_PLATFORM_TO_APPLE_SDK_PATHS);
 }

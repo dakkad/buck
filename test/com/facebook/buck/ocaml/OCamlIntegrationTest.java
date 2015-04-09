@@ -29,11 +29,12 @@ import static org.junit.Assume.assumeTrue;
 
 import com.facebook.buck.cli.BuckConfig;
 import com.facebook.buck.cli.FakeBuckConfig;
-import com.facebook.buck.cxx.CxxCompilableEnhancer;
+import com.facebook.buck.cxx.CxxBuckConfig;
 import com.facebook.buck.cxx.CxxDescriptionEnhancer;
-import com.facebook.buck.cxx.CxxPreprocessables;
-import com.facebook.buck.cxx.CxxSource;
 import com.facebook.buck.cxx.CxxPlatform;
+import com.facebook.buck.cxx.CxxSource;
+import com.facebook.buck.cxx.CxxSourceRuleFactory;
+import com.facebook.buck.cxx.CxxSourceRuleFactoryHelper;
 import com.facebook.buck.cxx.DefaultCxxPlatforms;
 import com.facebook.buck.io.ProjectFilesystem;
 import com.facebook.buck.model.BuildTarget;
@@ -70,7 +71,9 @@ public class OCamlIntegrationTest {
         Platform.detect(),
         ImmutableMap.copyOf(System.getenv()));
 
-    OCamlBuckConfig oCamlBuckConfig = new OCamlBuckConfig(Platform.detect(), buckConfig);
+    OCamlBuckConfig oCamlBuckConfig = new OCamlBuckConfig(
+        Platform.detect(),
+        buckConfig);
 
     assumeTrue(Files.exists(oCamlBuckConfig.getOCamlCompiler().or(DEFAULT_OCAML_COMPILER)));
     assumeTrue(Files.exists(oCamlBuckConfig.getOCamlBytecodeCompiler().or(
@@ -362,23 +365,31 @@ public class OCamlIntegrationTest {
     BuildTarget libplusStatic = createStaticLibraryBuildTarget(libplus);
     BuildTarget cclib = BuildTargetFactory.newInstance("//clib:cc");
 
-    CxxPlatform cxxPlatform = DefaultCxxPlatforms.build(new FakeBuckConfig());
+    CxxPlatform cxxPlatform = DefaultCxxPlatforms.build(
+        new CxxBuckConfig(new FakeBuckConfig()));
+    CxxSourceRuleFactory cxxSourceRuleFactory = CxxSourceRuleFactoryHelper.of(cclib, cxxPlatform);
     BuildTarget cclibbin =
         CxxDescriptionEnhancer.createStaticLibraryBuildTarget(cclib, cxxPlatform.getFlavor());
     String sourceName = "cc/cc.cpp";
-    BuildTarget ppObj = CxxPreprocessables.createPreprocessBuildTarget(
-        cclib,
-        cxxPlatform.getFlavor(),
-        CxxSource.Type.CXX,
-        /* pic */ false,
-        sourceName);
-    BuildTarget ccObj = CxxCompilableEnhancer.createCompileBuildTarget(
-        cclib,
-        cxxPlatform.getFlavor(),
-        sourceName,
-        /* pic */ false);
+    BuildTarget ppObj =
+        cxxSourceRuleFactory.createPreprocessBuildTarget(
+            sourceName,
+            CxxSource.Type.CXX,
+            CxxSourceRuleFactory.PicType.PDC);
+    BuildTarget ccObj =
+        cxxSourceRuleFactory.createCompileBuildTarget(
+            sourceName,
+            CxxSourceRuleFactory.PicType.PDC);
     BuildTarget headerSymlinkTreeTarget =
-        CxxDescriptionEnhancer.createHeaderSymlinkTreeTarget(cclib, cxxPlatform.getFlavor());
+        CxxDescriptionEnhancer.createHeaderSymlinkTreeTarget(
+            cclib,
+            cxxPlatform.getFlavor(),
+            CxxDescriptionEnhancer.HeaderVisibility.PRIVATE);
+    BuildTarget exportedHeaderSymlinkTreeTarget =
+        CxxDescriptionEnhancer.createHeaderSymlinkTreeTarget(
+            cclib,
+            cxxPlatform.getFlavor(),
+            CxxDescriptionEnhancer.HeaderVisibility.PUBLIC);
 
     ImmutableSet<BuildTarget> targets = ImmutableSet.of(
         target,
@@ -389,7 +400,8 @@ public class OCamlIntegrationTest {
         cclibbin,
         ccObj,
         ppObj,
-        headerSymlinkTreeTarget);
+        headerSymlinkTreeTarget,
+        exportedHeaderSymlinkTreeTarget);
 
     workspace.runBuckCommand("build", target.toString()).assertSuccess();
     BuckBuildLog buildLog = workspace.getBuildLog();
@@ -402,6 +414,7 @@ public class OCamlIntegrationTest {
     buildLog.assertTargetBuiltLocally(ccObj.toString());
     buildLog.assertTargetBuiltLocally(ppObj.toString());
     buildLog.assertTargetBuiltLocally(headerSymlinkTreeTarget.toString());
+    buildLog.assertTargetBuiltLocally(exportedHeaderSymlinkTreeTarget.toString());
 
     workspace.resetBuildLogFile();
     workspace.runBuckCommand("build", target.toString()).assertSuccess();
@@ -416,6 +429,7 @@ public class OCamlIntegrationTest {
     buildLog.assertTargetHadMatchingRuleKey(ccObj.toString());
     buildLog.assertTargetHadMatchingRuleKey(ppObj.toString());
     buildLog.assertTargetHadMatchingRuleKey(headerSymlinkTreeTarget.toString());
+    buildLog.assertTargetHadMatchingRuleKey(exportedHeaderSymlinkTreeTarget.toString());
 
     workspace.resetBuildLogFile();
     workspace.replaceFileContents("clib/cc/cc.cpp", "Hi there", "hi there");
@@ -430,5 +444,6 @@ public class OCamlIntegrationTest {
     buildLog.assertTargetBuiltLocally(ccObj.toString());
     buildLog.assertTargetBuiltLocally(ppObj.toString());
     buildLog.assertTargetHadMatchingRuleKey(headerSymlinkTreeTarget.toString());
+    buildLog.assertTargetHadMatchingRuleKey(exportedHeaderSymlinkTreeTarget.toString());
   }
 }

@@ -21,15 +21,18 @@ import com.facebook.buck.parser.NoSuchBuildTargetException;
 import com.facebook.infer.annotation.SuppressFieldNotInitialized;
 import com.google.common.base.Supplier;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
 
+import org.kohsuke.args4j.Argument;
 import org.kohsuke.args4j.Option;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.List;
 
 import javax.annotation.Nullable;
 
-public class TargetsCommandOptions extends BuildCommandOptions {
+public class TargetsCommandOptions extends AbstractCommandOptions {
 
   // TODO(mbolin): Use org.kohsuke.args4j.spi.PathOptionHandler. Currently, we resolve paths
   // manually, which is likely the path to madness.
@@ -41,8 +44,8 @@ public class TargetsCommandOptions extends BuildCommandOptions {
   private Supplier<ImmutableSet<String>> referencedFiles;
 
   @Option(name = "--detect-test-changes",
-      usage = "Modifies the --referenced-file flag resolution to pretend that targets depend on " +
-          "their tests (experimental)")
+      usage = "Modifies the --referenced-file and --show-target-hash flags to pretend that " +
+          "tarets depend on their tests (experimental)")
   private boolean isDetectTestChanges;
 
   @Option(name = "--type",
@@ -53,6 +56,9 @@ public class TargetsCommandOptions extends BuildCommandOptions {
 
   @Option(name = "--json", usage = "Print JSON representation of each target")
   private boolean json;
+
+  @Option(name = "--print0", usage = "Delimit targets using the ASCII NUL character.")
+  private boolean print0;
 
   @Option(name = "--resolvealias",
       usage = "Print the fully-qualified build target for the specified alias[es]")
@@ -72,8 +78,19 @@ public class TargetsCommandOptions extends BuildCommandOptions {
       usage = "Print a stable hash of each target after the target name.")
   private boolean isShowTargetHash;
 
+  @Argument
+  private List<String> arguments = Lists.newArrayList();
+
   public TargetsCommandOptions(BuckConfig buckConfig) {
     super(buckConfig);
+  }
+
+  public List<String> getArguments() {
+    return arguments;
+  }
+
+  public List<String> getArgumentsFormattedAsBuildTargets() {
+    return getCommandLineBuildTargetNormalizer().normalizeAll(getArguments());
   }
 
   public ImmutableSet<String> getTypes() {
@@ -92,6 +109,10 @@ public class TargetsCommandOptions extends BuildCommandOptions {
 
   public boolean getPrintJson() {
     return json;
+  }
+
+  public boolean isPrint0() {
+    return print0;
   }
 
   /** @return {@code true} if {@code --resolvealias} was specified. */

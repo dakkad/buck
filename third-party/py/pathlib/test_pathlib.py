@@ -1934,12 +1934,22 @@ class WindowsPathTest(_BasePathTest, unittest.TestCase):
     def test_glob(self):
         P = self.cls
         p = P(BASE)
-        self.assertEqual(set(p.glob("FILEa")), set( P(BASE, "fileA") ))
+        self.assertEqual(set(p.glob("FILEa")), set([P(BASE, "fileA")]))
 
     def test_rglob(self):
         P = self.cls
         p = P(BASE, "dirC")
-        self.assertEqual(set(p.rglob("FILEd")), set( P(BASE, "dirC/dirD/fileD") ))
+        self.assertEqual(set(p.rglob("FILEd")), set([P(BASE, "dirC/dirD/fileD")]))
+
+    def test_precise_glob_preserves_case(self):
+        P = self.cls
+        p = P(BASE)
+        self.assertEqual(set(p.glob("dirB/FileB")), set([P(BASE, "dirB/FileB")]))
+
+    def test_precise_rglob_preserves_case(self):
+        P = self.cls
+        p = P(BASE)
+        self.assertEqual(set(p.rglob("dirB/FileB")), set([P(BASE, "dirB/FileB")]))
 
 
 def main():

@@ -6,6 +6,19 @@ import sys
 
 from collections import defaultdict
 
+
+MISC_XML = """<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component
+    name="ProjectRootManager"
+    version="2"
+    languageLevel="%(java_language_level)s"
+    assert-keyword="true"
+    jdk-15="true"
+    project-jdk-name="%(project_jdk_name)s"
+    project-jdk-type="%(project_jdk_type)s" />
+</project>"""
+
 MODULE_XML_START = """<?xml version="1.0" encoding="UTF-8"?>
 <module type="%(type)s" version="4">"""
 
@@ -17,17 +30,18 @@ ANDROID_FACET = """
   <component name="FacetManager">
     <facet type="android" name="Android">
       <configuration>
+        <option name="ENABLE_SOURCES_AUTOGENERATION" value="%(enable_sources_autogeneration)s" />
         <option name="GEN_FOLDER_RELATIVE_PATH_APT" value="%(module_gen_path)s" />
         <option name="GEN_FOLDER_RELATIVE_PATH_AIDL" value="%(module_gen_path)s" />
         <option name="MANIFEST_FILE_RELATIVE_PATH" value="%(android_manifest)s" />
         <option name="RES_FOLDER_RELATIVE_PATH" value="%(res)s" />
-        <option name="ASSETS_FOLDER_RELATIVE_PATH" value="/assets" />
+        <option name="ASSETS_FOLDER_RELATIVE_PATH" value="%(asset_folder)s" />
         <option name="LIBS_FOLDER_RELATIVE_PATH" value="%(libs_path)s" />
         <option name="USE_CUSTOM_APK_RESOURCE_FOLDER" value="false" />
         <option name="CUSTOM_APK_RESOURCE_FOLDER" value="" />
         <option name="USE_CUSTOM_COMPILER_MANIFEST" value="false" />
         <option name="CUSTOM_COMPILER_MANIFEST" value="" />
-        <option name="APK_PATH" value="" />
+        <option name="APK_PATH" value="%(apk_path)s" />
         <option name="LIBRARY_PROJECT" value="%(is_android_library_project)s" />
         <option name="RUN_PROCESS_RESOURCES_MAVEN_TASK" value="true" />
         <option name="GENERATE_UNSIGNED_APK" value="false" />
@@ -52,6 +66,20 @@ ALL_MODULES_XML_END = """
     </modules>
   </component>
 </project>
+"""
+
+AAR_XML_START = """<component name="libraryTable">
+  <library name="%(name)s">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/%(binary_jar)s!/" />"""
+
+AAR_XML_RESOURCE = """
+      <root url="file://$PROJECT_DIR$/%(resource_path)s/" />"""
+
+AAR_XML_END = """
+    </CLASSES>
+  </library>
+</component>
 """
 
 LIBRARY_XML_START = """<component name="libraryTable">
@@ -175,7 +203,17 @@ def create_additional_excludes(modules):
     return additional_excludes
 
 
-def write_modules(modules, generate_minimum_project):
+def get_path_from_map(map, key, fallback=None):
+    if key in map:
+        return '/' + map[key]
+
+    if None != fallback:
+        return '/' + fallback
+
+    return ''
+
+
+def write_modules(modules, generate_minimum_project, android_auto_generation_disabled):
     """Writes one XML file for each module."""
     additional_excludes = defaultdict(list)
     if generate_minimum_project:
@@ -198,22 +236,29 @@ def write_modules(modules, generate_minimum_project):
             else:
                 keystore = ''
 
-            if 'androidManifest' in module:
-                android_manifest = module['androidManifest']
-            else:
-                android_manifest = '/AndroidManifest.xml'
+            android_manifest = get_path_from_map(module, 'androidManifest', 'AndroidManifest.xml')
+            res_folder = get_path_from_map(module, 'resFolder', 'res')
+            asset_folder = get_path_from_map(module, 'assetFolder', 'assets')
 
             is_library_project = module['isAndroidLibraryProject']
             android_params = {
                 'android_manifest': android_manifest,
-                'res': '/res',
+                'res': res_folder,
+                'asset_folder': asset_folder,
                 'is_android_library_project': str(is_library_project).lower(),
                 'run_proguard': 'false',
-                'module_gen_path': module['moduleGenPath'],
+                'module_gen_path':  get_path_from_map(module, 'moduleGenPath'),
                 'proguard_config': '/proguard.cfg',
                 'keystore': keystore,
                 'libs_path': '/%s' % module.get('nativeLibs', 'libs'),
+                'apk_path': get_path_from_map(module, 'binaryPath'),
             }
+
+            if android_auto_generation_disabled:
+                android_params['enable_sources_autogeneration'] = 'false'
+            else:
+                android_params['enable_sources_autogeneration'] = 'true'
+
             xml += ANDROID_FACET % android_params
 
         # Source code and libraries component.
@@ -365,8 +410,15 @@ def add_buck_android_source_folder(xml, module):
     # buck-out/android/ then IntelliJ wants that to be included as a separate
     # source root.
     if 'moduleGenPath' in module:
-        xml += '\n    <content url="file://$MODULE_DIR$%s">' % module['moduleGenPath']
-        xml += '\n      <sourceFolder url="file://$MODULE_DIR$%s" isTestSource="false" />' % module['moduleGenPath']
+        xml += '\n    <content url="file://$MODULE_DIR$/%s">' % module['moduleGenPath']
+        xml += '\n      <sourceFolder url="file://$MODULE_DIR$/%s" isTestSource="false" />'\
+               % module['moduleGenPath']
+        xml += '\n    </content>'
+    if 'moduleRJavaPath' in module:
+        xml += '\n    <content url="file://$MODULE_DIR$/%s">' % module['moduleRJavaPath']
+        xml += '\n      <sourceFolder '
+        xml += 'url="file://$MODULE_DIR$/%s" ' % module['moduleRJavaPath']
+        xml += 'isTestSource="false" />'
         xml += '\n    </content>'
     return xml
 
@@ -377,8 +429,9 @@ def add_annotation_generated_source_folder(xml, module):
                                       module['annotationGenIsForTest'])
         is_test_source = str(annotation_gen_is_for_test).lower()
 
-        xml += '\n    <content url="file://$MODULE_DIR$%s">' % module['annotationGenPath']
-        xml += '\n      <sourceFolder url="file://$MODULE_DIR$%s" isTestSource="%s" />' % (module['annotationGenPath'], is_test_source)
+        xml += '\n    <content url="file://$MODULE_DIR$/%s">' % module['annotationGenPath']
+        xml += '\n      <sourceFolder url="file://$MODULE_DIR$/%s" isTestSource="%s" />'\
+               % (module['annotationGenPath'], is_test_source)
         xml += '\n    </content>'
     return xml
 
@@ -402,6 +455,39 @@ def write_all_modules(modules):
 
     # Write the modules to a file.
     write_file_if_changed('.idea/modules.xml', xml)
+
+
+def write_misc_file(java_settings):
+    """Writes a misc.xml file to define some settings specific to the project."""
+    xml = MISC_XML % {
+        'java_language_level': java_settings.get('languageLevel', 'JDK_1_6'),
+        'project_jdk_name': java_settings.get('jdkName', 'Android API 21 Platform'),
+        'project_jdk_type': java_settings.get('jdkType', 'Android SDK'),
+    }
+
+    write_file_if_changed('.idea/misc.xml', xml)
+
+
+def write_aars(aars):
+    """Writes an XML file to define each prebuilt aar."""
+    mkdir_p('.idea/libraries')
+    for aar in aars:
+        # Build up the XML.
+        name = aar['name']
+        xml = AAR_XML_START % {
+            'name': name,
+            'binary_jar': aar['jar'],
+        }
+
+        if 'res' in aar:
+            xml += AAR_XML_RESOURCE % {'resource_path': aar['res']}
+        if 'assets' in aar:
+            xml += AAR_XML_RESOURCE % {'resource_path': aar['assets']}
+
+        xml += AAR_XML_END
+
+        # Write the library to a file
+        write_file_if_changed('.idea/libraries/%s.xml' % name, xml)
 
 
 def write_libraries(libraries):
@@ -492,21 +578,33 @@ def clean_old_files():
 if __name__ == '__main__':
     json_file = sys.argv[1]
     generate_minimum_project = False
-    if len(sys.argv) == 3:
-        generate_minimum_project = sys.argv[2] == '--generate_minimum_project'
+    android_auto_generation_disabled = False
+
+    for key in sys.argv[2:]:
+        if key == '--generate_minimum_project':
+            generate_minimum_project = True
+        if key == '--disable_android_auto_generation_setting':
+            android_auto_generation_disabled = True
 
     parsed_json = json.load(open(json_file, 'r'))
 
     libraries = parsed_json['libraries']
     write_libraries(libraries)
 
+    aars = parsed_json['aars']
+    write_aars(aars)
+
     modules = parsed_json['modules']
-    write_modules(modules, generate_minimum_project)
+    write_modules(modules, generate_minimum_project, android_auto_generation_disabled)
     write_all_modules(modules)
     write_run_configs()
+
+    java_settings = parsed_json['java']
+    write_misc_file(java_settings)
 
     # Write the list of modified files to stdout
     for path in MODIFIED_FILES:
         print path
 
-    print >> sys.stderr, '  ::  Please close and re-open IntelliJ.'
+    print >> sys.stderr, ('  ::  Please resynchronize IntelliJ via File->Synchronize ' +
+                          'or Cmd-Opt-Y (Mac) or Ctrl-Alt-Y (PC/Linux)')

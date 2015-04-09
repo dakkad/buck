@@ -21,6 +21,7 @@ import com.facebook.buck.model.BuildTarget;
 import com.facebook.buck.model.HasOutputName;
 import com.facebook.buck.util.HumanReadableException;
 import com.google.common.base.Function;
+import com.google.common.base.Functions;
 import com.google.common.base.Optional;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.FluentIterable;
@@ -28,13 +29,11 @@ import com.google.common.collect.ImmutableCollection;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
-import com.google.common.io.Files;
 
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
-import java.util.Set;
 
 public class SourcePathResolver {
 
@@ -112,12 +111,6 @@ public class SourcePathResolver {
     return Optional.of(((PathSourcePath) sourcePath).getRelativePath());
   }
 
-  public boolean isSourcePathExtensionInSet(
-      SourcePath sourcePath,
-      Set<String> extensions) {
-    return extensions.contains(Files.getFileExtension(getPath(sourcePath).toString()));
-  }
-
   /**
    * Resolved the logical names for a group of SourcePath objects into a map, throwing an
    * error on duplicates.
@@ -126,12 +119,25 @@ public class SourcePathResolver {
       BuildTarget target,
       String parameter,
       Iterable<SourcePath> sourcePaths) {
+    return getSourcePathNames(target, parameter, sourcePaths, Functions.<SourcePath>identity());
+  }
 
-    Map<String, SourcePath> resolved = Maps.newHashMap();
+  /**
+   * Resolves the logical names for a group of objects that have a SourcePath into a map,
+   * throwing an error on duplicates.
+   */
+  public <T> ImmutableMap<String, T> getSourcePathNames(
+      BuildTarget target,
+      String parameter,
+      Iterable<T> objects,
+      Function<T, SourcePath> objectSourcePathFunction) {
 
-    for (SourcePath path : sourcePaths) {
+    Map<String, T> resolved = Maps.newHashMap();
+
+    for (T object : objects) {
+      SourcePath path = objectSourcePathFunction.apply(object);
       String name = getSourcePathName(target, path);
-      SourcePath old = resolved.put(name, path);
+      T old = resolved.put(name, object);
       if (old != null) {
         throw new HumanReadableException(String.format(
             "%s: parameter '%s': duplicate entries for '%s'",
@@ -207,4 +213,9 @@ public class SourcePathResolver {
             })
         .toList();
   }
+
+  public Collection<BuildRule> filterBuildRuleInputs(SourcePath... sources) {
+    return filterBuildRuleInputs(Arrays.asList(sources));
+  }
+
 }

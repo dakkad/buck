@@ -18,13 +18,11 @@ package com.facebook.buck.python;
 
 import com.facebook.buck.io.ProjectFilesystem;
 import com.facebook.buck.model.BuildTargets;
-import com.facebook.buck.rules.AbstractBuildRule;
 import com.facebook.buck.rules.BuildContext;
 import com.facebook.buck.rules.BuildRule;
 import com.facebook.buck.rules.BuildRuleParams;
-import com.facebook.buck.rules.BuildableContext;
 import com.facebook.buck.rules.Label;
-import com.facebook.buck.rules.RuleKey;
+import com.facebook.buck.rules.NoopBuildRule;
 import com.facebook.buck.rules.SourcePathResolver;
 import com.facebook.buck.rules.TestRule;
 import com.facebook.buck.shell.ShellStep;
@@ -36,18 +34,17 @@ import com.facebook.buck.test.TestResultSummary;
 import com.facebook.buck.test.TestResults;
 import com.facebook.buck.test.selectors.TestSelectorList;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.base.Functions;
 import com.google.common.base.Optional;
-import com.google.common.collect.ImmutableCollection;
+import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 
 import java.nio.file.Path;
 import java.util.concurrent.Callable;
 
-import javax.annotation.Nullable;
-
 @SuppressWarnings("PMD.TestClassWithoutTestCases")
-public class PythonTest extends AbstractBuildRule implements TestRule {
+public class PythonTest extends NoopBuildRule implements TestRule {
 
   private final PythonBinary binary;
   private final ImmutableSet<Label> labels;
@@ -158,32 +155,10 @@ public class PythonTest extends AbstractBuildRule implements TestRule {
         return new TestResults(
             getBuildTarget(),
             summaries.build(),
-            contacts);
+            contacts,
+            FluentIterable.from(labels).transform(Functions.toStringFunction()).toSet());
       }
     };
-  }
-
-  @Override
-  protected ImmutableCollection<Path> getInputsToCompareToOutput() {
-    return ImmutableList.of();
-  }
-
-  @Override
-  protected RuleKey.Builder appendDetailsToRuleKey(RuleKey.Builder builder) {
-    return builder;
-  }
-
-  @Override
-  public ImmutableList<Step> getBuildSteps(
-      BuildContext context,
-      BuildableContext buildableContext) {
-    return ImmutableList.of();
-  }
-
-  @Nullable
-  @Override
-  public Path getPathToOutputFile() {
-    return null;
   }
 
 }

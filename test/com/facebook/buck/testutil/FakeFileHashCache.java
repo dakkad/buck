@@ -36,7 +36,7 @@ public class FakeFileHashCache implements FileHashCache {
 
   private final ImmutableMap<Path, HashCode> pathsToHashes;
 
-  private FakeFileHashCache(Map<Path, HashCode> pathsToHashes) {
+  public FakeFileHashCache(Map<Path, HashCode> pathsToHashes) {
     this.pathsToHashes = ImmutableMap.copyOf(pathsToHashes);
   }
 
@@ -55,7 +55,7 @@ public class FakeFileHashCache implements FileHashCache {
 
   @Override
   public HashCode get(Path path) {
-    return Preconditions.checkNotNull(pathsToHashes.get(path));
+    return Preconditions.checkNotNull(pathsToHashes.get(path), path.toString());
   }
 
 }

@@ -19,7 +19,6 @@ package com.facebook.buck.model;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -103,7 +102,7 @@ public class BuildTargetTest {
       BuildTarget.builder("//foo/bar", "baz").addFlavors(ImmutableFlavor.of("d!x")).build();
       fail("Should have thrown IllegalArgumentException.");
     } catch (IllegalArgumentException e) {
-      assertEquals("Invalid flavor: d!x", e.getMessage());
+      assertEquals("Invalid characters in flavor name: d!x", e.getMessage());
     }
   }
 
@@ -131,14 +130,14 @@ public class BuildTargetTest {
 
   @Test
   public void testGetUnflavoredTarget() {
-    BuildTarget unflavoredTarget = BuildTarget.builder("//foo/bar", "baz").build();
-    assertSame(unflavoredTarget, unflavoredTarget.getUnflavoredTarget());
+    UnflavoredBuildTarget unflavoredTarget =
+        UnflavoredBuildTarget.builder("//foo/bar", "baz").build();
 
     BuildTarget flavoredTarget = BuildTarget
         .builder("//foo/bar", "baz")
         .addFlavors(ImmutableFlavor.of("biz"))
         .build();
-    assertEquals(unflavoredTarget, flavoredTarget.getUnflavoredTarget());
+    assertEquals(unflavoredTarget, flavoredTarget.getUnflavoredBuildTarget());
   }
 
   @Test

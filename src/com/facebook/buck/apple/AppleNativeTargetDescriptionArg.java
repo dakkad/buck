@@ -20,7 +20,9 @@ import com.facebook.buck.model.BuildTarget;
 import com.facebook.buck.model.HasTests;
 import com.facebook.buck.rules.Hint;
 import com.facebook.buck.rules.SourcePath;
-import com.facebook.buck.rules.coercer.AppleSource;
+import com.facebook.buck.rules.coercer.Either;
+import com.facebook.buck.rules.coercer.FrameworkPath;
+import com.facebook.buck.rules.coercer.SourceWithFlags;
 import com.facebook.infer.annotation.SuppressFieldNotInitialized;
 import com.google.common.base.Optional;
 import com.google.common.collect.ImmutableList;
@@ -34,14 +36,24 @@ import com.google.common.collect.ImmutableSortedSet;
 @SuppressFieldNotInitialized
 public class AppleNativeTargetDescriptionArg implements HasTests {
   public Optional<ImmutableSortedMap<String, ImmutableMap<String, String>>> configs;
-  public Optional<ImmutableList<AppleSource>> srcs;
-  public Optional<ImmutableSortedSet<String>> frameworks;
+  public Optional<ImmutableList<SourceWithFlags>> srcs;
+  public Optional<ImmutableList<SourcePath>> extraXcodeSources;
+  public Optional<Either<ImmutableSortedSet<SourcePath>, ImmutableMap<String, SourcePath>>>
+      headers;
+  public Optional<Either<ImmutableSortedSet<SourcePath>, ImmutableMap<String, SourcePath>>>
+      exportedHeaders;
+  public Optional<ImmutableSortedSet<FrameworkPath>> frameworks;
   public Optional<ImmutableSortedSet<BuildTarget>> deps;
+  public Optional<ImmutableSortedSet<BuildTarget>> exportedDeps;
   public Optional<String> gid;
   public Optional<String> headerPathPrefix;
   public Optional<Boolean> useBuckHeaderMaps;
   public Optional<SourcePath> prefixHeader;
   @Hint(isDep = false) public Optional<ImmutableSortedSet<BuildTarget>> tests;
+  public Optional<ImmutableList<String>> preprocessorFlags;
+  public Optional<ImmutableList<String>> exportedPreprocessorFlags;
+  public Optional<ImmutableList<String>> compilerFlags;
+  public Optional<ImmutableList<String>> linkerFlags;
 
   public boolean getUseBuckHeaderMaps() {
     return useBuckHeaderMaps.or(false);

@@ -17,10 +17,13 @@
 package com.facebook.buck.python;
 
 import com.facebook.buck.model.BuildTarget;
+import com.facebook.buck.rules.RuleKey;
+import com.facebook.buck.rules.RuleKeyAppendable;
 import com.facebook.buck.rules.SourcePath;
 import com.facebook.buck.util.HumanReadableException;
 import com.facebook.buck.util.immutables.BuckStyleImmutable;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSortedSet;
 
 import org.immutables.value.Value;
 
@@ -30,7 +33,7 @@ import java.util.Map;
 
 @Value.Immutable(builder = false)
 @BuckStyleImmutable
-public abstract class PythonPackageComponents {
+public abstract class PythonPackageComponents implements RuleKeyAppendable {
 
   // Python modules as map of their module name to location of the source.
   @Value.Parameter
@@ -43,6 +46,25 @@ public abstract class PythonPackageComponents {
   // Native libraries to include in the package.
   @Value.Parameter
   public abstract Map<Path, SourcePath> getNativeLibraries();
+
+  @Override
+  public final RuleKey.Builder appendToRuleKey(RuleKey.Builder builder, String key) {
+    // Hash all the input components here so we can detect changes in both input file content
+    // and module name mappings.
+    // TODO(agallagher): Change the types of these fields from Map to SortedMap so that we don't
+    // have to do all this weird stuff to ensure the key is stable. Please update
+    // getInputsToCompareToOutput() as well once this is fixed.
+    for (ImmutableMap.Entry<String, Map<Path, SourcePath>> part : ImmutableMap.of(
+        "module", getModules(),
+        "resource", getResources(),
+        "nativeLibraries", getNativeLibraries()).entrySet()) {
+      for (Path name : ImmutableSortedSet.copyOf(part.getValue().keySet())) {
+        builder.setReflectively(part.getKey() + ":" + name, part.getValue().get(name));
+      }
+    }
+
+    return builder;
+  }
 
   /**
    * A helper class to construct a PythonPackageComponents instance which
@@ -115,22 +137,8 @@ public abstract class PythonPackageComponents {
       return add("module", modules, moduleSources, sources, from);
     }
 
-    public Builder addResource(Path destination, SourcePath source, BuildTarget from) {
-      return add("resource", resources, resourceSources, destination, source, from);
-    }
-
     public Builder addResources(Map<Path, SourcePath> sources, BuildTarget from) {
       return add("resource", resources, resourceSources, sources, from);
-    }
-
-    public Builder addNativeLibrary(Path destination, SourcePath source, BuildTarget from) {
-      return add(
-          "native library",
-          nativeLibraries,
-          nativeLibrarySources,
-          destination,
-          source,
-          from);
     }
 
     public Builder addNativeLibraries(Map<Path, SourcePath> sources, BuildTarget from) {

@@ -15,6 +15,9 @@ java_library(
 
 java_library(
   name = 'fat-jar-main',
+  # Maximum compatibility
+  source = '6',
+  target = '6',
   srcs = [
     'FatJar.java',
     'FatJarMain.java',
@@ -44,6 +47,7 @@ java_binary(
   ],
   visibility = [
     '//programs:bucklib',
+    '//programs:bucklib-no-nailgun',
   ]
 )
 
@@ -90,10 +94,11 @@ java_immutables_library(
     ':packagefinder',
     '//src/com/facebook/buck/event:event',
     '//src/com/facebook/buck/io:io',
-    '//src/com/facebook/buck/log:log',
+    '//src/com/facebook/buck/log:api',
     '//src/com/facebook/buck/model:model',
     '//src/com/facebook/buck/rules:build_rule',
     '//src/com/facebook/buck/step:step',
+    '//src/com/facebook/buck/util:escaper',
     '//src/com/facebook/buck/util:exceptions',
     '//src/com/facebook/buck/util:io',
     '//src/com/facebook/buck/util:util',
@@ -125,8 +130,9 @@ java_immutables_library(
     '//src/com/facebook/buck/rules:rules',
     '//src/com/facebook/buck/step:step',
     '//src/com/facebook/buck/util:constants',
+    '//src/com/facebook/buck/util:escaper',
     '//src/com/facebook/buck/util:exceptions',
-    '//src/com/facebook/buck/util:util',
+    '//src/com/facebook/buck/util:io',
     '//third-party/java/guava:guava',
     '//third-party/java/jsr:jsr305',
   ],
@@ -141,8 +147,10 @@ java_library(
     'ResourcesRootPackageFinder.java',
   ],
   deps = [
-    '//third-party/java/guava:guava',
+    '//src/com/facebook/buck/io:io',
+    '//src/com/facebook/buck/model:model',
     '//src/com/facebook/buck/util:exceptions',
+    '//third-party/java/guava:guava',
   ],
   visibility = ['PUBLIC'],
 )
@@ -150,6 +158,7 @@ java_library(
 java_library(
   name = 'rules',
   srcs = [
+    'BuiltInJavac.java',
     'Classpaths.java',
     'DefaultJavaLibrary.java',
     'GwtModule.java',
@@ -185,7 +194,7 @@ java_library(
     '//src/com/facebook/buck/graph:graph',
     '//src/com/facebook/buck/io:io',
     '//src/com/facebook/buck/java/abi:protocol',
-    '//src/com/facebook/buck/log:log',
+    '//src/com/facebook/buck/log:api',
     '//src/com/facebook/buck/model:model',
     '//src/com/facebook/buck/parser:rule_pattern',
     '//src/com/facebook/buck/rules:build_rule',
@@ -228,9 +237,10 @@ java_library(
     '//src/com/facebook/buck/dalvik:dalvik_stats_tool',
     '//src/com/facebook/buck/java/abi:abi',
     '//src/com/facebook/buck/java/classes:classes',
+    '//src/com/facebook/buck/java/runner:runner',
     '//src/com/facebook/buck/event:event',
     '//src/com/facebook/buck/io:io',
-    '//src/com/facebook/buck/log:log',
+    '//src/com/facebook/buck/log:api',
     '//src/com/facebook/buck/model:model',
     '//src/com/facebook/buck/rules:build_rule',
     '//src/com/facebook/buck/rules:rules',

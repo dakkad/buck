@@ -77,6 +77,7 @@ import com.google.common.io.Files;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.SettableFuture;
 
 import org.w3c.dom.Document;
@@ -129,48 +130,131 @@ public class TestCommand extends AbstractCommandRunner<TestCommandOptions> {
   @Override
   int runCommandWithOptionsInternal(final TestCommandOptions options)
       throws IOException, InterruptedException {
-    // If the user asked to run all of the tests, use a special method for that that is optimized to
-    // parse all of the build files and traverse the action graph to find all of the tests to
-    // run.
-    if (options.isRunAllTests()) {
-      try {
-        return runAllTests(options);
-      } catch (BuildTargetException | BuildFileParseException | ExecutionException e) {
+
+    // In the event the user specifies explicit targets, parse these out and post them for the
+    // build. However, if "--all" was specified, we won't have a list of targets until the build
+    // is already started, so BuildEvents will get an empty list.
+    ImmutableSet<BuildTarget> explicitBuildTargets =
+        options.isRunAllTests() ?
+            ImmutableSet.<BuildTarget>of() :
+            getBuildTargets(options.getArgumentsFormattedAsBuildTargets());
+
+    // Post the build started event, setting it to the Parser recorded start time if appropriate.
+    if (getParser().getParseStartTime().isPresent()) {
+      getBuckEventBus().post(
+          BuildEvent.started(explicitBuildTargets),
+          getParser().getParseStartTime().get());
+    } else {
+      getBuckEventBus().post(BuildEvent.started(explicitBuildTargets));
+    }
+
+    // The first step is to parse all of the build files. This will populate the parser and find all
+    // of the test rules.
+    ParserConfig parserConfig = new ParserConfig(options.getBuckConfig());
+    TargetGraph targetGraph;
+
+    try {
+
+      // If the user asked to run all of the tests, parse all of the build files looking for any
+      // test rules.
+      if (options.isRunAllTests()) {
+        targetGraph = getParser().buildTargetGraphForTargetNodeSpecs(
+            ImmutableList.of(
+                new TargetNodePredicateSpec(
+                    new Predicate<TargetNode<?>>() {
+                      @Override
+                      public boolean apply(TargetNode<?> input) {
+                        return input.getType().isTestRule();
+                      }
+                    },
+                    getProjectFilesystem().getIgnorePaths())),
+            parserConfig,
+            getBuckEventBus(),
+            console,
+            environment,
+            options.getEnableProfiling());
+
+      // Otherwise, the user specified specific test targets to build and run, so build a graph
+      // around these.
+      } else {
+        targetGraph = getParser().buildTargetGraphForBuildTargets(
+            explicitBuildTargets,
+            parserConfig,
+            getBuckEventBus(),
+            console,
+            environment,
+            options.getEnableProfiling());
+      }
+
+    } catch (BuildTargetException | BuildFileParseException e) {
+      console.printBuildFailureWithoutStacktrace(e);
+      return 1;
+    }
+
+    ActionGraph graph = targetGraphTransformer.apply(targetGraph);
+
+    // Look up all of the test rules in the action graph.
+    Iterable<TestRule> testRules = Iterables.filter(graph.getNodes(), TestRule.class);
+
+    // Unless the user requests that we build filtered tests, filter them out here, before
+    // the build.
+    if (!options.isBuildFiltered()) {
+      testRules = filterTestRules(options, testRules);
+    }
+
+    if (options.isDryRun()) {
+      printMatchingTestRules(console, testRules);
+    }
+
+    // Create artifact cache to initialize Cassandra connection, if appropriate.
+    ArtifactCache artifactCache = getArtifactCache();
+
+    try (CommandThreadManager pool = new CommandThreadManager("Test", options.getNumThreads());
+         Build build = options.createBuild(
+             options.getBuckConfig(),
+             graph,
+             getProjectFilesystem(),
+             getAndroidPlatformTargetSupplier(),
+             getBuildEngine(),
+             artifactCache,
+             console,
+             getBuckEventBus(),
+             options.getTargetDeviceOptional(),
+             getCommandRunnerParams().getPlatform(),
+             getCommandRunnerParams().getEnvironment(),
+             getCommandRunnerParams().getObjectMapper(),
+             getCommandRunnerParams().getClock(),
+             pool.getExecutor())) {
+      // Build all of the test rules.
+      int exitCode = build.executeAndPrintFailuresToConsole(
+          testRules,
+          options.isKeepGoing(),
+          console,
+          options.getPathToBuildReport());
+      getBuckEventBus().post(BuildEvent.finished(explicitBuildTargets, exitCode));
+      if (exitCode != 0) {
+        return exitCode;
+      }
+
+      // If the user requests that we build tests that we filter out, then we perform
+      // the filtering here, after we've done the build but before we run the tests.
+      if (options.isBuildFiltered()) {
+        testRules = filterTestRules(options, testRules);
+      }
+
+      // Once all of the rules are built, then run the tests.
+      try (CommandThreadManager testPool =
+               new CommandThreadManager("Test-Run", options.getNumTestThreads())) {
+        return runTestsAndShutdownExecutor(
+            testRules,
+            Preconditions.checkNotNull(build.getBuildContext()),
+            build.getExecutionContext(),
+            options,
+            testPool.getExecutor());
+      } catch (ExecutionException e) {
         console.printBuildFailureWithoutStacktrace(e);
         return 1;
       }
-    }
-
-    BuildCommand buildCommand = new BuildCommand(getCommandRunnerParams());
-
-    int exitCode = buildCommand.runCommandWithOptions(options);
-    if (exitCode != 0) {
-      return exitCode;
-    }
-
-    Build build = buildCommand.getBuild();
-
-    Iterable<TestRule> results = getCandidateRules(build.getActionGraph());
-
-    results = filterTestRules(options, results);
-    if (options.isDryRun()) {
-      printMatchingTestRules(console, results);
-    }
-
-    BuildContext buildContext = Preconditions.checkNotNull(build.getBuildContext());
-    ExecutionContext buildExecutionContext = build.getExecutionContext();
-
-    try (ExecutionContext testExecutionContext = ExecutionContext.builder().
-        setExecutionContext(buildExecutionContext).
-        setTargetDevice(options.getTargetDeviceOptional()).
-        build()) {
-      return runTestsAndShutdownExecutor(results,
-          buildContext,
-          testExecutionContext,
-          options);
-    } catch (ExecutionException e) {
-      console.printBuildFailureWithoutStacktrace(e);
-      return 1;
     }
   }
 
@@ -278,88 +362,6 @@ public class TestCommand extends AbstractCommandRunner<TestCommandOptions> {
     return ImmutableSet.copyOf(srcFolders);
   }
 
-  private int runAllTests(TestCommandOptions options) throws IOException,
-      BuildTargetException, BuildFileParseException, ExecutionException, InterruptedException {
-    // We won't have a list of targets until the build is already started, so BuildEvents will get
-    // an empty list.
-    ImmutableSet<BuildTarget> emptyTargetsList = ImmutableSet.of();
-
-    // Post the build started event, setting it to the Parser recorded start time if appropriate.
-    if (getParser().getParseStartTime().isPresent()) {
-      getBuckEventBus().post(
-          BuildEvent.started(emptyTargetsList),
-          getParser().getParseStartTime().get());
-    } else {
-      getBuckEventBus().post(BuildEvent.started(emptyTargetsList));
-    }
-
-    // The first step is to parse all of the build files. This will populate the parser and find all
-    // of the test rules.
-    ParserConfig parserConfig = new ParserConfig(options.getBuckConfig());
-    TargetGraph targetGraph = getParser().buildTargetGraphForTargetNodeSpecs(
-        ImmutableList.of(
-            new TargetNodePredicateSpec(
-                new Predicate<TargetNode<?>>() {
-                  @Override
-                  public boolean apply(TargetNode<?> input) {
-                    return input.getType().isTestRule();
-                  }
-                },
-            getProjectFilesystem().getIgnorePaths())),
-        parserConfig,
-        getBuckEventBus(),
-        console,
-        environment,
-        options.getEnableProfiling());
-
-    ActionGraph graph = targetGraphTransformer.apply(targetGraph);
-
-    // Look up all of the test rules in the action graph.
-    Iterable<TestRule> testRules = Iterables.filter(graph.getNodes(), TestRule.class);
-
-    testRules = filterTestRules(options, testRules);
-    if (options.isDryRun()) {
-      printMatchingTestRules(console, testRules);
-    }
-
-    // Create artifact cache to initialize Cassandra connection, if appropriate.
-    ArtifactCache artifactCache = getArtifactCache();
-
-    try (Build build = options.createBuild(
-        options.getBuckConfig(),
-        graph,
-        getProjectFilesystem(),
-        getAndroidDirectoryResolver(),
-        getBuildEngine(),
-        artifactCache,
-        console,
-        getBuckEventBus(),
-        options.getTargetDeviceOptional(),
-        getCommandRunnerParams().getPlatform(),
-        getCommandRunnerParams().getEnvironment(),
-        getCommandRunnerParams().getObjectMapper(),
-        getCommandRunnerParams().getClock())) {
-
-      // Build all of the test rules.
-      int exitCode = build.executeAndPrintFailuresToConsole(
-          testRules,
-          options.isKeepGoing(),
-          console,
-          options.getPathToBuildReport());
-
-      getBuckEventBus().post(BuildEvent.finished(emptyTargetsList, exitCode));
-      if (exitCode != 0) {
-        return exitCode;
-      }
-
-      // Once all of the rules are built, then run the tests.
-      return runTestsAndShutdownExecutor(testRules,
-          Preconditions.checkNotNull(build.getBuildContext()),
-          build.getExecutionContext(),
-          options);
-    }
-  }
-
   private void printMatchingTestRules(Console console, Iterable<TestRule> testRules) {
     PrintStream out = console.getStdOut();
     ImmutableList<TestRule> list = ImmutableList.copyOf(testRules);
@@ -416,24 +418,29 @@ public class TestCommand extends AbstractCommandRunner<TestCommandOptions> {
               }
             });
 
-    // We always want to run the rules that are given on the command line. Always. Unless we don't
-    // want to.
-    if (!options.shouldExcludeWin()) {
-      ImmutableSet<String> allTargets = options.getArgumentsFormattedAsBuildTargets();
-      for (TestRule rule : testRules) {
-        if (allTargets.contains(rule.getBuildTarget().getFullyQualifiedName())) {
-          builder.add(rule);
-        }
+    ImmutableSet<String> allTargets = options.getArgumentsFormattedAsBuildTargets();
+    for (TestRule rule : testRules) {
+      boolean explicitArgument = allTargets.contains(rule.getBuildTarget().getFullyQualifiedName());
+      boolean matchesLabel = options.isMatchedByLabelOptions(rule.getLabels());
+
+      // We always want to run the rules that are given on the command line. Always. Unless we don't
+      // want to.
+      if (options.shouldExcludeWin() && !matchesLabel) {
+        continue;
+      }
+
+      // The testRules Iterable contains transitive deps of the arguments given on the command line,
+      // filter those out if such is the user's will.
+      if (options.shouldExcludeTransitiveTests() && !explicitArgument) {
+        continue;
+      }
+
+      // Normal behavior is to include all rules that match the given label as well as any that
+      // were explicitly specified by the user.
+      if (explicitArgument || matchesLabel) {
+        builder.add(rule);
       }
     }
-
-    // Filter out all test rules that contain labels we've excluded.
-    builder.addAll(Iterables.filter(testRules, new Predicate<TestRule>() {
-      @Override
-      public boolean apply(TestRule rule) {
-        return options.isMatchedByLabelOptions(rule.getLabels());
-      }
-    }));
 
     return builder.build();
   }
@@ -442,13 +449,12 @@ public class TestCommand extends AbstractCommandRunner<TestCommandOptions> {
       Iterable<TestRule> tests,
       BuildContext buildContext,
       ExecutionContext executionContext,
-      TestCommandOptions options)
+      TestCommandOptions options,
+      ListeningExecutorService service)
       throws IOException, ExecutionException, InterruptedException {
 
-    try (DefaultStepRunner stepRunner =
-            new DefaultStepRunner(executionContext, options.getNumThreads())) {
-      return runTests(tests, buildContext, executionContext, stepRunner, options);
-    }
+    DefaultStepRunner stepRunner = new DefaultStepRunner(executionContext, service);
+    return runTests(tests, buildContext, executionContext, stepRunner, options);
   }
 
   @SuppressWarnings("PMD.EmptyCatchBlock")
@@ -707,7 +713,8 @@ public class TestCommand extends AbstractCommandRunner<TestCommandOptions> {
         return new TestResults(
             originalTestResults.getBuildTarget(),
             cachedTestResults,
-            originalTestResults.getContacts());
+            originalTestResults.getContacts(),
+            originalTestResults.getLabels());
       }
     };
   }

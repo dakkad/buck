@@ -19,6 +19,7 @@ package com.facebook.buck.shell;
 import com.facebook.buck.model.BuildTarget;
 import com.facebook.buck.model.HasOutputName;
 import com.facebook.buck.rules.AbstractBuildRule;
+import com.facebook.buck.rules.AddToRuleKey;
 import com.facebook.buck.rules.BuildContext;
 import com.facebook.buck.rules.BuildRuleParams;
 import com.facebook.buck.rules.BuildableContext;
@@ -33,9 +34,9 @@ import com.facebook.buck.util.BuckConstant;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableCollection;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 
 import java.nio.file.Path;
-import java.util.Collections;
 
 /**
  * Export a file so that it can be easily referenced by other
@@ -78,8 +79,11 @@ import java.util.Collections;
 // TODO(simons): Extend to also allow exporting a rule.
 public class ExportFile extends AbstractBuildRule implements HasOutputName {
 
+  @AddToRuleKey
   private final String name;
+  @AddToRuleKey
   private final SourcePath src;
+  @AddToRuleKey(stringify = true)
   private final Path out;
 
   @VisibleForTesting
@@ -93,22 +97,26 @@ public class ExportFile extends AbstractBuildRule implements HasOutputName {
       this.src = args.src.get();
     } else {
       this.src = new PathSourcePath(
+          params.getProjectFilesystem(),
           target.getBasePath().resolve(target.getShortNameAndFlavorPostfix()));
     }
 
     this.out = BuckConstant.GEN_PATH.resolve(target.getBasePath()).resolve(this.name);
   }
 
+  @VisibleForTesting
+  ImmutableCollection<Path> getSource() {
+    return getResolver().filterInputsToCompareToOutput(src);
+  }
+
   @Override
   public ImmutableCollection<Path> getInputsToCompareToOutput() {
-    return getResolver().filterInputsToCompareToOutput(Collections.singleton(src));
+    return ImmutableSet.of();
   }
 
   @Override
   public RuleKey.Builder appendDetailsToRuleKey(RuleKey.Builder builder) {
-    return builder
-        .setReflectively("name", name)
-        .setReflectively("out", out.toString());
+    return builder;
   }
 
   @Override
@@ -120,7 +128,7 @@ public class ExportFile extends AbstractBuildRule implements HasOutputName {
     // unpacked on another machine, it is an ordinary file in both scenarios.
     ImmutableList.Builder<Step> builder = ImmutableList.<Step>builder()
         .add(new MkdirStep(out.getParent()))
-        .add(CopyStep.forFile(getResolver().getPath(src), out));
+        .add(CopyStep.forFile(getProjectFilesystem().resolve(getResolver().getPath(src)), out));
 
     buildableContext.recordArtifact(out);
     return builder.build();

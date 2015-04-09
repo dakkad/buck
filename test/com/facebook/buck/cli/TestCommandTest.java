@@ -43,7 +43,7 @@ import com.facebook.buck.rules.BuildRuleResolver;
 import com.facebook.buck.rules.BuildRuleSuccess;
 import com.facebook.buck.rules.CachingBuildEngine;
 import com.facebook.buck.rules.FakeTestRule;
-import com.facebook.buck.rules.ImmutableBuildRuleType;
+import com.facebook.buck.rules.BuildRuleType;
 import com.facebook.buck.rules.ImmutableLabel;
 import com.facebook.buck.rules.Label;
 import com.facebook.buck.rules.SourcePathResolver;
@@ -382,7 +382,7 @@ public class TestCommandTest {
 
     Iterable<TestRule> result = TestCommand.filterTestRules(options,
         TestCommand.getCandidateRules(graph));
-    assertThat(result, containsInAnyOrder((TestRule) rule1, (TestRule) rule3));
+    assertThat(result, containsInAnyOrder((TestRule) rule1, rule3));
   }
 
   @Test
@@ -514,6 +514,69 @@ public class TestCommandTest {
 
     Iterable<TestRule> result = TestCommand.filterTestRules(options, testRules);
     assertEquals(ImmutableSet.of(), result);
+  }
+
+  @Test
+  public void testNoTransitiveTests() throws CmdLineException {
+    SourcePathResolver pathResolver = new SourcePathResolver(new BuildRuleResolver());
+    TestCommandOptions options = getOptions("--exclude-transitive-tests", "//:wow");
+
+    FakeTestRule rule1 = new FakeTestRule(
+        JavaTestDescription.TYPE,
+        ImmutableSet.<Label>of(ImmutableLabel.of("windows"), ImmutableLabel.of("linux")),
+        BuildTargetFactory.newInstance("//:for"),
+        pathResolver,
+        ImmutableSortedSet.<BuildRule>of()
+    );
+
+    FakeTestRule rule2 = new FakeTestRule(
+        JavaTestDescription.TYPE,
+        ImmutableSet.<Label>of(ImmutableLabel.of("windows")),
+        BuildTargetFactory.newInstance("//:lulz"),
+        pathResolver,
+        ImmutableSortedSet.<BuildRule>of(rule1)
+    );
+
+    FakeTestRule rule3 = new FakeTestRule(
+        JavaTestDescription.TYPE,
+        ImmutableSet.<Label>of(ImmutableLabel.of("linux")),
+        BuildTargetFactory.newInstance("//:wow"),
+        pathResolver,
+        ImmutableSortedSet.<BuildRule>of(rule2)
+    );
+
+    List<TestRule> testRules = ImmutableList.<TestRule>of(rule1, rule2, rule3);
+    Iterable<TestRule> filtered = TestCommand.filterTestRules(options, testRules);
+
+    assertEquals(rule3, Iterables.getOnlyElement(filtered));
+  }
+
+  @Test
+  public void testNoTransitiveTestsWhenLabelExcludeWins() throws CmdLineException {
+    SourcePathResolver pathResolver = new SourcePathResolver(new BuildRuleResolver());
+    TestCommandOptions options = getOptions("--labels", "!linux", "--always-exclude",
+        "--exclude-transitive-tests", "//:for", "//:lulz");
+
+    FakeTestRule rule1 = new FakeTestRule(
+        JavaTestDescription.TYPE,
+        ImmutableSet.<Label>of(ImmutableLabel.of("windows"), ImmutableLabel.of("linux")),
+        BuildTargetFactory.newInstance("//:for"),
+        pathResolver,
+        ImmutableSortedSet.<BuildRule>of()
+    );
+
+    FakeTestRule rule2 = new FakeTestRule(
+        JavaTestDescription.TYPE,
+        ImmutableSet.<Label>of(ImmutableLabel.of("windows")),
+        BuildTargetFactory.newInstance("//:lulz"),
+        pathResolver,
+        ImmutableSortedSet.<BuildRule>of(rule1)
+    );
+
+    List<TestRule> testRules = ImmutableList.<TestRule>of(rule1, rule2);
+    Iterable<TestRule> filtered = TestCommand.filterTestRules(options, testRules);
+
+    assertEquals(rule2, Iterables.getOnlyElement(filtered));
   }
 
   @Test
@@ -687,7 +750,7 @@ public class TestCommandTest {
     new CmdLineParserAdditionalOptions(options).parseArgument("//example:test");
 
     FakeTestRule rule = new FakeTestRule(
-        ImmutableBuildRuleType.of("java_test"),
+        BuildRuleType.of("java_test"),
         /* labels */ ImmutableSet.<Label>of(ImmutableLabel.of(excludedLabel)),
         BuildTargetFactory.newInstance("//example:test"),
         new SourcePathResolver(new BuildRuleResolver()),
@@ -697,5 +760,17 @@ public class TestCommandTest {
         TestCommand.filterTestRules(options, ImmutableSet.<TestRule>of(rule));
 
     assertEquals(rule, Iterables.getOnlyElement(filtered));
+  }
+
+  @Test
+  public void shouldAlwaysDefaultToOneThreadWhenRunningTestsWithDebugFlag()
+      throws CmdLineException {
+    TestCommandOptions options = getOptions("-j", "15");
+
+    assertEquals(15, options.getNumTestThreads());
+
+    options = getOptions("-j", "15", "--debug");
+
+    assertEquals(1, options.getNumTestThreads());
   }
 }

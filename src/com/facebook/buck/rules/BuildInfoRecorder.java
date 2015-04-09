@@ -21,6 +21,7 @@ import com.facebook.buck.event.ConsoleEvent;
 import com.facebook.buck.io.DefaultDirectoryTraverser;
 import com.facebook.buck.io.DirectoryTraversal;
 import com.facebook.buck.io.DirectoryTraverser;
+import com.facebook.buck.io.MoreFiles;
 import com.facebook.buck.io.ProjectFilesystem;
 import com.facebook.buck.model.BuildId;
 import com.facebook.buck.model.BuildTarget;
@@ -193,9 +194,15 @@ public class BuildInfoRecorder {
     }
 
     ImmutableSet<Path> pathsToIncludeInZip = pathsToIncludeInZipBuilder.build();
+    eventBus.post(
+        ArtifactCacheEvent.started(
+            ArtifactCacheEvent.Operation.COMPRESS,
+            ruleKey));
     File zip;
     try {
-      zip = File.createTempFile(buildTarget.getFullyQualifiedName().replace('/', '_'), ".zip");
+      zip = File.createTempFile(
+          MoreFiles.sanitize(buildTarget.getFullyQualifiedName()),
+          ".zip");
       long time = TimeUnit.MILLISECONDS.toSeconds(clock.currentTimeMillis());
       String additionalArtifactInfo = String.format(
           "build_id=%s\ntimestamp=%d\n%s\n",
@@ -212,6 +219,11 @@ public class BuildInfoRecorder {
           Joiner.on('\n').join(ImmutableSortedSet.copyOf(pathsToIncludeInZip))));
       e.printStackTrace();
       return;
+    } finally {
+      eventBus.post(
+          ArtifactCacheEvent.finished(
+              ArtifactCacheEvent.Operation.COMPRESS,
+              ruleKey));
     }
     artifactCache.store(ruleKey, zip);
     zip.delete();

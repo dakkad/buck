@@ -10,7 +10,6 @@
   <property name="testrunner.classes.dir" value="${build.dir}/testrunner/classes" />
   <property name="bootstrapper.src.dir" value="com/facebook/buck/cli/bootstrapper/" />
   <property name="bootstrapper.classes.dir" value="${build.dir}/bootstrapper/classes" />
-  <property name="buck.path_to_buck_py" value="${basedir}/src/com/facebook/buck/parser/buck.py" />
   <property name="buck.path_to_compile_asset_catalogs_py" value="${basedir}/src/com/facebook/buck/apple/compile_asset_catalogs.py" />
   <property name="buck.path_to_compile_asset_catalogs_build_phase_sh" value="${basedir}/src/com/facebook/buck/apple/compile_asset_catalogs_build_phase.sh" />
   <property name="buck.path_to_sh_binary_template" value="${basedir}/src/com/facebook/buck/shell/sh_binary_template" />
@@ -66,41 +65,43 @@
     <include name="astyanax/astyanax-thrift-1.56.38.jar" />
     <include name="astyanax/cassandra-1.2.3.jar" />
     <include name="astyanax/cassandra-thrift-1.2.3.jar" />
-    <include name="astyanax/commons-cli-1.1.jar" />
-    <include name="astyanax/commons-codec-1.2.jar" />
-    <include name="astyanax/commons-lang-2.6.jar" />
     <include name="astyanax/high-scale-lib-1.1.2.jar" />
-    <include name="astyanax/joda-time-2.2.jar" />
-    <include name="astyanax/libthrift-0.7.0.jar" />
-    <include name="astyanax/log4j-1.2.16.jar" />
-    <include name="astyanax/slf4j-api-1.7.2.jar" />
-    <include name="astyanax/slf4j-log4j12-1.7.2.jar" />
     <include name="closure-templates/soy-excluding-deps.jar" />
+    <include name="commons-cli/commons-cli-1.1.jar" />
+    <include name="commons-codec/commons-codec-1.2.jar" />
     <include name="commons-compress/commons-compress-1.8.1.jar" />
+    <include name="commons-lang/commons-lang-2.6.jar" />
     <include name="dd-plist/dd-plist.jar" />
-    <include name="eclipse/org.eclipse.core.contenttype_3.4.200.v20130326-1255.jar" />
-    <include name="eclipse/org.eclipse.core.jobs_3.5.300.v20130429-1813.jar" />
-    <include name="eclipse/org.eclipse.core.resources_3.8.101.v20130717-0806.jar" />
-    <include name="eclipse/org.eclipse.core.runtime_3.9.100.v20131218-1515.jar" />
-    <include name="eclipse/org.eclipse.equinox.common_3.6.200.v20130402-1505.jar" />
-    <include name="eclipse/org.eclipse.equinox.preferences_3.5.100.v20130422-1538.jar" />
-    <include name="eclipse/org.eclipse.jdt.core_3.9.2.v20140114-1555.jar" />
-    <include name="eclipse/org.eclipse.osgi_3.9.1.v20140110-1610.jar" />
+    <include name="eclipse/org.eclipse.core.contenttype_3.4.200.v20140207-1251.jar"/>
+    <include name="eclipse/org.eclipse.core.jobs_3.6.1.v20141014-1248.jar"/>
+    <include name="eclipse/org.eclipse.core.resources_3.9.1.v20140825-1431.jar"/>
+    <include name="eclipse/org.eclipse.core.runtime_3.10.0.v20140318-2214.jar"/>
+    <include name="eclipse/org.eclipse.equinox.common_3.6.200.v20130402-1505.jar"/>
+    <include name="eclipse/org.eclipse.equinox.preferences_3.5.200.v20140224-1527.jar"/>
+    <include name="eclipse/org.eclipse.jdt.core_3.10.2.v20150120-1634.jar"/>
+    <include name="eclipse/org.eclipse.osgi_3.10.2.v20150203-1939.jar"/>
     <include name="guice/guice-3.0.jar" />
     <include name="guice/guice-assistedinject-3.0.jar" />
     <include name="guice/guice-multibindings-3.0.jar" />
     <include name="gson/gson-2.2.4.jar" />
     <include name="icu4j/icu4j-54.1.1.jar" />
     <include name="immutables/value-1.1.2.jar" />
-    <include name="infer-annotations/infer-annotations-1.4.jar" />
+    <include name="infer-annotations/infer-annotations-1.5.jar" />
     <include name="jacoco/org.jacoco.core-0.7.2.201409121644.jar" />
     <include name="jacoco/org.jacoco.report-0.7.2.201409121644.jar" />
-    <include name="jetty/jetty-all-9.0.4.v20130625.jar" />
-    <include name="jetty/servlet-api.jar" />
+    <include name="jetty/jetty-all-9.2.10.v20150310.jar" />
+    <include name="joda-time/joda-time-2.2.jar" />
     <include name="jsr/javax.inject-1.jar" />
+    <include name="log4j/log4j-1.2.16.jar" />
+    <include name="okhttp/okhttp-2.2.0.jar" />
+    <include name="okio/okio-1.2.0.jar" />
     <include name="parboiled/parboiled-core-1.1.6.jar" />
     <include name="parboiled/parboiled-java-1.1.6.jar" />
-    <include name="stringtemplate/ST-4.0.8.jar" />    
+    <include name="servlet-api/javax.servlet-api-3.1.0.jar" />
+    <include name="slf4j/slf4j-api-1.7.2.jar" />
+    <include name="slf4j/slf4j-log4j12-1.7.2.jar" />
+    <include name="stringtemplate/ST-4.0.8.jar" />
+    <include name="thrift/libthrift-0.7.0.jar" />
     <include name="xz-java-1.3/xz-1.3.jar" />
   </fileset>
 
@@ -147,7 +148,7 @@
   <target name="compile-testrunner" depends="checkversion">
     <mkdir dir="${testrunner.classes.dir}" />
     <javac srcdir="${src.dir}"
-           includes="com/facebook/buck/junit/**,src/com/facebook/buck/util/concurrent/MoreExecutors.java"
+           includes="com/facebook/buck/junit/**,src/com/facebook/buck/util/concurrent/MoreExecutors.java,com/facebook/buck/java/runner/**"
            destdir="${testrunner.classes.dir}"
            classpathref="junit"
            debug="on"
@@ -280,7 +281,7 @@
         <compilerarg value="-Xlint:serial" />
         <compilerarg value="-time" />
         <compilerclasspath>
-          <pathelement location="${eclipse.dir}/org.eclipse.jdt.core_3.9.2.v20140114-1555.jar" />
+          <pathelement location="${eclipse.dir}/org.eclipse.jdt.core_3.10.2.v20150120-1634.jar" />
           <pathelement location="${eclipse.dir}/jdtCompilerAdapter.jar" />
         </compilerclasspath>
         <ecj-params />
@@ -312,6 +313,10 @@
         <include name="com/facebook/buck/util/concurrent/MoreExecutors.java" />
         <include name="com/facebook/buck/util/concurrent/MoreFutures.java" />
         <include name="com/facebook/buck/util/concurrent/TimeSpan.java" />
+
+        <!-- //src/com/facebook/buck/util:escaper -->
+        <include name="com/facebook/buck/util/Escaper.java" />
+        <include name="com/facebook/buck/util/WindowsCreateProcessEscape.java" />
 
         <!-- //src/com/facebook/buck/util:exceptions -->
         <include name="com/facebook/buck/util/ExceptionWithHumanReadableMessage.java" />
@@ -365,6 +370,8 @@
         <src path="${immutables.gensrc.dir}" />
       </javac-params>
     </ecj>
+    <!-- Copy in scripts we need at run time when using an unpacked buck -->
+    <copy file="src/com/facebook/buck/json/buck.py" todir="${classes.dir}/com/facebook/buck/json"/>
 
     <!--
       Compile code from AOSP using the default compiler.
@@ -397,6 +404,8 @@
         <exclude name="com/facebook/buck/cli/bootstrapper/**" />
         <exclude name="com/facebook/buck/cli/quickstart/**" />
         <exclude name="com/facebook/buck/junit/**" />
+        <!-- Excluded since the maven functionality is bolted on later -->
+        <exclude name="com/facebook/buck/maven/**" />
         <src path="${immutables.gensrc.dir}" />
       </javac-params>
     </ecj>
@@ -472,6 +481,7 @@
           depends="compile"
           description="build buck.jar"
           >
+
     <jar destfile="${build.dir}/buck.jar" update="true">
       <zipfileset refid="buck.jars" />
       <zipfileset refid="third-party.jars" />
@@ -503,7 +513,7 @@
     <path refid="classpath" />
     <fileset dir="${third-party.dir}/java">
       <include name="cglib/cglib-nodep-2.2.jar" />
-      <include name="easymock/easymock-3.0.jar" />
+      <include name="easymock/easymock-3.3.1.jar" />
       <include name="hamcrest/hamcrest-core-1.3.jar" />
       <include name="hamcrest/hamcrest-library-1.3.jar" />
       <include name="junit/junit-4.11.jar" />
@@ -576,6 +586,7 @@
          >
       <javac-params>
         <exclude name="**/testdata/**" />
+        <exclude name="com/facebook/buck/maven/**" />
       </javac-params>
     </ecj>
   </target>
@@ -588,12 +599,12 @@
            showoutput="true"
            forkmode="perBatch"
            haltonerror="on">
-      <sysproperty key="buck.path_to_buck_py" value="${buck.path_to_buck_py}" />
       <sysproperty key="buck.path_to_compile_asset_catalogs_py" value="${buck.path_to_compile_asset_catalogs_py}" />
       <sysproperty key="buck.path_to_compile_asset_catalogs_build_phase_sh" value="${buck.path_to_compile_asset_catalogs_build_phase_sh}" />
       <sysproperty key="buck.logging_config_file" value="${buck.test_logging_config_file}" />
       <sysproperty key="log4j.configuration" value="file:${buck.log4j_config_file}" />
       <sysproperty key="java.util.logging.config.class" value="com.facebook.buck.log.LogConfig" />
+      <sysproperty key="org.eclipse.jetty.util.log.class" value="org.eclipse.jetty.util.log.JavaUtilLog" />
 
       <!-- See DEFS for details on why this property is needed. -->
       <sysproperty key="sun.zip.disableMemoryMapping" value="true" />
@@ -608,6 +619,7 @@
           -->
           <include name="**/*${test.class}.java" />
           <exclude name="**/testdata/**" />
+          <exclude name="com/facebook/buck/maven/**" />
         </fileset>
       </batchtest>
       <classpath refid="tests.classpath" />
@@ -615,12 +627,12 @@
     <fail if="hasFailingTests" />
   </target>
 
-  <target name="py-test" description="runs the Python tests" depends="buck-py-test, class-loader-py-test, asset-catalogs-py-test, pathlib-py-test" />
+  <target name="py-test" description="runs the Python tests" depends="buck-py-test, class-loader-py-test, asset-catalogs-py-test, pathlib-py-test, zip-munger-py-test" />
 
   <target name="buck-py-test" description="tests the BUCK parser">
     <exec executable="python" failonerror="true">
       <env key="PYTHONPATH" path="${pathlib.dir}" />
-      <arg value="src/com/facebook/buck/parser/buck_test.py" />
+      <arg value="src/com/facebook/buck/json/buck_test.py" />
     </exec>
   </target>
 
@@ -642,6 +654,13 @@
       <!-- Needed on Python 2.6. -->
       <env key="PYTHONPATH" path="${unittest2.dir}" />
       <arg value="test_pathlib.py" />
+    </exec>
+  </target>
+
+  <target name="zip-munger-py-test" description="tests munger.py">
+    <exec executable="python" failonerror="true">
+      <env key="PYTHONPATH" path="${basedir}" />
+      <arg value="py/buck/zip/test_munger.py" />
     </exec>
   </target>
 
@@ -786,6 +805,16 @@
     <!-- Buck test runner has references to JUnit and TestNG. -->
     <pathelement location="${third-party.dir}/java/junit/junit-4.11.jar" />
     <pathelement location="${third-party.dir}/java/testng/testng-6.8.jar" />
+
+    <!-- Include the jars required to document the maven interop pieces -->
+    <pathelement location="${third-party.dir}/java/aether/aether-api-1.0.2.v20150114.jar" />
+    <pathelement location="${third-party.dir}/java/aether/aether-connector-basic-1.0.2.v20150114.jar" />
+    <pathelement location="${third-party.dir}/java/aether/aether-impl-1.0.0.v20140518.jar" />
+    <pathelement location="${third-party.dir}/java/aether/aether-spi-1.0.2.v20150114.jar" />
+    <pathelement location="${third-party.dir}/java/aether/aether-transport-http-1.0.2.v20150114.jar" />
+    <pathelement location="${third-party.dir}/java/aether/aether-util-1.0.2.v20150114.jar" />
+    <pathelement location="${third-party.dir}/java/maven/maven-aether-provider-3.2.5.jar" />
+    <pathelement location="${third-party.dir}/java/slf4j/slf4j-api-1.7.5.jar" />
   </path>
 
   <target name="javadoc"

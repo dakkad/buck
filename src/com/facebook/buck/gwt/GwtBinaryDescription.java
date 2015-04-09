@@ -25,7 +25,6 @@ import com.facebook.buck.rules.BuildRuleParams;
 import com.facebook.buck.rules.BuildRuleResolver;
 import com.facebook.buck.rules.BuildRuleType;
 import com.facebook.buck.rules.Description;
-import com.facebook.buck.rules.ImmutableBuildRuleType;
 import com.facebook.buck.rules.SourcePathResolver;
 import com.facebook.infer.annotation.SuppressFieldNotInitialized;
 import com.google.common.base.Optional;
@@ -39,7 +38,7 @@ import java.nio.file.Path;
 
 public class GwtBinaryDescription implements Description<GwtBinaryDescription.Arg> {
 
-  public static final BuildRuleType TYPE = ImmutableBuildRuleType.of("gwt_binary");
+  public static final BuildRuleType TYPE = BuildRuleType.of("gwt_binary");
 
   /** Default value for {@link Arg#style}. */
   private static final String DEFAULT_STYLE = GwtBinary.Style.OBF.name();
@@ -123,7 +122,8 @@ public class GwtBinaryDescription implements Description<GwtBinaryDescription.Ar
 
         JavaLibrary javaLibrary = (JavaLibrary) rule;
         BuildTarget gwtModuleTarget = BuildTargets.createFlavoredBuildTarget(
-            javaLibrary, JavaLibrary.GWT_MODULE_FLAVOR);
+            javaLibrary.getBuildTarget().checkUnflavored(),
+            JavaLibrary.GWT_MODULE_FLAVOR);
         Optional<BuildRule> gwtModule = resolver.getRuleOptional(gwtModuleTarget);
 
         // Note that gwtModule could be absent if javaLibrary is a rule with no srcs of its own,

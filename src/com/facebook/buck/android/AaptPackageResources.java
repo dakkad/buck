@@ -94,6 +94,7 @@ public class AaptPackageResources extends AbstractBuildRule
   private final boolean rDotJavaNeedsDexing;
   private final boolean shouldBuildStringSourceMap;
   private final boolean shouldWarnIfMissingResource;
+  private final boolean skipCrunchPngs;
   private final BuildOutputInitializer<BuildOutput> buildOutputInitializer;
 
   AaptPackageResources(
@@ -108,7 +109,8 @@ public class AaptPackageResources extends AbstractBuildRule
       JavacOptions javacOptions,
       boolean rDotJavaNeedsDexing,
       boolean shouldBuildStringSourceMap,
-      boolean shouldWarnIfMissingResources) {
+      boolean shouldWarnIfMissingResources,
+      boolean skipCrunchPngs) {
     super(params, resolver);
     this.manifest = manifest;
     this.filteredResourcesProvider = filteredResourcesProvider;
@@ -120,6 +122,7 @@ public class AaptPackageResources extends AbstractBuildRule
     this.rDotJavaNeedsDexing = rDotJavaNeedsDexing;
     this.shouldBuildStringSourceMap = shouldBuildStringSourceMap;
     this.shouldWarnIfMissingResource = shouldWarnIfMissingResources;
+    this.skipCrunchPngs = skipCrunchPngs;
     this.buildOutputInitializer = new BuildOutputInitializer<>(params.getBuildTarget(), this);
   }
 
@@ -134,7 +137,8 @@ public class AaptPackageResources extends AbstractBuildRule
         .setReflectively("packageType", packageType.toString())
         .setReflectively("cpuFilters", ImmutableSortedSet.copyOf(cpuFilters).toString())
         .setReflectively("rDotJavaNeedsDexing", rDotJavaNeedsDexing)
-        .setReflectively("shouldBuildStringSourceMap", shouldBuildStringSourceMap);
+        .setReflectively("shouldBuildStringSourceMap", shouldBuildStringSourceMap)
+        .setReflectively("skipCrunchPngs", skipCrunchPngs);
   }
 
   @Override
@@ -189,11 +193,11 @@ public class AaptPackageResources extends AbstractBuildRule
    *     built.
    */
   public Path getPathToCompiledRDotJavaFiles() {
-    return BuildTargets.getBinPath(getBuildTarget(), "__%s_rdotjava_bin__");
+    return BuildTargets.getScratchPath(getBuildTarget(), "__%s_rdotjava_bin__");
   }
 
   public Path getPathToRDotTxtDir() {
-    return BuildTargets.getBinPath(getBuildTarget(), "__%s_res_symbols__");
+    return BuildTargets.getScratchPath(getBuildTarget(), "__%s_res_symbols__");
   }
 
   @Override
@@ -270,14 +274,24 @@ public class AaptPackageResources extends AbstractBuildRule
       buildableContext.recordArtifactsInDirectory(proguardConfigDir);
     }
 
-    steps.add(new AaptStep(
-        getAndroidManifestXml(),
-        filteredResourcesProvider.getResDirectories(),
-        assetsDirectory,
-        getResourceApkPath(),
-        rDotTxtDir,
-        pathToGeneratedProguardConfig,
-        packageType.isCrunchPngFiles()));
+    steps.add(
+        new AaptStep(
+            getAndroidManifestXml(),
+            filteredResourcesProvider.getResDirectories(),
+            assetsDirectory,
+            getResourceApkPath(),
+            rDotTxtDir,
+            pathToGeneratedProguardConfig,
+            /*
+             * In practice, it appears that if --no-crunch is used, resources will occasionally
+             * appear distorted in the APK produced by this command (and what's worse, a clean
+             * reinstall does not make the problem go away). This is not reliably reproducible, so
+             * for now, we categorically outlaw the use of --no-crunch so that developers do not get
+             * stuck in the distorted image state. One would expect the use of --no-crunch to allow
+             * for faster build times, so it would be nice to figure out a way to leverage it in
+             * debug mode that never results in distorted images.
+             */
+            !skipCrunchPngs /* && packageType.isCrunchPngFiles() */));
 
     if (!filteredResourcesProvider.getResDirectories().isEmpty()) {
       generateAndCompileRDotJavaFiles(steps, buildableContext);
@@ -356,7 +370,7 @@ public class AaptPackageResources extends AbstractBuildRule
     steps.add(new MakeCleanDirectoryStep(rDotJavaBin));
 
     JavacStep javacStep = RDotJava.createJavacStepForUberRDotJavaFiles(
-        ImmutableSet.copyOf(getResolver().getAllPaths(mergeStep.getRDotJavaFiles())),
+        ImmutableSet.copyOf(mergeStep.getRDotJavaFiles()),
         rDotJavaBin,
         javacOptions,
         getBuildTarget());
@@ -382,7 +396,7 @@ public class AaptPackageResources extends AbstractBuildRule
    * {@link #manifest}.
    */
   Path getAndroidManifestXml() {
-    return BuildTargets.getBinPath(getBuildTarget(), "__manifest_%s__/AndroidManifest.xml");
+    return BuildTargets.getScratchPath(getBuildTarget(), "__manifest_%s__/AndroidManifest.xml");
   }
 
   /**
@@ -443,7 +457,7 @@ public class AaptPackageResources extends AbstractBuildRule
 
   @VisibleForTesting
   Path getPathToAllAssetsDirectory() {
-    return BuildTargets.getBinPath(getBuildTarget(), "__assets_%s__");
+    return BuildTargets.getScratchPath(getBuildTarget(), "__assets_%s__");
   }
 
   public Sha1HashCode getResourcePackageHash() {
@@ -498,11 +512,11 @@ public class AaptPackageResources extends AbstractBuildRule
   }
 
   private Path getPathToRDotJavaDexFiles() {
-    return BuildTargets.getBinPath(getBuildTarget(), "__%s_rdotjava_dex__");
+    return BuildTargets.getScratchPath(getBuildTarget(), "__%s_rdotjava_dex__");
   }
 
   private Path getPathToRDotJavaClassesTxt() {
-    return BuildTargets.getBinPath(getBuildTarget(), "__%s_rdotjava_classes__")
+    return BuildTargets.getScratchPath(getBuildTarget(), "__%s_rdotjava_classes__")
         .resolve("classes.txt");
   }
 
@@ -519,7 +533,7 @@ public class AaptPackageResources extends AbstractBuildRule
   }
 
   private Path getPathForNativeStringInfoDirectory() {
-    return BuildTargets.getBinPath(getBuildTarget(), "__%s_string_source_map__");
+    return BuildTargets.getScratchPath(getBuildTarget(), "__%s_string_source_map__");
   }
 
   /**
@@ -541,7 +555,7 @@ public class AaptPackageResources extends AbstractBuildRule
 
   @VisibleForTesting
   static Path getPathToGeneratedRDotJavaSrcFiles(BuildTarget buildTarget) {
-    return BuildTargets.getBinPath(buildTarget, "__%s_rdotjava_src__");
+    return BuildTargets.getScratchPath(buildTarget, "__%s_rdotjava_src__");
   }
 
   @VisibleForTesting

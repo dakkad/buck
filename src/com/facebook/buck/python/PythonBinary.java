@@ -21,46 +21,52 @@ import static com.facebook.buck.rules.BuildableProperties.Kind.PACKAGING;
 import com.facebook.buck.io.ProjectFilesystem;
 import com.facebook.buck.model.BuildTargets;
 import com.facebook.buck.rules.AbstractBuildRule;
+import com.facebook.buck.rules.AddToRuleKey;
 import com.facebook.buck.rules.BinaryBuildRule;
 import com.facebook.buck.rules.BuildContext;
 import com.facebook.buck.rules.BuildRuleParams;
 import com.facebook.buck.rules.BuildableContext;
 import com.facebook.buck.rules.BuildableProperties;
 import com.facebook.buck.rules.RuleKey;
-import com.facebook.buck.rules.SourcePath;
 import com.facebook.buck.rules.SourcePathResolver;
 import com.facebook.buck.step.Step;
+import com.facebook.buck.step.fs.MakeCleanDirectoryStep;
 import com.facebook.buck.step.fs.MkdirStep;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableCollection;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSortedSet;
+import com.google.common.collect.ImmutableSet;
 
 import java.nio.file.Path;
-import java.util.Map;
 
 public class PythonBinary extends AbstractBuildRule implements BinaryBuildRule {
 
   private static final BuildableProperties OUTPUT_TYPE = new BuildableProperties(PACKAGING);
 
+  // TODO(user): Add path to pex to the rule key.
   private final Path pathToPex;
-  private final Path main;
+  private final Path pathToPexExecuter;
+  @AddToRuleKey
+  private final String mainModule;
+  @AddToRuleKey
   private final PythonPackageComponents components;
+  @AddToRuleKey
   private final PythonEnvironment pythonEnvironment;
 
   protected PythonBinary(
       BuildRuleParams params,
       SourcePathResolver resolver,
       Path pathToPex,
+      Path pathToPexExecuter,
       PythonEnvironment pythonEnvironment,
-      Path main,
+      String mainModule,
       PythonPackageComponents components) {
     super(params, resolver);
     this.pathToPex = pathToPex;
+    this.pathToPexExecuter = pathToPexExecuter;
     this.pythonEnvironment = pythonEnvironment;
-    this.main = main;
+    this.mainModule = mainModule;
     this.components = components;
   }
 
@@ -70,7 +76,7 @@ public class PythonBinary extends AbstractBuildRule implements BinaryBuildRule {
   }
 
   public Path getBinPath() {
-    return BuildTargets.getBinPath(getBuildTarget(), "%s.pex");
+    return BuildTargets.getScratchPath(getBuildTarget(), "%s.pex");
   }
 
   @Override
@@ -84,42 +90,26 @@ public class PythonBinary extends AbstractBuildRule implements BinaryBuildRule {
   }
 
   @VisibleForTesting
-  protected Path getMain() {
-    return main;
+  protected String getMainModule() {
+    return mainModule;
   }
 
   @Override
   public ImmutableList<String> getExecutableCommand(ProjectFilesystem projectFilesystem) {
     return ImmutableList.of(
-        pythonEnvironment.getPythonPath().toString(),
+        pathToPexExecuter.toString(),
         Preconditions.checkNotNull(
             projectFilesystem.getAbsolutifier().apply(getBinPath())).toString());
   }
 
   @Override
   public RuleKey.Builder appendDetailsToRuleKey(RuleKey.Builder builder) {
-    builder
-        .setReflectively("packageType", "pex")
-        .setReflectively("pythonVersion", pythonEnvironment.getPythonVersion().toString())
-        .setReflectively("mainModule", main.toString());
-
-    // Hash all the input components here so we can detect changes in both input file content
-    // and module name mappings.
-    for (ImmutableMap.Entry<String, Map<Path, SourcePath>> part : ImmutableMap.of(
-        "module", components.getModules(),
-        "resource", components.getResources(),
-        "nativeLibraries", components.getNativeLibraries()).entrySet()) {
-      for (Path name : ImmutableSortedSet.copyOf(part.getValue().keySet())) {
-        builder.setReflectively(part.getKey() + ":" + name, part.getValue().get(name));
-      }
-    }
-
     return builder;
   }
 
   @Override
   public ImmutableCollection<Path> getInputsToCompareToOutput() {
-    return ImmutableList.of();
+    return ImmutableSet.of();
   }
 
   @Override
@@ -133,12 +123,17 @@ public class PythonBinary extends AbstractBuildRule implements BinaryBuildRule {
     // Make sure the parent directory exists.
     steps.add(new MkdirStep(binPath.getParent()));
 
+    Path workingDirectory = BuildTargets.getGenPath(
+        getBuildTarget(), "__%s__working_directory");
+    steps.add(new MakeCleanDirectoryStep(workingDirectory));
+
     // Generate and return the PEX build step.
     steps.add(new PexStep(
         pathToPex,
         pythonEnvironment.getPythonPath(),
+        workingDirectory,
         binPath,
-        PythonUtil.toModuleName(getBuildTarget(), main.toString()),
+        mainModule,
         getResolver().getMappedPaths(components.getModules()),
         getResolver().getMappedPaths(components.getResources()),
         getResolver().getMappedPaths(components.getNativeLibraries())));

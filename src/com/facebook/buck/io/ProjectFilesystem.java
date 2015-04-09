@@ -28,8 +28,8 @@ import com.google.common.base.Preconditions;
 import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
 import com.google.common.collect.Collections2;
+import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableCollection;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSortedSet;
@@ -199,6 +199,25 @@ public class ProjectFilesystem {
   }
 
   /**
+   * @param path Absolute path or path relative to the project root.
+   * @return If {@code path} is relative, it is returned. If it is absolute and is inside the
+   *         project root, it is relativized to the project root and returned. Otherwise an absent
+   *         value is returned.
+   */
+  public Optional<Path> getPathRelativeToProjectRoot(Path path) {
+    path = path.normalize();
+    if (path.isAbsolute()) {
+      if (path.startsWith(projectRoot)) {
+        return Optional.of(MorePaths.relativize(projectRoot, path));
+      } else {
+        return Optional.absent();
+      }
+    } else {
+      return Optional.of(path);
+    }
+  }
+
+  /**
    * As {@link #getFileForRelativePath(java.nio.file.Path)}, but with the added twist that the
    * existence of the path is checked before returning.
    */
@@ -365,7 +384,7 @@ public class ProjectFilesystem {
    * Allows {@link Files#isDirectory} to be faked in tests.
    */
   public boolean isDirectory(Path child, LinkOption... linkOptions) {
-    return Files.isDirectory(child, linkOptions);
+    return Files.isDirectory(resolve(child), linkOptions);
   }
 
   /**
@@ -387,9 +406,18 @@ public class ProjectFilesystem {
 
   public ImmutableCollection<Path> getDirectoryContents(Path pathRelativeToProjectRoot)
       throws IOException {
+    Preconditions.checkArgument(!pathRelativeToProjectRoot.isAbsolute());
     Path path = getPathForRelativePath(pathRelativeToProjectRoot);
     try (DirectoryStream<Path> stream = Files.newDirectoryStream(path)) {
-      return ImmutableList.copyOf(stream);
+      return FluentIterable.from(stream)
+          .transform(
+              new Function<Path, Path>() {
+                @Override
+                public Path apply(Path absolutePath) {
+                  return MorePaths.relativize(projectRoot, absolutePath);
+                }
+              })
+          .toList();
     }
   }
 
@@ -424,6 +452,15 @@ public class ProjectFilesystem {
   }
 
   /**
+   * Sets the last modified time for the given path.
+   */
+  public Path setLastModifiedTime(Path pathRelativeToProjectRoot, FileTime time)
+      throws IOException {
+    Path path = getPathForRelativePath(pathRelativeToProjectRoot);
+    return Files.setLastModifiedTime(path, time);
+  }
+
+  /**
    * Recursively delete everything under the specified path.
    */
   public void rmdir(Path pathRelativeToProjectRoot) throws IOException {
@@ -437,6 +474,14 @@ public class ProjectFilesystem {
    */
   public void mkdirs(Path pathRelativeToProjectRoot) throws IOException {
     Files.createDirectories(resolve(pathRelativeToProjectRoot));
+  }
+
+  /**
+   * Creates a new file relative to the project root.
+   */
+  public Path createNewFile(Path pathRelativeToProjectRoot) throws IOException {
+    Path path = getPathForRelativePath(pathRelativeToProjectRoot);
+    return Files.createFile(path);
   }
 
   /**
@@ -470,7 +515,9 @@ public class ProjectFilesystem {
       throws IOException {
     try (Writer writer =
          new BufferedWriter(
-             new OutputStreamWriter(newFileOutputStream(pathRelativeToProjectRoot, attrs)))) {
+             new OutputStreamWriter(
+                 newFileOutputStream(pathRelativeToProjectRoot, attrs),
+                 Charsets.UTF_8))) {
       for (String line : lines) {
         writer.write(line);
         writer.write('\n');
@@ -684,6 +731,9 @@ public class ProjectFilesystem {
         // going to have to copy things recursively.
         MoreFiles.copyRecursively(sourcePath, targetPath);
       } else {
+        // When sourcePath is relative, resolve it from the targetPath. We're creating a hard link
+        // anyway.
+        sourcePath = targetPath.getParent().resolve(sourcePath).normalize();
         Files.createLink(targetPath, sourcePath);
       }
     } else {
@@ -798,6 +848,7 @@ public class ProjectFilesystem {
    * @return whether ignoredPaths contains path or any of its ancestors.
    */
   public boolean isIgnored(Path path) {
+    Preconditions.checkArgument(!path.isAbsolute());
     for (Path ignoredPath : getIgnorePaths()) {
       if (path.startsWith(ignoredPath)) {
         return true;
@@ -815,4 +866,11 @@ public class ProjectFilesystem {
     return Files.createTempFile(directory, prefix, suffix, attrs);
   }
 
+  public void touch(Path fileToTouch) throws IOException {
+    if (exists(fileToTouch)) {
+      setLastModifiedTime(fileToTouch, FileTime.fromMillis(System.currentTimeMillis()));
+    } else {
+      createNewFile(fileToTouch);
+    }
+  }
 }

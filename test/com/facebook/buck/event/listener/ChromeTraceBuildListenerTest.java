@@ -43,7 +43,7 @@ import com.facebook.buck.rules.BuildRuleStatus;
 import com.facebook.buck.rules.BuildRuleSuccess;
 import com.facebook.buck.rules.CacheResult;
 import com.facebook.buck.rules.FakeBuildRule;
-import com.facebook.buck.rules.ImmutableBuildRuleType;
+import com.facebook.buck.rules.BuildRuleType;
 import com.facebook.buck.rules.RuleKey;
 import com.facebook.buck.rules.SourcePathResolver;
 import com.facebook.buck.step.ExecutionContext;
@@ -142,7 +142,7 @@ public class ChromeTraceBuildListenerTest {
     BuildTarget target = BuildTargetFactory.newInstance("//fake:rule");
 
     FakeBuildRule rule = new FakeBuildRule(
-        ImmutableBuildRuleType.of("fake_rule"),
+        BuildRuleType.of("fake_rule"),
         target,
         new SourcePathResolver(new BuildRuleResolver()),
         ImmutableSortedSet.<BuildRule>of()
@@ -185,7 +185,7 @@ public class ChromeTraceBuildListenerTest {
     )) {
       eventBus.post(new TraceEvent("scheming", ChromeTraceEvent.Phase.BEGIN));
       eventBus.post(new TraceEvent("scheming", ChromeTraceEvent.Phase.END,
-          ImmutableMap.<String, String>of("success", "false")));
+          ImmutableMap.of("success", "false")));
     }
 
     eventBus.post(BuildEvent.finished(buildTargets, 0));

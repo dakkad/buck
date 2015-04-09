@@ -78,8 +78,8 @@ public abstract class ShellStep implements Step {
 
   protected ShellStep(@Nullable File workingDirectory) {
     this.workingDirectory = workingDirectory;
-    this.stdout = Optional.<String>absent();
-    this.stderr = Optional.<String>absent();
+    this.stdout = Optional.absent();
+    this.stderr = Optional.absent();
   }
 
   /**
@@ -109,7 +109,7 @@ public abstract class ShellStep implements Step {
       builder.setDirectory(context.getProjectDirectoryRoot().toAbsolutePath().toFile());
     }
 
-    Optional<String> stdin = getStdin();
+    Optional<String> stdin = getStdin(context);
     if (stdin.isPresent()) {
       builder.setRedirectInput(ProcessBuilder.Redirect.PIPE);
     }
@@ -160,7 +160,7 @@ public abstract class ShellStep implements Step {
     ProcessExecutor.Result result = executor.launchAndExecute(
         params,
         options.build(),
-        getStdin(),
+        getStdin(context),
         getTimeout());
     stdout = result.getStdout();
     stderr = result.getStderr();
@@ -206,7 +206,8 @@ public abstract class ShellStep implements Step {
     return shellCommandArgs;
   }
 
-  protected Optional<String> getStdin() {
+  @SuppressWarnings("unused")
+  protected Optional<String> getStdin(ExecutionContext context) {
     return Optional.absent();
   }
 
@@ -230,7 +231,7 @@ public abstract class ShellStep implements Step {
 
     // Quote the arguments to the shell command as needed (this applies to $0 as well
     // e.g. if we run '/path/a b.sh' quoting is needed).
-    Iterable<String> cmd = Iterables.transform(getShellCommand(context), Escaper.BASH_ESCAPER);
+    Iterable<String> cmd = Iterables.transform(getShellCommand(context), Escaper.SHELL_ESCAPER);
 
     String shellCommand = Joiner.on(" ").join(Iterables.concat(env, cmd));
     if (getWorkingDirectory() == null) {

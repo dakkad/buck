@@ -170,6 +170,7 @@ ga('send', 'pageview');
     // TODO(mbolin): document android_instrumentation_apk
     // TODO(mbolin): document robolectric_test
     {foreach $rule in [
+        'android_aar',
         'android_binary',
         'android_build_config',
         'android_library',
@@ -552,6 +553,18 @@ ga('send', 'pageview');
   List of <a href="{ROOT}concept/build_target_pattern.html">build
   target patterns</a> that identify the build rules that can include
   this rule in its <code>deps</code>.
+  {/param}
+{/call}
+{/template}
+
+/***/
+{template .tests_arg}
+{call buck.arg}
+  {param name : 'tests' /}
+  {param default : '[]' /}
+  {param desc}
+  List of <a href="{ROOT}concept/build_target.html">build target</a> that
+  identify the test rules that exercise this target.
   {/param}
 {/call}
 {/template}

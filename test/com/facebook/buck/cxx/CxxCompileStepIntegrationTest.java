@@ -31,6 +31,7 @@ import com.facebook.buck.testutil.integration.DebuggableTemporaryFolder;
 import com.google.common.base.Optional;
 import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 
 import org.hamcrest.Matchers;
 import org.junit.Rule;
@@ -48,7 +49,7 @@ public class CxxCompileStepIntegrationTest {
 
   private void assertCompDir(Path compDir, Optional<String> failure) throws Exception {
     ProjectFilesystem filesystem = new ProjectFilesystem(tmp.getRoot().toPath());
-    CxxPlatform platform = DefaultCxxPlatforms.build(new FakeBuckConfig());
+    CxxPlatform platform = DefaultCxxPlatforms.build(new CxxBuckConfig(new FakeBuckConfig()));
 
     // Build up the paths to various files the archive step will use.
     ImmutableList<String> compiler =
@@ -58,6 +59,13 @@ public class CxxCompileStepIntegrationTest {
     Path input = filesystem.resolve(relativeInput);
     filesystem.writeContentsToPath("int main() {}", relativeInput);
 
+    ImmutableList.Builder<String> cmd = ImmutableList.builder();
+    cmd.addAll(compiler);
+    cmd.add(CxxPreprocessAndCompileStep.Operation.COMPILE.getFlag());
+    cmd.add("-g");
+    cmd.add("-o", output.toString());
+    cmd.add(relativeInput.toString());
+
     DebugPathSanitizer sanitizer = new DebugPathSanitizer(
         200,
         File.separatorChar,
@@ -65,11 +73,12 @@ public class CxxCompileStepIntegrationTest {
         ImmutableBiMap.<Path, Path>of());
 
     // Build an archive step.
-    CxxCompileStep step = new CxxCompileStep(
-        compiler,
-        ImmutableList.of("-g"),
+    CxxPreprocessAndCompileStep step = new CxxPreprocessAndCompileStep(
+        CxxPreprocessAndCompileStep.Operation.COMPILE,
         output,
         relativeInput,
+        cmd.build(),
+        ImmutableMap.<Path, Path>of(),
         Optional.of(sanitizer));
 
     // Execute the archive step and verify it ran successfully.

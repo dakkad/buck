@@ -30,12 +30,11 @@ import com.google.common.collect.Collections2;
 import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableCollection;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSortedSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Ordering;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
 import com.google.common.hash.Hashing;
 import com.google.common.io.ByteStreams;
 
@@ -48,11 +47,12 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.Reader;
 import java.io.StringReader;
+import java.math.BigInteger;
 import java.nio.file.CopyOption;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.FileSystems;
-import java.nio.file.FileVisitor;
 import java.nio.file.FileVisitOption;
+import java.nio.file.FileVisitor;
 import java.nio.file.LinkOption;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
@@ -65,14 +65,19 @@ import java.util.Collection;
 import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Random;
 import java.util.Set;
 
 import javax.annotation.Nullable;
 
 // TODO(natthu): Implement methods that throw UnsupportedOperationException.
 public class FakeProjectFilesystem extends ProjectFilesystem {
+
+  private static final Random RANDOM = new Random();
 
   private static final BasicFileAttributes DEFAULT_FILE_ATTRIBUTES =
       new BasicFileAttributes() {
@@ -134,25 +139,38 @@ public class FakeProjectFilesystem extends ProjectFilesystem {
   private final Clock clock;
 
   public FakeProjectFilesystem() {
-    this(new FakeClock(0), Paths.get(".").toFile());
+    this(new FakeClock(0), Paths.get(".").toFile(), ImmutableSet.<Path>of());
   }
 
   // We accept a File here since that's what's returned by TemporaryFolder.
   public FakeProjectFilesystem(File root) {
-    this(new FakeClock(0), root);
+    this(new FakeClock(0), root, ImmutableSet.<Path>of());
   }
 
   public FakeProjectFilesystem(Clock clock) {
-    this(clock, Paths.get(".").toFile());
+    this(clock, Paths.get(".").toFile(), ImmutableSet.<Path>of());
   }
 
-  public FakeProjectFilesystem(Clock clock, File root) {
+  public FakeProjectFilesystem(Set<Path> files) {
+    this(new FakeClock(0), Paths.get(".").toFile(), files);
+  }
+
+  public FakeProjectFilesystem(Clock clock, File root, Set<Path> files) {
     super(root.toPath());
-    fileContents = Maps.newHashMap();
-    fileAttributes = Maps.newHashMap();
-    fileLastModifiedTimes = Maps.newHashMap();
-    symLinks = Maps.newHashMap();
-    directories = Sets.newHashSet();
+    // We use LinkedHashMap to preserve insertion order, so the
+    // behavior of this test is consistent across versions. (It also lets
+    // us write tests which explicitly test iterating over entries in
+    // different orders.)
+    fileContents = new LinkedHashMap<>();
+    fileLastModifiedTimes = new LinkedHashMap<>();
+    FileTime modifiedTime = FileTime.fromMillis(clock.currentTimeMillis());
+    for (Path file : files) {
+      fileContents.put(file, new byte[0]);
+      fileLastModifiedTimes.put(file, modifiedTime);
+    }
+    fileAttributes = new LinkedHashMap<>();
+    symLinks = new LinkedHashMap<>();
+    directories = new LinkedHashSet<>();
     this.clock = Preconditions.checkNotNull(clock);
 
     // Generally, tests don't care whether files exist.
@@ -292,6 +310,16 @@ public class FakeProjectFilesystem extends ProjectFilesystem {
   }
 
   @Override
+  public Path setLastModifiedTime(Path path, FileTime time) throws IOException {
+    Path normalizedPath = path.normalize();
+    if (!exists(normalizedPath)) {
+      throw new NoSuchFileException(path.toString());
+    }
+    fileLastModifiedTimes.put(normalizedPath, time);
+    return normalizedPath;
+  }
+
+  @Override
   public void rmdir(Path path) throws IOException {
     Path normalizedPath = path.normalize();
     for (Iterator<Path> iterator = fileContents.keySet().iterator(); iterator.hasNext();) {
@@ -313,6 +341,12 @@ public class FakeProjectFilesystem extends ProjectFilesystem {
       directories.add(subpath);
       fileLastModifiedTimes.put(subpath, FileTime.fromMillis(clock.currentTimeMillis()));
     }
+  }
+
+  @Override
+  public Path createNewFile(Path path) throws IOException {
+    writeBytesToPath(new byte[0], path);
+    return path;
   }
 
   @Override
@@ -471,10 +505,6 @@ public class FakeProjectFilesystem extends ProjectFilesystem {
     }
   }
 
-  public void touch(Path path) throws IOException {
-    writeContentsToPath("", path);
-  }
-
   private Collection<Path> filesUnderPath(final Path dirPath) {
     return Collections2.filter(fileContents.keySet(), new Predicate<Path>() {
           @Override
@@ -513,7 +543,42 @@ public class FakeProjectFilesystem extends ProjectFilesystem {
   }
 
   @Override
-  public void createZip(Collection<Path> pathsToIncludeInZip, File out) throws IOException {
+  public void createZip(
+      Collection<Path> pathsToIncludeInZip,
+      File out,
+      ImmutableMap<Path, String> additionalFileContents) throws IOException {
     throw new UnsupportedOperationException();
   }
+
+  @Override
+  public void touch(Path fileToTouch) throws IOException {
+    if (exists(fileToTouch)) {
+      setLastModifiedTime(fileToTouch, FileTime.fromMillis(clock.currentTimeMillis()));
+    } else {
+      createNewFile(fileToTouch);
+    }
+  }
+
+  @Override
+  public Path createTempFile(
+      Path directory,
+      String prefix,
+      String suffix,
+      FileAttribute<?>... attrs) throws IOException {
+    Path path;
+    do {
+      String str = new BigInteger(130, RANDOM).toString(32);
+      path = directory.resolve(prefix + str + suffix);
+    } while (exists(path));
+    touch(path);
+    return path;
+  }
+
+  @Override
+  public void move(Path source, Path target, CopyOption... options) throws IOException {
+    fileContents.put(target.normalize(), fileContents.remove(source.normalize()));
+    fileAttributes.put(target.normalize(), fileAttributes.remove(source.normalize()));
+    fileLastModifiedTimes.put(target.normalize(), fileLastModifiedTimes.remove(source.normalize()));
+  }
+
 }

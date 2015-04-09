@@ -17,19 +17,14 @@
 package com.facebook.buck.httpserver;
 
 import com.facebook.buck.event.BuckEvent;
-import com.facebook.buck.rules.ActionGraph;
-import com.facebook.buck.rules.BuildRule;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.common.base.Throwables;
 import com.google.common.collect.Maps;
 
 import org.eclipse.jetty.websocket.api.Session;
-import org.eclipse.jetty.websocket.api.UpgradeRequest;
-import org.eclipse.jetty.websocket.api.UpgradeResponse;
 import org.eclipse.jetty.websocket.api.WebSocketAdapter;
+import org.eclipse.jetty.websocket.servlet.ServletUpgradeRequest;
+import org.eclipse.jetty.websocket.servlet.ServletUpgradeResponse;
 import org.eclipse.jetty.websocket.servlet.WebSocketCreator;
 import org.eclipse.jetty.websocket.servlet.WebSocketServlet;
 import org.eclipse.jetty.websocket.servlet.WebSocketServletFactory;
@@ -40,8 +35,6 @@ import java.util.Set;
 
 @SuppressWarnings("serial")
 public class StreamingWebSocketServlet extends WebSocketServlet {
-
-  private static final JsonNodeFactory jsonNodeFactory = JsonNodeFactory.instance;
 
   // This is threadsafe
   private final Set<MyWebSocket> connections;
@@ -58,7 +51,7 @@ public class StreamingWebSocketServlet extends WebSocketServlet {
     // parent class. This is why we override the default WebSocketCreator for the factory.
     WebSocketCreator wrapperCreator = new WebSocketCreator() {
       @Override
-      public Object createWebSocket(UpgradeRequest req, UpgradeResponse resp) {
+      public Object createWebSocket(ServletUpgradeRequest req, ServletUpgradeResponse resp) {
         return new MyWebSocket();
       }
     };
@@ -110,24 +103,7 @@ public class StreamingWebSocketServlet extends WebSocketServlet {
     @Override
     public void onWebSocketText(String message) {
       super.onWebSocketText(message);
-      if (isNotConnected()) {
-        return;
-      }
-
       // TODO(mbolin): Handle requests from client instead of only pushing data down.
     }
-  }
-
-  static ObjectNode createJsonForGraph(ActionGraph graph) {
-    ObjectNode nodesToDeps = jsonNodeFactory.objectNode();
-    for (BuildRule source : graph.getNodes()) {
-      ArrayNode deps = jsonNodeFactory.arrayNode();
-      for (BuildRule sink : graph.getOutgoingNodesFor(source)) {
-        deps.add(sink.getFullyQualifiedName());
-      }
-      nodesToDeps.put(source.getFullyQualifiedName(), deps);
-    }
-
-    return nodesToDeps;
   }
 }

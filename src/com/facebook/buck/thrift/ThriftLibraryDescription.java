@@ -32,7 +32,6 @@ import com.facebook.buck.rules.BuildRuleType;
 import com.facebook.buck.rules.BuildRules;
 import com.facebook.buck.rules.BuildTargetSourcePath;
 import com.facebook.buck.rules.Description;
-import com.facebook.buck.rules.ImmutableBuildRuleType;
 import com.facebook.buck.rules.ImplicitDepsInferringDescription;
 import com.facebook.buck.rules.SourcePath;
 import com.facebook.buck.rules.SourcePathResolver;
@@ -60,11 +59,11 @@ public class ThriftLibraryDescription
     Flavored,
     ImplicitDepsInferringDescription<ThriftConstructorArg> {
 
-  public static final BuildRuleType TYPE = ImmutableBuildRuleType.of("thrift_library");
+  public static final BuildRuleType TYPE = BuildRuleType.of("thrift_library");
   private static final Flavor INCLUDE_SYMLINK_TREE_FLAVOR =
       ImmutableFlavor.of("include_symlink_tree");
   private static final BuildRuleType INCLUDE_SYMLINK_TREE_TYPE =
-      ImmutableBuildRuleType.of("include_symlink_tree");
+      BuildRuleType.of("include_symlink_tree");
 
   private final ThriftBuckConfig thriftBuckConfig;
   private final FlavorDomain<ThriftLanguageSpecificEnhancer> enhancers;
@@ -90,7 +89,7 @@ public class ThriftLibraryDescription
    */
   @VisibleForTesting
   protected Path getIncludeRoot(BuildTarget target) {
-    return BuildTargets.getBinPath(target, "%s/include-symlink-tree");
+    return BuildTargets.getScratchPath(target, "%s/include-symlink-tree");
   }
 
   @VisibleForTesting
@@ -150,7 +149,7 @@ public class ThriftLibraryDescription
    * Build rule type to use for the rule which generates the language sources.
    */
   private static final BuildRuleType THRIFT_COMPILE_TYPE =
-      ImmutableBuildRuleType.of("thrift_compile");
+      BuildRuleType.of("thrift_compile");
 
   /**
    * Create the build rules which compile the input thrift sources into their respective
@@ -321,7 +320,8 @@ public class ThriftLibraryDescription
     // this rule in the findImplicitDepsFromParams method, so this should always exist by
     // the time we get here.
     ThriftLibrary thriftLibrary =
-        (ThriftLibrary) resolver.getRule(target.getUnflavoredTarget());
+        (ThriftLibrary) resolver.getRule(
+            BuildTarget.of(target.getUnflavoredBuildTarget()));
 
     // We implicitly pass the language-specific flavors of your thrift lib dependencies as
     // language specific deps to the language specific enhancer.
@@ -415,7 +415,7 @@ public class ThriftLibraryDescription
 
     // The flavored versions of this rule must always implicitly depend on the non-flavored
     // version, as it sets up the include rules for dependents.
-    deps.add(buildTarget.getUnflavoredTarget());
+    deps.add(BuildTarget.of(buildTarget.getUnflavoredBuildTarget()));
 
     // Convert all the thrift library deps into their flavored counterparts and
     // add them to our list of deps, to make sure they get included in the target graph.

@@ -16,10 +16,12 @@
 
 package com.facebook.buck.android;
 
+import com.facebook.buck.android.AndroidBinary.TargetCpuType;
 import com.facebook.buck.model.BuildTarget;
 import com.facebook.buck.model.BuildTargets;
 import com.facebook.buck.rules.AbstractBuildRule;
 import com.facebook.buck.rules.BuildContext;
+import com.facebook.buck.rules.BuildRule;
 import com.facebook.buck.rules.BuildRuleParams;
 import com.facebook.buck.rules.BuildableContext;
 import com.facebook.buck.rules.RuleKey;
@@ -41,32 +43,38 @@ public class AndroidAar extends AbstractBuildRule {
   private final Path temp;
   private final AndroidManifest manifest;
   private final AndroidResource androidResource;
-  private final AndroidLibrary androidLibrary;
+  private final BuildRule javaBinary;
   private final AssembleDirectories assembleResourceDirectories;
   private final AssembleDirectories assembleAssetsDirectories;
+  private final ImmutableSet<Path> nativeLibAssetsDirectories;
+  private final ImmutableSet<Path> nativeLibsDirectories;
 
   public AndroidAar(
       BuildRuleParams params,
       SourcePathResolver resolver,
       AndroidManifest manifest,
       AndroidResource androidResource,
-      AndroidLibrary androidLibrary,
+      BuildRule javaBinary,
       AssembleDirectories assembleResourceDirectories,
-      AssembleDirectories assembleAssetsDirectories) {
+      AssembleDirectories assembleAssetsDirectories,
+      ImmutableSet<Path> nativeLibAssetsDirectories,
+      ImmutableSet<Path> nativeLibsDirectories) {
     super(params, resolver);
     BuildTarget buildTarget = params.getBuildTarget();
     this.pathToOutputFile = BuildTargets.getGenPath(buildTarget, "%s.aar");
-    this.temp = BuildTargets.getBinPath(buildTarget, "__temp__%s");
+    this.temp = BuildTargets.getScratchPath(buildTarget, "__temp__%s");
     this.manifest = manifest;
     this.androidResource = androidResource;
-    this.androidLibrary = androidLibrary;
+    this.javaBinary = javaBinary;
     this.assembleAssetsDirectories = assembleAssetsDirectories;
     this.assembleResourceDirectories = assembleResourceDirectories;
+    this.nativeLibAssetsDirectories = nativeLibAssetsDirectories;
+    this.nativeLibsDirectories = nativeLibsDirectories;
   }
 
   @Override
   public ImmutableCollection<Path> getInputsToCompareToOutput() {
-    return ImmutableList.<Path>of();
+    return ImmutableList.of();
   }
 
   @Override
@@ -106,12 +114,19 @@ public class AndroidAar extends AbstractBuildRule {
             CopyStep.DirectoryMode.CONTENTS_ONLY));
 
     // put .jar into tmp folder
-    Path jar = androidLibrary.getPathToOutputFile();
-    if (jar != null) {
-      commands.add(CopyStep.forFile(jar, temp.resolve("classes.jar")));
+    commands.add(CopyStep.forFile(javaBinary.getPathToOutputFile(), temp.resolve("classes.jar")));
+
+    // move native libs into tmp folder under jni/
+    for (Path dir : nativeLibsDirectories) {
+      commands.add(CopyStep.forDirectory(dir, temp.resolve("jni"),
+              CopyStep.DirectoryMode.CONTENTS_ONLY));
     }
-    // TODO(user) if there is neither src nor resource, there is no JAR,
-    // in such case we need to generate an empty JAR, and copy the dependence to /libs folder
+
+    // move native assets into tmp folder under assets/lib/
+    for (Path dir : nativeLibAssetsDirectories) {
+      CopyNativeLibraries.copyNativeLibrary(
+          dir, temp.resolve("assets").resolve("lib"), ImmutableSet.<TargetCpuType>of(), commands);
+    }
 
     // do the zipping
     commands.add(

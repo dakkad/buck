@@ -156,8 +156,8 @@ public class EventSerializationTest {
 
   @Test
   public void testTestRunEventFinished() throws IOException {
-    TestRunEvent.Finished event = TestRunEvent.finished(ImmutableSet.<String>of("target"),
-        ImmutableList.<TestResults>of(generateFakeTestResults()));
+    TestRunEvent.Finished event = TestRunEvent.finished(ImmutableSet.of("target"),
+        ImmutableList.of(generateFakeTestResults()));
     event.configure(timestamp, nanoTime, threadId, buildId);
     String message = new ObjectMapper().writeValueAsString(event);
     assertJsonEquals("{\"timestamp\":%d,\"nanoTime\":%d,\"threadId\":%d,\"buildId\":\"%s\",\"" +
@@ -165,14 +165,14 @@ public class EventSerializationTest {
         "null,\"type\":\"FAILURE\",\"time\":0,\"message\":null," +
         "\"stacktrace\":null,\"stdOut\":null," +
         "\"stdErr\":null}],\"failureCount\":1,\"totalTime\":0,\"success\":false}]," +
-        "\"failureCount\":1,\"contacts\":[]," +
+        "\"failureCount\":1,\"contacts\":[],\"labels\":[]," +
         "\"dependenciesPassTheirTests\":true,\"success\":false}]," +
         "\"type\":\"RunComplete\"}", message);
   }
 
   @Test
   public void testIndividualTestEventStarted() throws IOException {
-    IndividualTestEvent.Started event = IndividualTestEvent.started(ImmutableList.<String>of(""));
+    IndividualTestEvent.Started event = IndividualTestEvent.started(ImmutableList.of(""));
     event.configure(timestamp, nanoTime, threadId, buildId);
     String message = new ObjectMapper().writeValueAsString(event);
     assertJsonEquals("{\"timestamp\":%d,\"nanoTime\":%d,\"threadId\":%d,\"buildId\":\"%s\"," +
@@ -190,7 +190,7 @@ public class EventSerializationTest {
         ":null,\"type\":\"FAILURE\",\"time\":0,\"message\":null," +
         "\"stacktrace\":null,\"stdOut\":null," +
         "\"stdErr\":null}],\"failureCount\":1,\"totalTime\":0,\"success\":false}]," +
-        "\"failureCount\":1,\"contacts\":[]," +
+        "\"failureCount\":1,\"contacts\":[],\"labels\":[]," +
         "\"dependenciesPassTheirTests\":true,\"success\":false}," +
         "\"type\":\"ResultsAvailable\"}", message);
   }

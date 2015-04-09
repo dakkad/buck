@@ -221,11 +221,6 @@ public class AndroidResource extends AbstractBuildRule
   }
 
   @Override
-  public boolean hasWhitelistedStrings() {
-    return hasWhitelistedStrings;
-  }
-
-  @Override
   @Nullable
   public Path getAssets() {
     return assets;
@@ -385,9 +380,6 @@ public class AndroidResource extends AbstractBuildRule
     }
     if (assets != null) {
       collector.addAssetsDirectory(getBuildTarget(), assets);
-    }
-    if (manifestFile != null) {
-      collector.addManifestFile(getBuildTarget(), getResolver().getPath(manifestFile));
     }
   }
 

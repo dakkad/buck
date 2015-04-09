@@ -37,18 +37,20 @@ import com.facebook.buck.apple.xcode.xcodeproj.SourceTreePath;
 import com.facebook.buck.log.Logger;
 import com.facebook.buck.parser.NoSuchBuildTargetException;
 import com.facebook.buck.rules.SourcePath;
-import com.facebook.buck.rules.SourcePathResolver;
 import com.facebook.buck.rules.TargetNode;
+import com.facebook.buck.rules.coercer.FrameworkPath;
+import com.facebook.buck.rules.coercer.SourceWithFlags;
 import com.facebook.buck.shell.GenruleDescription;
+import com.google.common.base.Function;
 import com.google.common.base.Joiner;
 import com.google.common.base.Optional;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -70,7 +72,7 @@ public class NewNativeTargetProjectMutator {
   }
 
   private final PathRelativizer pathRelativizer;
-  private final SourcePathResolver sourcePathResolver;
+  private final Function<SourcePath, Path> sourcePathResolver;
 
   private PBXTarget.ProductType productType = PBXTarget.ProductType.BUNDLE;
   private Path productOutputPath = Paths.get("");
@@ -78,8 +80,10 @@ public class NewNativeTargetProjectMutator {
   private String targetName = "";
   private ImmutableList<String> targetGroupPath = ImmutableList.of();
   private Optional<String> gid = Optional.absent();
-  private Iterable<GroupedSource> sources = ImmutableList.of();
-  private ImmutableMap<SourcePath, String> sourceFlags = ImmutableMap.of();
+  private ImmutableSet<SourceWithFlags> sourcesWithFlags = ImmutableSet.of();
+  private ImmutableSet<SourcePath> extraXcodeSources = ImmutableSet.of();
+  private ImmutableSet<SourcePath> publicHeaders = ImmutableSet.of();
+  private ImmutableSet<SourcePath> privateHeaders = ImmutableSet.of();
   private boolean shouldGenerateCopyHeadersPhase = true;
   private ImmutableSet<FrameworkPath> frameworks = ImmutableSet.of();
   private ImmutableSet<PBXFileReference> archives = ImmutableSet.of();
@@ -91,7 +95,7 @@ public class NewNativeTargetProjectMutator {
 
   public NewNativeTargetProjectMutator(
       PathRelativizer pathRelativizer,
-      SourcePathResolver sourcePathResolver) {
+      Function<SourcePath, Path> sourcePathResolver) {
     this.pathRelativizer = pathRelativizer;
     this.sourcePathResolver = sourcePathResolver;
   }
@@ -128,11 +132,27 @@ public class NewNativeTargetProjectMutator {
     return this;
   }
 
-  public NewNativeTargetProjectMutator setSources(
-      Iterable<GroupedSource> sources,
-      Map<SourcePath, String> sourceFlags) {
-    this.sources = sources;
-    this.sourceFlags = ImmutableMap.copyOf(sourceFlags);
+  public NewNativeTargetProjectMutator setSourcesWithFlags(
+      Set<SourceWithFlags> sourcesWithFlags) {
+    this.sourcesWithFlags = ImmutableSet.copyOf(sourcesWithFlags);
+    return this;
+  }
+
+  public NewNativeTargetProjectMutator setExtraXcodeSources(
+      Set<SourcePath> extraXcodeSources) {
+    this.extraXcodeSources = ImmutableSet.copyOf(extraXcodeSources);
+    return this;
+  }
+
+  public NewNativeTargetProjectMutator setPublicHeaders(
+      Set<SourcePath> publicHeaders) {
+    this.publicHeaders = ImmutableSet.copyOf(publicHeaders);
+    return this;
+  }
+
+  public NewNativeTargetProjectMutator setPrivateHeaders(
+      Set<SourcePath> privateHeaders) {
+    this.privateHeaders = ImmutableSet.copyOf(privateHeaders);
     return this;
   }
 
@@ -227,8 +247,17 @@ public class NewNativeTargetProjectMutator {
         !shouldGenerateCopyHeadersPhase
             ? Optional.<PBXHeadersBuildPhase>absent()
             : Optional.of(headersBuildPhase),
-        sources,
-        sourceFlags);
+        RuleUtils.createGroupsFromSourcePaths(
+            new Function<SourcePath, Path>() {
+              @Override
+              public Path apply(SourcePath sourcePath) {
+                return pathRelativizer.outputPathToSourcePath(sourcePath);
+              }
+            },
+            sourcesWithFlags,
+            extraXcodeSources,
+            publicHeaders,
+            privateHeaders));
 
     if (!sourcesBuildPhase.getFiles().isEmpty()) {
       target.getBuildPhases().add(sourcesBuildPhase);
@@ -239,68 +268,79 @@ public class NewNativeTargetProjectMutator {
   }
 
   private void traverseGroupsTreeAndHandleSources(
-      PBXGroup sourcesGroup,
-      PBXSourcesBuildPhase sourcesBuildPhase,
-      Optional<PBXHeadersBuildPhase> headersBuildPhase,
-      Iterable<GroupedSource> groupedSources,
-      ImmutableMap<SourcePath, String> sourceFlags) {
-    for (GroupedSource groupedSource : groupedSources) {
-      switch (groupedSource.getType()) {
-        case SOURCE_PATH:
-          if (sourcePathResolver.isSourcePathExtensionInSet(
-              groupedSource.getSourcePath().get(),
-              FileExtensions.CLANG_HEADERS)) {
-            addSourcePathToHeadersBuildPhase(
-                groupedSource.getSourcePath().get(),
-                sourcesGroup,
-                headersBuildPhase,
-                sourceFlags);
-          } else {
-            addSourcePathToSourcesBuildPhase(
-                groupedSource.getSourcePath().get(),
-                sourcesGroup,
-                sourcesBuildPhase,
-                sourceFlags);
-          }
-          break;
-        case SOURCE_GROUP:
-          PBXGroup newSourceGroup = sourcesGroup.getOrCreateChildGroupByName(
-              groupedSource.getSourceGroupName().get());
-          // Sources groups stay in the order in which they're declared in the BUCK file.
-          newSourceGroup.setSortPolicy(PBXGroup.SortPolicy.UNSORTED);
-          traverseGroupsTreeAndHandleSources(
-              newSourceGroup,
-              sourcesBuildPhase,
-              headersBuildPhase,
-              groupedSource.getSourceGroup().get(),
-              sourceFlags);
-          break;
-        default:
-          throw new RuntimeException("Unhandled grouped source type: " + groupedSource.getType());
+      final PBXGroup sourcesGroup,
+      final PBXSourcesBuildPhase sourcesBuildPhase,
+      final Optional<PBXHeadersBuildPhase> headersBuildPhase,
+      Iterable<GroupedSource> groupedSources) {
+    GroupedSource.Visitor visitor = new GroupedSource.Visitor() {
+      @Override
+      public void visitSourceWithFlags(SourceWithFlags sourceWithFlags) {
+        addSourcePathToSourcesBuildPhase(
+            sourceWithFlags,
+            sourcesGroup,
+            sourcesBuildPhase);
       }
+
+      @Override
+      public void visitPublicHeader(SourcePath publicHeader) {
+        addSourcePathToHeadersBuildPhase(
+            publicHeader,
+            sourcesGroup,
+            headersBuildPhase,
+            HeaderVisibility.PUBLIC);
+      }
+
+      @Override
+      public void visitPrivateHeader(SourcePath privateHeader) {
+        addSourcePathToHeadersBuildPhase(
+            privateHeader,
+            sourcesGroup,
+            headersBuildPhase,
+            HeaderVisibility.PROJECT);
+      }
+
+      @Override
+      public void visitSourceGroup(
+          String sourceGroupName,
+          Path sourceGroupPathRelativeToTarget,
+          List<GroupedSource> sourceGroup) {
+        PBXGroup newSourceGroup = sourcesGroup.getOrCreateChildGroupByName(sourceGroupName);
+        newSourceGroup.setSourceTree(PBXReference.SourceTree.SOURCE_ROOT);
+        newSourceGroup.setPath(sourceGroupPathRelativeToTarget.toString());
+        // Sources groups stay in the order in which they're in the GroupedSource.
+        newSourceGroup.setSortPolicy(PBXGroup.SortPolicy.UNSORTED);
+        traverseGroupsTreeAndHandleSources(
+            newSourceGroup,
+            sourcesBuildPhase,
+            headersBuildPhase,
+            sourceGroup);
+      }
+    };
+    for (GroupedSource groupedSource : groupedSources) {
+      groupedSource.visit(visitor);
     }
   }
 
   private void addSourcePathToSourcesBuildPhase(
-      SourcePath sourcePath,
+      SourceWithFlags sourceWithFlags,
       PBXGroup sourcesGroup,
-      PBXSourcesBuildPhase sourcesBuildPhase,
-      ImmutableMap<SourcePath, String> sourceFlags) {
+      PBXSourcesBuildPhase sourcesBuildPhase) {
     PBXFileReference fileReference = sourcesGroup.getOrCreateFileReferenceBySourceTreePath(
         new SourceTreePath(
             PBXReference.SourceTree.SOURCE_ROOT,
-            pathRelativizer.outputDirToRootRelative(sourcePathResolver.getPath(sourcePath))));
+            pathRelativizer.outputDirToRootRelative(
+                sourcePathResolver.apply(sourceWithFlags.getSourcePath()))));
     PBXBuildFile buildFile = new PBXBuildFile(fileReference);
     sourcesBuildPhase.getFiles().add(buildFile);
-    String customFlags = sourceFlags.get(sourcePath);
-    if (customFlags != null) {
+    List<String> customFlags = sourceWithFlags.getFlags();
+    if (!customFlags.isEmpty()) {
       NSDictionary settings = new NSDictionary();
-      settings.put("COMPILER_FLAGS", customFlags);
+      settings.put("COMPILER_FLAGS", Joiner.on(' ').join(customFlags));
       buildFile.setSettings(Optional.of(settings));
     }
     LOG.verbose(
         "Added source path %s to group %s, flags %s, PBXFileReference %s",
-        sourcePath,
+        sourceWithFlags,
         sourcesGroup.getName(),
         customFlags,
         fileReference);
@@ -310,19 +350,17 @@ public class NewNativeTargetProjectMutator {
       SourcePath headerPath,
       PBXGroup headersGroup,
       Optional<PBXHeadersBuildPhase> headersBuildPhase,
-      ImmutableMap<SourcePath, String> sourceFlags) {
+      HeaderVisibility visibility) {
     PBXFileReference fileReference = headersGroup.getOrCreateFileReferenceBySourceTreePath(
         new SourceTreePath(
             PBXReference.SourceTree.SOURCE_ROOT,
             pathRelativizer.outputPathToSourcePath(headerPath)));
     PBXBuildFile buildFile = new PBXBuildFile(fileReference);
-    String headerFlags = sourceFlags.get(headerPath);
-    if (headerFlags != null) {
-      // If we specify nothing, Xcode will use "project" visibility.
+    if (visibility != HeaderVisibility.PROJECT) {
       NSDictionary settings = new NSDictionary();
       settings.put(
           "ATTRIBUTES",
-          new NSArray(new NSString(HeaderVisibility.fromString(headerFlags).toXcodeAttribute())));
+          new NSArray(new NSString(visibility.toXcodeAttribute())));
       buildFile.setSettings(Optional.of(settings));
     } else {
       buildFile.setSettings(Optional.<NSDictionary>absent());
@@ -330,17 +368,15 @@ public class NewNativeTargetProjectMutator {
     if (headersBuildPhase.isPresent()) {
       headersBuildPhase.get().getFiles().add(buildFile);
       LOG.verbose(
-          "Added header path %s to headers group %s, flags %s, PBXFileReference %s",
+          "Added header path %s to headers group %s, PBXFileReference %s",
           headerPath,
           headersGroup.getName(),
-          headerFlags,
           fileReference);
     } else {
       LOG.verbose(
-          "Skipped header path %s to headers group %s, flags %s, PBXFileReference %s",
+          "Skipped header path %s to headers group %s, PBXFileReference %s",
           headerPath,
           headersGroup.getName(),
-          headerFlags,
           fileReference);
     }
   }
@@ -386,7 +422,7 @@ public class NewNativeTargetProjectMutator {
     target.getBuildPhases().add(phase);
     for (AppleResourceDescription.Arg resource : resources) {
       Iterable<Path> paths = Iterables.concat(
-          sourcePathResolver.getAllPaths(resource.files),
+          Iterables.transform(resource.files, sourcePathResolver),
           resource.dirs);
       for (Path path : paths) {
         PBXFileReference fileReference = resourcesGroup.getOrCreateFileReferenceBySourceTreePath(
@@ -463,25 +499,42 @@ public class NewNativeTargetProjectMutator {
     // Map asset catalog paths to their shell script arguments relative to the project's root
     Path buildScript = pathRelativizer.outputDirToRootRelative(assetCatalogBuildScript);
     StringBuilder scriptBuilder = new StringBuilder("set -e\n");
+    scriptBuilder
+        .append("TMPDIR=`mktemp -d -t buckAssetCatalogs.XXXXXX`\n")
+        .append("trap \"rm -rf '${TMPDIR}'\" exit\n");
     if (commonAssetCatalogs.size() != 0) {
       scriptBuilder
+          .append("COMMON_ARGS_FILE=\"${TMPDIR}\"/common_args\n")
+          .append("cat <<EOT >\"${COMMON_ARGS_FILE}\"\n");
+
+      Joiner.on('\n').appendTo(scriptBuilder, commonAssetCatalogs);
+
+      scriptBuilder
+          .append("\n")
+          .append("EOT\n")
           .append("\"${PROJECT_DIR}/\"")
           .append(buildScript.toString())
-          .append(" ")
-          .append(Joiner.on(' ').join(commonAssetCatalogs))
-          .append("\n");
+          .append(" @\"${COMMON_ARGS_FILE}\"\n");
     }
     if (assetCatalogsToSplitIntoBundles.size() != 0) {
       scriptBuilder
-          .append("\"${PROJECT_DIR}/\"")
-          .append(buildScript.toString())
-          .append(" -b ")
-          .append(Joiner.on(' ').join(assetCatalogsToSplitIntoBundles))
-          .append("\n");
+        .append("BUNDLE_ARGS_FILE=\"${TMPDIR}\"/bundle_args\n")
+        .append("cat <<EOT >\"${BUNDLE_ARGS_FILE}\"\n");
+
+      Joiner.on('\n').appendTo(scriptBuilder, assetCatalogsToSplitIntoBundles);
+
+      scriptBuilder
+        .append("\n")
+        .append("EOT\n")
+        .append("\"${PROJECT_DIR}/\"")
+        .append(buildScript.toString())
+        .append(" -b ")
+        .append("@\"${BUNDLE_ARGS_FILE}\"\n");
     }
 
     PBXShellScriptBuildPhase phase = new PBXShellScriptBuildPhase();
     target.getBuildPhases().add(phase);
+    phase.setShellPath("/bin/bash");
     phase.setShellScript(scriptBuilder.toString());
     LOG.debug("Added asset catalog build phase %s", phase);
   }
@@ -496,7 +549,7 @@ public class NewNativeTargetProjectMutator {
       target.getBuildPhases().add(shellScriptBuildPhase);
       if (GenruleDescription.TYPE.equals(node.getType())) {
         GenruleDescription.Arg arg = (GenruleDescription.Arg) node.getConstructorArg();
-        for (Path path : sourcePathResolver.getAllPaths(arg.srcs.get())) {
+        for (Path path : Iterables.transform(arg.srcs.get(), sourcePathResolver)) {
           shellScriptBuildPhase.getInputPaths().add(
               pathRelativizer.outputDirToRootRelative(path).toString());
         }

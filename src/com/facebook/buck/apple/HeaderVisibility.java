@@ -26,9 +26,7 @@ public enum HeaderVisibility {
     /** Visible to all dependencies. */
     PUBLIC,
     /** Visible to other dependencies inside the project. */
-    PROJECT,
-    /** Not visible to any dependencies. */
-    PRIVATE;
+    PROJECT;
 
   public static HeaderVisibility fromString(String s) {
     switch (Ascii.toLowerCase(s)) {
@@ -36,8 +34,6 @@ public enum HeaderVisibility {
         return HeaderVisibility.PUBLIC;
       case "project":
         return HeaderVisibility.PROJECT;
-      case "private":
-        return HeaderVisibility.PRIVATE;
       default:
         throw new HumanReadableException("Invalid header visibility value %s.", s);
     }
@@ -49,8 +45,6 @@ public enum HeaderVisibility {
         return "Public";
       case PROJECT:
         return "Project";
-      case PRIVATE:
-        return "Private";
       default:
         throw new IllegalStateException("Invalid header visibility value: " + this.toString());
     }

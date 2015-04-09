@@ -28,6 +28,7 @@ import com.facebook.buck.rules.BuildTargetSourcePath;
 import com.facebook.buck.rules.PathSourcePath;
 import com.facebook.buck.rules.SourcePath;
 import com.facebook.buck.rules.SourcePathResolver;
+import com.google.common.base.Optional;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
@@ -40,11 +41,11 @@ public class PrebuiltCxxLibrary extends AbstractCxxLibrary {
   private final BuildRuleResolver ruleResolver;
   private final SourcePathResolver pathResolver;
   private final ImmutableList<Path> includeDirs;
-  private final Path staticLibraryPath;
-  private final Path sharedLibraryPath;
-  private final ImmutableList<String> linkerFlags;
-  private final ImmutableList<Pair<String, ImmutableList<String>>> platformLinkerFlags;
-  private final String soname;
+  private final Optional<String> libDir;
+  private final Optional<String> libName;
+  private final ImmutableList<String> exportedLinkerFlags;
+  private final ImmutableList<Pair<String, ImmutableList<String>>> exportedPlatformLinkerFlags;
+  private final Optional<String> soname;
   private final boolean headerOnly;
   private final boolean linkWhole;
   private final boolean provided;
@@ -54,11 +55,11 @@ public class PrebuiltCxxLibrary extends AbstractCxxLibrary {
       BuildRuleResolver ruleResolver,
       SourcePathResolver pathResolver,
       ImmutableList<Path> includeDirs,
-      Path staticLibraryPath,
-      Path sharedLibraryPath,
-      ImmutableList<String> linkerFlags,
-      ImmutableList<Pair<String, ImmutableList<String>>> platformLinkerFlags,
-      String soname,
+      Optional<String> libDir,
+      Optional<String> libName,
+      ImmutableList<String> exportedLinkerFlags,
+      ImmutableList<Pair<String, ImmutableList<String>>> exportedPlatformLinkerFlags,
+      Optional<String> soname,
       boolean headerOnly,
       boolean linkWhole,
       boolean provided) {
@@ -67,10 +68,10 @@ public class PrebuiltCxxLibrary extends AbstractCxxLibrary {
     this.ruleResolver = ruleResolver;
     this.pathResolver = pathResolver;
     this.includeDirs = includeDirs;
-    this.staticLibraryPath = staticLibraryPath;
-    this.sharedLibraryPath = sharedLibraryPath;
-    this.linkerFlags = linkerFlags;
-    this.platformLinkerFlags = platformLinkerFlags;
+    this.libDir = libDir;
+    this.libName = libName;
+    this.exportedLinkerFlags = exportedLinkerFlags;
+    this.exportedPlatformLinkerFlags = exportedPlatformLinkerFlags;
     this.soname = soname;
     this.headerOnly = headerOnly;
     this.linkWhole = linkWhole;
@@ -84,10 +85,16 @@ public class PrebuiltCxxLibrary extends AbstractCxxLibrary {
    * @return the {@link SourcePath} representing the actual shared library.
    */
   private SourcePath requireSharedLibrary(CxxPlatform cxxPlatform) {
+    Path sharedLibraryPath =
+        PrebuiltCxxLibraryDescription.getSharedLibraryPath(
+            getBuildTarget(),
+            cxxPlatform,
+            libDir,
+            libName);
 
     // If the shared library is prebuilt, just return a reference to it.
     if (params.getProjectFilesystem().exists(sharedLibraryPath)) {
-      return new PathSourcePath(sharedLibraryPath);
+      return new PathSourcePath(params.getProjectFilesystem(), sharedLibraryPath);
     }
 
     // Otherwise, generate it's build rule.
@@ -98,15 +105,28 @@ public class PrebuiltCxxLibrary extends AbstractCxxLibrary {
             cxxPlatform.getFlavor(),
             CxxDescriptionEnhancer.SHARED_FLAVOR);
 
-    return new BuildTargetSourcePath(sharedLibrary.getBuildTarget());
+    return new BuildTargetSourcePath(
+        sharedLibrary.getProjectFilesystem(),
+        sharedLibrary.getBuildTarget());
   }
 
   @Override
-  public CxxPreprocessorInput getCxxPreprocessorInput(CxxPlatform cxxPlatform) {
-    return CxxPreprocessorInput.builder()
-        // Just pass the include dirs as system includes.
-        .addAllSystemIncludeRoots(includeDirs)
-        .build();
+  public CxxPreprocessorInput getCxxPreprocessorInput(
+      CxxPlatform cxxPlatform,
+      CxxDescriptionEnhancer.HeaderVisibility headerVisibility) {
+    switch (headerVisibility) {
+      case PUBLIC:
+        return CxxPreprocessorInput.builder()
+            // Just pass the include dirs as system includes.
+            .addAllSystemIncludeRoots(includeDirs)
+            .build();
+      case PRIVATE:
+        return CxxPreprocessorInput.EMPTY;
+    }
+
+    // We explicitly don't put this in a default statement because we
+    // want the compiler to warn if someone modifies the HeaderVisibility enum.
+    throw new RuntimeException("Invalid header visibility: " + headerVisibility);
   }
 
   @Override
@@ -118,10 +138,10 @@ public class PrebuiltCxxLibrary extends AbstractCxxLibrary {
     // {@link NativeLinkable} interface for linking.
     ImmutableList.Builder<SourcePath> librariesBuilder = ImmutableList.builder();
     ImmutableList.Builder<String> linkerArgsBuilder = ImmutableList.builder();
-    linkerArgsBuilder.addAll(linkerFlags);
+    linkerArgsBuilder.addAll(exportedLinkerFlags);
     linkerArgsBuilder.addAll(
         CxxDescriptionEnhancer.getPlatformFlags(
-            platformLinkerFlags,
+            exportedPlatformLinkerFlags,
             cxxPlatform.getFlavor().toString()));
     if (!headerOnly) {
       if (provided || type == Linker.LinkableDepType.SHARED) {
@@ -129,7 +149,13 @@ public class PrebuiltCxxLibrary extends AbstractCxxLibrary {
         librariesBuilder.add(sharedLibrary);
         linkerArgsBuilder.add(pathResolver.getPath(sharedLibrary).toString());
       } else {
-        librariesBuilder.add(new PathSourcePath(staticLibraryPath));
+        Path staticLibraryPath =
+            PrebuiltCxxLibraryDescription.getStaticLibraryPath(
+                getBuildTarget(),
+                cxxPlatform,
+                libDir,
+                libName);
+        librariesBuilder.add(new PathSourcePath(getProjectFilesystem(), staticLibraryPath));
         if (linkWhole) {
           Linker linker = cxxPlatform.getLd();
           linkerArgsBuilder.addAll(linker.linkWhole(staticLibraryPath.toString()));
@@ -146,13 +172,15 @@ public class PrebuiltCxxLibrary extends AbstractCxxLibrary {
 
   @Override
   public PythonPackageComponents getPythonPackageComponents(CxxPlatform cxxPlatform) {
+    String resolvedSoname =
+        PrebuiltCxxLibraryDescription.getSoname(getBuildTarget(), cxxPlatform, soname, libName);
 
     // Build up the shared library list to contribute to a python executable package.
     ImmutableMap.Builder<Path, SourcePath> nativeLibrariesBuilder = ImmutableMap.builder();
     if (!headerOnly && !provided) {
       SourcePath sharedLibrary = requireSharedLibrary(cxxPlatform);
       nativeLibrariesBuilder.put(
-          Paths.get(soname),
+          Paths.get(resolvedSoname),
           sharedLibrary);
     }
     ImmutableMap<Path, SourcePath> nativeLibraries = nativeLibrariesBuilder.build();
@@ -175,10 +203,12 @@ public class PrebuiltCxxLibrary extends AbstractCxxLibrary {
 
   @Override
   public ImmutableMap<String, SourcePath> getSharedLibraries(CxxPlatform cxxPlatform) {
+    String resolvedSoname =
+        PrebuiltCxxLibraryDescription.getSoname(getBuildTarget(), cxxPlatform, soname, libName);
     ImmutableMap.Builder<String, SourcePath> solibs = ImmutableMap.builder();
     if (!headerOnly && !provided) {
       SourcePath sharedLibrary = requireSharedLibrary(cxxPlatform);
-      solibs.put(soname, sharedLibrary);
+      solibs.put(resolvedSoname, sharedLibrary);
     }
     return solibs.build();
   }

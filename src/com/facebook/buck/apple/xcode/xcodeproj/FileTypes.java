@@ -45,6 +45,7 @@ public final class FileTypes {
           .put("cpp", "sourcecode.cpp.cpp")
           .put("css", "text.css")
           .put("cxx", "sourcecode.cpp.cpp")
+          .put("d", "sourcecode.dtrace")
           .put("dart", "sourcecode")
           .put("dylib", "compiled.mach-o.dylib")
           .put("exp", "sourcecode.exports")
@@ -79,6 +80,7 @@ public final class FileTypes {
           .put("s", "sourcecode.asm")
           .put("storyboard", "file.storyboard")
           .put("strings", "text.plist.strings")
+          .put("stringsdict", "text.plist.xml")
           .put("tif", "image.tiff")
           .put("tiff", "image.tiff")
           .put("tcc", "sourcecode.cpp.cpp")
@@ -102,7 +104,10 @@ public final class FileTypes {
    * Yes, really. Because Xcode.
    */
   public static final ImmutableSet<String> EXPLICIT_FILE_TYPE_BROKEN_UTIS =
-    ImmutableSet.of("file.xib");
+    ImmutableSet.of(
+        "file.xib",
+        "file.storyboard"
+    );
 
   /**
    * Multimap of Apple UTI (Uniform Type Identifier) to file extension(s).

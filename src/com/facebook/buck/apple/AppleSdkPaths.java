@@ -16,12 +16,15 @@
 
 package com.facebook.buck.apple;
 
+import com.facebook.buck.apple.xcode.xcodeproj.PBXReference;
+import com.facebook.buck.apple.xcode.xcodeproj.SourceTreePath;
+import com.facebook.buck.util.HumanReadableException;
 import com.facebook.buck.util.immutables.BuckStyleImmutable;
+import com.google.common.base.Function;
 
 import org.immutables.value.Value;
 
 import java.nio.file.Path;
-
 import java.util.Set;
 
 /**
@@ -29,7 +32,7 @@ import java.util.Set;
  */
 @Value.Immutable
 @BuckStyleImmutable
-public interface AppleSdkPaths {
+public abstract class AppleSdkPaths {
   /**
    * Absolute path to the active DEVELOPER_DIR.
    *
@@ -37,7 +40,7 @@ public interface AppleSdkPaths {
    *
    * {@code /Applications/Xcode.app/Contents/Developer}
    */
-  Path getDeveloperPath();
+  public abstract Path getDeveloperPath();
 
   /**
    * Absolute paths to tools and files independent of the platform.
@@ -46,16 +49,16 @@ public interface AppleSdkPaths {
    *
    * {@code [/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain]}
    */
-  Set<Path> getToolchainPaths();
+  public abstract Set<Path> getToolchainPaths();
 
   /**
    * Absolute path to tools and files which depend on a particular platform.
    *
    * Example:
    *
-   * {@code /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer}
+   * {@code /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform}
    */
-  Path getPlatformDeveloperPath();
+  public abstract Path getPlatformPath();
 
   /**
    * Absolute path to tools and files which depend on a particular SDK on a particular platform.
@@ -64,5 +67,25 @@ public interface AppleSdkPaths {
    *
    * {@code /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator8.0.sdk}
    */
-  Path getSdkPath();
+  public abstract Path getSdkPath();
+
+  public Path resolve(SourceTreePath path) {
+    if (path.getSourceTree().equals(PBXReference.SourceTree.SDKROOT)) {
+      return getSdkPath().resolve(path.getPath());
+    } else if (path.getSourceTree().equals(PBXReference.SourceTree.PLATFORM_DIR)) {
+      return getPlatformPath().resolve(path.getPath());
+    } else if (path.getSourceTree().equals(PBXReference.SourceTree.DEVELOPER_DIR)) {
+      return getDeveloperPath().resolve(path.getPath());
+    }
+    throw new HumanReadableException("Unsupported source tree: '%s'", path.getSourceTree());
+  }
+
+  public Function<SourceTreePath, Path> resolveFunction() {
+    return new Function<SourceTreePath, Path>() {
+      @Override
+      public Path apply(SourceTreePath input) {
+        return resolve(input);
+      }
+    };
+  }
 }

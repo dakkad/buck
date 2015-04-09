@@ -17,8 +17,8 @@
 package com.facebook.buck.apple;
 
 import com.facebook.buck.apple.clang.HeaderMap;
+import com.facebook.buck.apple.xcode.xcodeproj.SourceTreePath;
 import com.facebook.buck.io.ProjectFilesystem;
-import com.facebook.buck.model.BuildTarget;
 import com.facebook.buck.model.BuildTargets;
 import com.facebook.buck.model.Flavor;
 import com.facebook.buck.model.ImmutableFlavor;
@@ -29,10 +29,13 @@ import com.facebook.buck.rules.BuildableContext;
 import com.facebook.buck.rules.RuleKey.Builder;
 import com.facebook.buck.rules.SourcePath;
 import com.facebook.buck.rules.SourcePathResolver;
+import com.facebook.buck.rules.coercer.FrameworkPath;
+import com.facebook.buck.rules.coercer.SourceWithFlags;
 import com.facebook.buck.step.AbstractExecutionStep;
 import com.facebook.buck.step.ExecutionContext;
 import com.facebook.buck.step.Step;
 import com.facebook.buck.step.fs.MkdirStep;
+import com.facebook.buck.util.HumanReadableException;
 import com.facebook.buck.util.VersionStringComparator;
 import com.facebook.infer.annotation.SuppressFieldNotInitialized;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -44,7 +47,6 @@ import com.google.common.base.Objects;
 import com.google.common.base.Optional;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Predicate;
-import com.google.common.base.Strings;
 import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableCollection;
 import com.google.common.collect.ImmutableList;
@@ -54,7 +56,6 @@ import com.google.common.collect.ImmutableSortedSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Ordering;
-import com.google.common.io.Files;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -75,18 +76,20 @@ public class CompilationDatabase extends AbstractBuildRule {
 
 
   private final AppleConfig appleConfig;
-  private final TargetSources targetSources;
+  private final ImmutableSortedSet<SourceWithFlags> sourcesWithFlags;
+  private final ImmutableSortedSet<SourcePath> publicHeaders;
+  private final ImmutableSortedSet<SourcePath> privateHeaders;
   private final Path outputJsonFile;
-  private final ImmutableSortedSet<String> frameworks;
+  private final ImmutableSortedSet<FrameworkPath> frameworks;
   private final ImmutableSet<Path> includePaths;
   private final Optional<SourcePath> pchFile;
 
   /**
    * @param buildRuleParams As needed by superclass constructor.
    * @param resolver As needed by superclass constructor.
-   * @param targetSources The {@link TargetSources#getHeaderPaths()} and
-   *     {@link TargetSources#getSrcPaths()} will be the entries in the generated compilation
-   *     database.
+   * @param sourcesWithFlags Target's sources and their per-file flags.
+   * @param publicHeaders Target's headers that are visible by dependent targets.
+   * @param privateHeaders Target's headers that are only visible in the target itself.
    * @param frameworks Paths to frameworks to link against. Each may start with {@code "$SDKROOT"},
    *     in which case the appropriate path will be substituted.
    * @param includePaths Paths that should be passed as clang args with {@code -I}.
@@ -96,13 +99,17 @@ public class CompilationDatabase extends AbstractBuildRule {
       BuildRuleParams buildRuleParams,
       SourcePathResolver resolver,
       AppleConfig appleConfig,
-      TargetSources targetSources,
-      ImmutableSortedSet<String> frameworks,
+      ImmutableSortedSet<SourceWithFlags> sourcesWithFlags,
+      ImmutableSortedSet<SourcePath> publicHeaders,
+      ImmutableSortedSet<SourcePath> privateHeaders,
+      ImmutableSortedSet<FrameworkPath> frameworks,
       ImmutableSet<Path> includePaths,
       Optional<SourcePath> pchFile) {
     super(buildRuleParams, resolver);
     this.appleConfig = appleConfig;
-    this.targetSources = targetSources;
+    this.sourcesWithFlags = sourcesWithFlags;
+    this.publicHeaders = publicHeaders;
+    this.privateHeaders = privateHeaders;
     this.outputJsonFile = BuildTargets.getGenPath(
         buildRuleParams.getBuildTarget(),
         "__%s_compilation_database.json");
@@ -121,18 +128,19 @@ public class CompilationDatabase extends AbstractBuildRule {
     // to be necessary when the .pch uses quoted imports for headers that exist in a subdirectory of
     // the project, such as Categories.
     final AtomicReference<Path> internalHeaderMap = new AtomicReference<>();
-    final Path headerMapPath = BuildTargets.getBinPath(getBuildTarget(), "__my_%s__.hmap");
+    final Path headerMapPath = BuildTargets.getScratchPath(getBuildTarget(), "__my_%s__.hmap");
     steps.add(new MkdirStep(headerMapPath.getParent()));
     steps.add(new AbstractExecutionStep("generate_internal_header_map") {
       @Override
       public int execute(ExecutionContext context) {
-        if (targetSources.getHeaderPaths().isEmpty()) {
+        Iterable<SourcePath> allHeaderPaths = Iterables.concat(publicHeaders, privateHeaders);
+        if (Iterables.isEmpty(allHeaderPaths)) {
           return 0;
         }
 
         HeaderMap.Builder builder = HeaderMap.builder();
         ProjectFilesystem projectFilesystem = context.getProjectFilesystem();
-        for (SourcePath headerPath : targetSources.getHeaderPaths()) {
+        for (SourcePath headerPath : allHeaderPaths) {
           Path relativePath = getResolver().getPath(headerPath);
           Path absolutePath = projectFilesystem.resolve(relativePath);
           builder.add(relativePath.getFileName().toString(), absolutePath);
@@ -166,7 +174,12 @@ public class CompilationDatabase extends AbstractBuildRule {
   @Override
   protected ImmutableCollection<Path> getInputsToCompareToOutput() {
     return getResolver().filterInputsToCompareToOutput(
-        Iterables.concat(targetSources.getHeaderPaths(), targetSources.getSrcPaths()));
+        Iterables.concat(
+            Iterables.transform(
+                sourcesWithFlags,
+                SourceWithFlags.TO_SOURCE_PATH),
+            publicHeaders,
+            privateHeaders));
   }
 
   @Override
@@ -194,116 +207,129 @@ public class CompilationDatabase extends AbstractBuildRule {
 
     @VisibleForTesting
     Iterable<JsonSerializableDatabaseEntry> createEntries(ExecutionContext context) {
-      BuildTarget target = getBuildTarget();
       List<JsonSerializableDatabaseEntry> entries = Lists.newArrayList();
-      Iterable<SourcePath> allSources = Iterables.concat(
-          targetSources.getSrcPaths(),
-          targetSources.getHeaderPaths());
-      ProjectFilesystem projectFilesystem = context.getProjectFilesystem();
-      for (SourcePath srcPath : allSources) {
-        String fileToCompile = projectFilesystem.resolve(getResolver().getPath(srcPath))
-            .toString();
-        String language;
-        String languageStandard;
-        if (fileToCompile.endsWith(".mm")) {
-          language = "objective-c++";
-          languageStandard = "-std=c++11";
-        } else {
-          language = "objective-c";
-          languageStandard = "-std=gnu99";
-        }
+      for (SourceWithFlags sourceWithFlags : sourcesWithFlags) {
+        entries.add(
+            createEntry(
+                context,
+                sourceWithFlags.getSourcePath(),
+                sourceWithFlags.getFlags()));
+      }
 
-        List<String> commandArgs = Lists.newArrayList(
-            "clang",
-            "-x",
-            language,
-
-            // TODO(mbolin): Simulator arguments should be configurable (and should likely be
-            // derived from the PlatformFlavor).
-            "-arch",
-            "i386",
-            "-mios-simulator-version-min=7.0",
-
-            "-fmessage-length=0",
-            "-fdiagnostics-show-note-include-stack",
-            "-fmacro-backtrace-limit=0",
-            languageStandard,
-            "-fpascal-strings",
-            "-fexceptions",
-            "-fasm-blocks",
-            "-fstrict-aliasing",
-            "-fobjc-abi-version=2",
-            "-fobjc-legacy-dispatch",
-
-            "-O0", // No optimizations.
-
-            // TODO(mbolin): Include all of the -W and -D flags.
-
-            // TODO(mbolin): Support -MMD, -MT, -MF. Requires -o to trigger it.
-
-            "-g", // Generate source level debug information.
-            "-MMD" // Write a depfile containing user headers.
-            );
-
-        // TODO(mbolin): Determine whether -fno-objc-arc should be used instead.
-        commandArgs.add("-fobjc-arc");
-
-        // Result of `xcode-select --print-path`.
-        ImmutableMap<AppleSdk, AppleSdkPaths> allAppleSdkPaths = appleConfig.getAppleSdkPaths(
-            context.getProcessExecutor());
-        AppleSdkPaths appleSdkPaths = selectNewestSimulatorSdk(allAppleSdkPaths);
-
-        // TODO(mbolin): Make the sysroot configurable.
-        commandArgs.add("-isysroot");
-        Path sysroot = appleSdkPaths.getSdkPath();
-        commandArgs.add(sysroot.toString());
-
-        String sdkRoot = appleSdkPaths.getSdkPath().toString();
-        for (String framework : frameworks) {
-          // TODO(mbolin): Other placeholders are possible, but do not appear to be used yet.
-          // Specifically, PBXReference.SourceTree#fromBuildSetting() seems to have more
-          // flexible parsing. We should figure out how to refactor that could so it can be used
-          // here.
-          framework = framework.replace("$SDKROOT", sdkRoot);
-          commandArgs.add("-F" + framework);
-        }
-
-        // Add -I and -iquote flags, as appropriate.
-        for (Path includePath : includePaths) {
-          commandArgs.add("-I" + projectFilesystem.resolve(includePath));
-        }
-
-        Path iquoteArg = internalHeaderMap.get();
-        if (iquoteArg != null) {
-          commandArgs.add("-iquote");
-          commandArgs.add(projectFilesystem.resolve(iquoteArg).toString());
-        }
-
-        if (pchFile.isPresent()) {
-          commandArgs.add("-include");
-          Path relativePathToPchFile = getResolver().getPath(pchFile.get());
-          commandArgs.add(projectFilesystem.resolve(relativePathToPchFile).toString());
-        }
-
-        commandArgs.add("-c");
-        commandArgs.add(fileToCompile);
-
-        // Currently, perFileFlags is a single string rather than a list, so we concatenate it
-        // to the end of the command string without escaping or splitting.
-        String perFileFlags = Strings.nullToEmpty(targetSources.getPerFileFlags().get(srcPath));
-        if (!perFileFlags.isEmpty() && FileExtensions.CLANG_SOURCES.contains(
-            Files.getFileExtension(fileToCompile))) {
-          commandArgs.add(perFileFlags);
-        }
-
-        String command = Joiner.on(' ').join(commandArgs);
-        entries.add(new JsonSerializableDatabaseEntry(
-            /* directory */ projectFilesystem.resolve(target.getBasePath()).toString(),
-            fileToCompile,
-            command));
+      Iterable<SourcePath> allHeaderPaths = Iterables.concat(
+          publicHeaders,
+          privateHeaders);
+      for (SourcePath headerPath : allHeaderPaths) {
+        entries.add(
+            createEntry(
+                context,
+                headerPath,
+                /* flags */ ImmutableList.<String>of()));
       }
 
       return entries;
+    }
+
+    private JsonSerializableDatabaseEntry createEntry(
+        ExecutionContext context,
+        SourcePath sourcePath,
+        List<String> perFileFlags) {
+      ProjectFilesystem projectFilesystem = context.getProjectFilesystem();
+      String fileToCompile = projectFilesystem.resolve(getResolver().getPath(sourcePath))
+          .toString();
+      String language;
+      String languageStandard;
+      if (fileToCompile.endsWith(".mm")) {
+        language = "objective-c++";
+        languageStandard = "-std=c++11";
+      } else {
+        language = "objective-c";
+        languageStandard = "-std=gnu99";
+      }
+
+      List<String> commandArgs = Lists.newArrayList(
+          "clang",
+          "-x",
+          language,
+
+          // TODO(mbolin): Simulator arguments should be configurable (and should likely be
+          // derived from the PlatformFlavor).
+          "-arch",
+          "i386",
+          "-mios-simulator-version-min=7.0",
+
+          "-fmessage-length=0",
+          "-fdiagnostics-show-note-include-stack",
+          "-fmacro-backtrace-limit=0",
+          languageStandard,
+          "-fpascal-strings",
+          "-fexceptions",
+          "-fasm-blocks",
+          "-fstrict-aliasing",
+          "-fobjc-abi-version=2",
+          "-fobjc-legacy-dispatch",
+
+          "-O0", // No optimizations.
+
+          // TODO(mbolin): Include all of the -W and -D flags.
+
+          // TODO(mbolin): Support -MMD, -MT, -MF. Requires -o to trigger it.
+
+          "-g", // Generate source level debug information.
+          "-MMD" // Write a depfile containing user headers.
+      );
+
+      // TODO(mbolin): Determine whether -fno-objc-arc should be used instead.
+      commandArgs.add("-fobjc-arc");
+
+      // Result of `xcode-select --print-path`.
+      ImmutableMap<AppleSdk, AppleSdkPaths> allAppleSdkPaths = appleConfig.getAppleSdkPaths(
+          context.getProcessExecutor());
+      AppleSdkPaths appleSdkPaths = selectNewestSimulatorSdk(allAppleSdkPaths);
+
+      // TODO(mbolin): Make the sysroot configurable.
+      commandArgs.add("-isysroot");
+      Path sysroot = appleSdkPaths.getSdkPath();
+      commandArgs.add(sysroot.toString());
+
+      for (FrameworkPath framework : frameworks) {
+
+        Optional<SourceTreePath> sourceTreePath = framework.getSourceTreePath();
+        if (!sourceTreePath.isPresent()) {
+          throw new HumanReadableException(
+              "Cannot add framework '%s' to compilation database:\nCompilation database " +
+                  "generation only supports source tree path framework references",
+              framework.getSourcePath().get());
+        }
+        commandArgs.add("-F" + appleSdkPaths.resolve(sourceTreePath.get()));
+      }
+
+      // Add -I and -iquote flags, as appropriate.
+      for (Path includePath : includePaths) {
+        commandArgs.add("-I" + projectFilesystem.resolve(includePath));
+      }
+
+      Path iquoteArg = internalHeaderMap.get();
+      if (iquoteArg != null) {
+        commandArgs.add("-iquote");
+        commandArgs.add(projectFilesystem.resolve(iquoteArg).toString());
+      }
+
+      if (pchFile.isPresent()) {
+        commandArgs.add("-include");
+        Path relativePathToPchFile = getResolver().getPath(pchFile.get());
+        commandArgs.add(projectFilesystem.resolve(relativePathToPchFile).toString());
+      }
+
+      commandArgs.add("-c");
+      commandArgs.add(fileToCompile);
+      commandArgs.addAll(perFileFlags);
+
+      String command = Joiner.on(' ').join(commandArgs);
+      return new JsonSerializableDatabaseEntry(
+          /* directory */ projectFilesystem.resolve(getBuildTarget().getBasePath()).toString(),
+          fileToCompile,
+          command);
     }
 
     private int writeOutput(

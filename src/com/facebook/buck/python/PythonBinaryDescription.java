@@ -17,6 +17,7 @@
 package com.facebook.buck.python;
 
 import com.facebook.buck.cxx.CxxPlatform;
+import com.facebook.buck.log.Logger;
 import com.facebook.buck.model.BuildTarget;
 import com.facebook.buck.model.FlavorDomain;
 import com.facebook.buck.model.FlavorDomainException;
@@ -25,7 +26,6 @@ import com.facebook.buck.rules.BuildRuleParams;
 import com.facebook.buck.rules.BuildRuleResolver;
 import com.facebook.buck.rules.BuildRuleType;
 import com.facebook.buck.rules.Description;
-import com.facebook.buck.rules.ImmutableBuildRuleType;
 import com.facebook.buck.rules.SourcePath;
 import com.facebook.buck.rules.SourcePathResolver;
 import com.facebook.buck.util.HumanReadableException;
@@ -37,30 +37,27 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSortedSet;
 
 import java.nio.file.Path;
-import java.nio.file.Paths;
 
 public class PythonBinaryDescription implements Description<PythonBinaryDescription.Arg> {
 
-  public static final Path DEFAULT_PATH_TO_PEX =
-      Paths.get(
-          System.getProperty(
-              "buck.path_to_pex",
-              "src/com/facebook/buck/python/pex.py"))
-          .toAbsolutePath();
+  private static final Logger LOG = Logger.get(PythonBinaryDescription.class);
 
-  public static final BuildRuleType TYPE = ImmutableBuildRuleType.of("python_binary");
+  public static final BuildRuleType TYPE = BuildRuleType.of("python_binary");
 
   private final Path pathToPex;
+  private final Path pathToPexExecuter;
   private final PythonEnvironment pythonEnvironment;
   private final CxxPlatform defaultCxxPlatform;
   private final FlavorDomain<CxxPlatform> cxxPlatforms;
 
   public PythonBinaryDescription(
       Path pathToPex,
+      Path pathToPexExecuter,
       PythonEnvironment pythonEnv,
       CxxPlatform defaultCxxPlatform,
       FlavorDomain<CxxPlatform> cxxPlatforms) {
     this.pathToPex = pathToPex;
+    this.pathToPexExecuter = pathToPexExecuter;
     this.pythonEnvironment = pythonEnv;
     this.defaultCxxPlatform = defaultCxxPlatform;
     this.cxxPlatforms = cxxPlatforms;
@@ -93,14 +90,33 @@ public class PythonBinaryDescription implements Description<PythonBinaryDescript
       throw new HumanReadableException("%s: %s", params.getBuildTarget(), e.getMessage());
     }
 
+    if (!(args.main.isPresent() ^ args.mainModule.isPresent())) {
+      throw new HumanReadableException(
+          "%s: must set exactly one of `main_module` and `main`",
+          params.getBuildTarget());
+    }
+
     SourcePathResolver pathResolver = new SourcePathResolver(resolver);
     Path baseModule = PythonUtil.getBasePath(params.getBuildTarget(), args.baseModule);
-    String mainName = pathResolver.getSourcePathName(params.getBuildTarget(), args.main);
-    Path mainModule = baseModule.resolve(mainName);
+
+    String mainModule;
+    ImmutableMap.Builder<Path, SourcePath> modules = ImmutableMap.builder();
+
+    // If `main` is set, add it to the map of modules for this binary and also set it as the
+    // `mainModule`, otherwise, use the explicitly set main module.
+    if (args.main.isPresent()) {
+      LOG.warn("%s: parameter `main` is deprecated, please use `main_module` instead.");
+      String mainName = pathResolver.getSourcePathName(params.getBuildTarget(), args.main.get());
+      Path main = baseModule.resolve(mainName);
+      modules.put(baseModule.resolve(mainName), args.main.get());
+      mainModule = PythonUtil.toModuleName(params.getBuildTarget(), main.toString());
+    } else {
+      mainModule = args.mainModule.get();
+    }
 
     // Build up the list of all components going into the python binary.
     PythonPackageComponents binaryPackageComponents = ImmutablePythonPackageComponents.of(
-        /* modules */ ImmutableMap.of(mainModule, args.main),
+        modules.build(),
         /* resources */ ImmutableMap.<Path, SourcePath>of(),
         /* nativeLibraries */ ImmutableMap.<Path, SourcePath>of());
     PythonPackageComponents allPackageComponents = PythonUtil.getAllComponents(
@@ -117,6 +133,7 @@ public class PythonBinaryDescription implements Description<PythonBinaryDescript
         binaryParams,
         pathResolver,
         pathToPex,
+        pathToPexExecuter,
         pythonEnvironment,
         mainModule,
         allPackageComponents);
@@ -124,7 +141,8 @@ public class PythonBinaryDescription implements Description<PythonBinaryDescript
 
   @SuppressFieldNotInitialized
   public static class Arg {
-    public SourcePath main;
+    public Optional<SourcePath> main;
+    public Optional<String> mainModule;
     public Optional<ImmutableSortedSet<BuildTarget>> deps;
     public Optional<String> baseModule;
   }

@@ -18,9 +18,9 @@
       <entry name="?*.png" />
       <entry name="?*.properties" />
       <entry name="?*.tld" />
-      <entry name="?*.xml" />
-      <entry name="?*.json" />
-      <entry name="?*.txt" />
+      <entry name="?*.ftl" />
+      <entry name="?*.soy" />
+      <entry name="*.py" />
     </wildcardResourcePatterns>
   </component>
 </project>

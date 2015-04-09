@@ -19,6 +19,7 @@ package com.facebook.buck.java;
 import com.facebook.buck.io.ProjectFilesystem;
 import com.facebook.buck.model.BuildTarget;
 import com.facebook.buck.model.BuildTargets;
+import com.facebook.buck.model.UnflavoredBuildTarget;
 import com.facebook.buck.rules.AbstractBuildRule;
 import com.facebook.buck.rules.BuildContext;
 import com.facebook.buck.rules.BuildRule;
@@ -28,7 +29,6 @@ import com.facebook.buck.rules.BuildRuleType;
 import com.facebook.buck.rules.BuildableContext;
 import com.facebook.buck.rules.Description;
 import com.facebook.buck.rules.FlavorableDescription;
-import com.facebook.buck.rules.ImmutableBuildRuleType;
 import com.facebook.buck.rules.RuleKey.Builder;
 import com.facebook.buck.rules.RuleKeyBuilderFactory;
 import com.facebook.buck.rules.SourcePath;
@@ -59,7 +59,7 @@ public class PrebuiltJarDescription implements Description<PrebuiltJarDescriptio
     public Optional<ImmutableSortedSet<BuildTarget>> deps;
   }
 
-  public static final BuildRuleType TYPE = ImmutableBuildRuleType.of("prebuilt_jar");
+  public static final BuildRuleType TYPE = BuildRuleType.of("prebuilt_jar");
 
   @Override
   public BuildRuleType getBuildRuleType() {
@@ -93,7 +93,7 @@ public class PrebuiltJarDescription implements Description<PrebuiltJarDescriptio
       RuleKeyBuilderFactory ruleKeyBuilderFactory,
       TargetGraph targetGraph,
       BuildRuleResolver ruleResolver) {
-    BuildTarget prebuiltJarBuildTarget = buildRule.getBuildTarget();
+    UnflavoredBuildTarget prebuiltJarBuildTarget = buildRule.getBuildTarget().checkUnflavored();
     BuildTarget flavoredBuildTarget = BuildTargets.createFlavoredBuildTarget(
         prebuiltJarBuildTarget, JavaLibrary.GWT_MODULE_FLAVOR);
     BuildRuleParams params = new BuildRuleParams(

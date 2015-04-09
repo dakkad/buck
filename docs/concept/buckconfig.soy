@@ -44,15 +44,18 @@ The following sections are recognized by Buck:
 {foreach $name in [
     'adb',
     'alias',
+    'android',
     'buildfile',
     'cache',
     'color',
+    'cxx',
     'java',
     'httpserver',
     'log',
     'ndk',
     'project',
     'test',
+    'tools',
     ]}
   <a href="#{$name}"><code>[{$name}]</code></a><br>
 {/foreach}
@@ -89,6 +92,25 @@ $ buck build app
 $ buck test apptest
 </pre>{/literal}
 
+{call .section}{param title: 'android' /}{/call}
+
+Specify the version of the Android SDK that all Android code
+in the project should be built against as follows:
+
+{literal}<pre class="prettyprint lang-ini">
+[alias]
+  target = Google Inc.:Google APIs:21
+</pre>{/literal}
+
+<p>
+
+If the SDK version is not specified in your <code>.buckconfig</code> file,
+the version of the SDK that Buck has chosen will be printed to the console.
+
+<p>
+
+You can find the list of valid values on your system by running{sp}
+<code>android list targets --compact</code>.
 
 {call .section}{param title: 'buildfile' /}{/call}
 
@@ -131,6 +153,10 @@ directory-based and Cassandra caching.
     # is buck-cache.
     dir = buck-cache
 
+    # The maximum cache size for directory-based caching. The default size
+    # is unlimited.
+    dir_max_size = 10GB
+
     # Comma-separated set of known Cassandra cache nodes, for example:
     #
     #   hosts = artifactcache1.example.com, artifactcache2.example.com
@@ -146,11 +172,8 @@ directory-based and Cassandra caching.
     # is readwrite.
     cassandra_mode = readwrite
 
-    # Host for http cache. The default is localhost.
-    http_host = localhost
-
-    # Port on which to connect to the http cache. The default is 8080.
-    http_port = 8080
+    # URL for http cache. The default is http://localhost:8080.
+    http_url = http://localhost:8080
 
     # Whether the http cache is readonly or readwrite. The default is
     # readwrite.
@@ -186,6 +209,84 @@ Specify the following to disable colorized output:
   ui = false
 </pre>{/literal}
 
+
+{call .section}{param title: 'cxx' /}{param status: 'UNFROZEN' /}{/call}
+
+This section configures the paths to the C++ toolchain's binaries.
+
+{literal}<pre class="prettyprint lang-ini">
+[cxx]
+  # Path to the C preprocessor
+  cpp = /usr/bin/gcc
+
+  # Path to the C compiler
+  cc = /usr/bin/gcc
+
+  # Path to the C linker
+  ld = /usr/bin/ld
+
+  # Path to the C++ preprocessor
+  cxxpp = /usr/bin/g++
+
+  # Path to the C++ compiler
+  cxx = /usr/bin/g++
+
+  # Path to the c++ linker
+  cxxld = /usr/bin/g++
+
+  # Path to the assembly preprocessor
+  aspp = /usr/bin/gcc
+
+  # Path to the assembler
+  as = /usr/bin/as
+
+  # Path to the archiver
+  ar = /usr/bin/ar
+
+  # Path to the lexer
+  lex = /usr/bin/flex
+
+  # Path to the compiler compiler
+  yacc = /usr/bin/bison
+</pre>{/literal}
+
+It also configures configures the default flags to pass to all invocations of said binaries.
+
+{literal}<pre class="prettyprint lang-ini">
+[cxx]
+  # Flags to pass to the C preprocessor
+  cppflags =
+
+  # Flags to pass to the C compiler
+  ccflags =
+
+  # Flags to pass to the C linker
+  ldflags =
+
+  # Flags to pass to the C++ preprocessor
+  cxxppflags =
+
+  # Flags to pass to the C++ compiler
+  cxxflags =
+
+  # Flags to pass to the c++ linker
+  cxxldflags =
+
+  # Flags to pass to the assembly preprocessor
+  asppflags =
+
+  # Flags to pass to the assembler
+  asflags =
+
+  # Flags to pass to the archiver
+  arflags =
+
+  # Flags to pass to the lexer
+  lexflags =
+
+  # Flags to pass to the compiler compiler
+  yaccflags =
+</pre>{/literal}
 
 {call .section}{param title: 'java' /}{/call}
 
@@ -383,21 +484,21 @@ The value given is in milliseconds.
   timeout = 300000
 </pre>{/literal}
 
-    {/param}
-  {/call}
-
 {call .section}{param title: 'tools' /}{/call}
 This section tells Buck how to find certain tools.
 <p>
 
-The "javac" option is a path to a program that acts like Java javac.
+The <code>javac</code> option is a path to a program that acts like Java javac.
 When set, buck uses this program instead of the system Java compiler.
-
-The "javac_jar" option is like "javac", except that it points to a JAR
+<p>
+The <code>javac_jar</code> option is like <code>javac</code>, except that it points to a JAR
 containing a javac-like compiler.
-
-When "javac_jar" is set, Buck loads the referenced compiler in-memory.
+<p>
+When <code>javac_jar</code> is set, Buck loads the referenced compiler in-memory.
 When neither option is set, Buck defaults to using the system compiler
 in-memory.
+
+    {/param}
+  {/call}
 
 {/template}

@@ -16,11 +16,14 @@
 
 package com.facebook.buck.parser;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
+
 import com.facebook.buck.event.AbstractBuckEvent;
 import com.facebook.buck.event.BuckEvent;
 import com.facebook.buck.event.BuckEventBus;
 import com.facebook.buck.graph.AbstractAcyclicDepthFirstPostOrderTraversal;
 import com.facebook.buck.graph.MutableDirectedGraph;
+import com.facebook.buck.io.MorePaths;
 import com.facebook.buck.io.ProjectFilesystem;
 import com.facebook.buck.json.BuildFileParseException;
 import com.facebook.buck.json.DefaultProjectBuildFileParserFactory;
@@ -28,6 +31,7 @@ import com.facebook.buck.json.JsonObjectHashing;
 import com.facebook.buck.json.ProjectBuildFileParser;
 import com.facebook.buck.json.ProjectBuildFileParserFactory;
 import com.facebook.buck.log.Logger;
+import com.facebook.buck.model.BuckVersion;
 import com.facebook.buck.model.BuildFileTree;
 import com.facebook.buck.model.BuildId;
 import com.facebook.buck.model.BuildTarget;
@@ -36,6 +40,7 @@ import com.facebook.buck.model.BuildTargetPattern;
 import com.facebook.buck.model.FilesystemBackedBuildFileTree;
 import com.facebook.buck.model.Flavored;
 import com.facebook.buck.model.HasBuildTarget;
+import com.facebook.buck.model.UnflavoredBuildTarget;
 import com.facebook.buck.rules.ActionGraph;
 import com.facebook.buck.rules.BuildRuleFactoryParams;
 import com.facebook.buck.rules.BuildRuleType;
@@ -577,7 +582,7 @@ public class Parser {
       ParserConfig parserConfig,
       ProjectBuildFileParser buildFileParser,
       ImmutableMap<String, String> environment)
-      throws BuildFileParseException, BuildTargetException, IOException {
+      throws BuildFileParseException, BuildTargetException, IOException, InterruptedException {
 
     if (!isCached(buildFile, parserConfig.getDefaultIncludes(), environment)) {
       LOG.debug("Parsing %s file: %s", parserConfig.getBuildFileName(), buildFile);
@@ -659,7 +664,7 @@ public class Parser {
   private BuildTarget parseBuildTargetFromRawRule(Map<String, Object> map) {
     String basePath = (String) map.get("buck.base_path");
     String name = (String) map.get("name");
-    return BuildTarget.builder(BuildTarget.BUILD_TARGET_PREFIX + basePath, name).build();
+    return BuildTarget.builder(UnflavoredBuildTarget.BUILD_TARGET_PREFIX + basePath, name).build();
   }
 
   /**
@@ -1084,7 +1089,7 @@ public class Parser {
       } catch (Repository.MissingBuildFileException e) {
         throw new HumanReadableException(e);
       }
-      BuildTarget unflavored = buildTarget.getUnflavoredTarget();
+      UnflavoredBuildTarget unflavored = buildTarget.getUnflavoredBuildTarget();
       List<Map<String, Object>> rules = state.getRawRules(buildFilePath);
       for (Map<String, Object> map : rules) {
 
@@ -1094,7 +1099,7 @@ public class Parser {
 
         BuildRuleType buildRuleType = parseBuildRuleTypeFromRawRule(map);
         targetsToFile.put(
-            unflavored,
+            BuildTarget.of(unflavored),
             normalize(Paths.get((String) map.get("buck.base_path")))
                 .resolve(buildFileName).toAbsolutePath());
 
@@ -1102,17 +1107,34 @@ public class Parser {
         if (description == null) {
           throw new HumanReadableException("Unrecognized rule %s while parsing %s%s.",
               buildRuleType,
-              BuildTarget.BUILD_TARGET_PREFIX,
-              unflavored.getBasePath().resolve(buildFileName));
+              UnflavoredBuildTarget.BUILD_TARGET_PREFIX,
+              MorePaths.pathWithUnixSeparators(unflavored.getBasePath().resolve(buildFileName)));
         }
 
-        if (buildTarget.isFlavored() &&
-            (!(description instanceof Flavored) ||
-            !((Flavored) description).hasFlavors(ImmutableSet.copyOf(buildTarget.getFlavors())))) {
-          throw new HumanReadableException("Unrecognized flavor in target %s while parsing %s%s.",
-              buildTarget,
-              BuildTarget.BUILD_TARGET_PREFIX,
-              buildTarget.getBasePath().resolve(buildFileName));
+        if (buildTarget.isFlavored()) {
+          if (description instanceof Flavored) {
+            if (!((Flavored) description).hasFlavors(
+                    ImmutableSet.copyOf(buildTarget.getFlavors()))) {
+              throw new HumanReadableException(
+                  "Unrecognized flavor in target %s while parsing %s%s.",
+                  buildTarget,
+                  UnflavoredBuildTarget.BUILD_TARGET_PREFIX,
+                  MorePaths.pathWithUnixSeparators(
+                      buildTarget.getBasePath().resolve(buildFileName)));
+            }
+          } else {
+            LOG.warn(
+                "Target %s (type %s) must implement the Flavored interface " +
+                "before we can check if it supports flavors: %s",
+                buildTarget.getUnflavoredBuildTarget(),
+                buildRuleType,
+                buildTarget.getFlavors());
+            throw new HumanReadableException(
+                "Target %s (type %s) does not currently support flavors (tried %s)",
+                buildTarget.getUnflavoredBuildTarget(),
+                buildRuleType,
+                buildTarget.getFlavors());
+          }
         }
 
         this.pathsToBuildTargets.put(buildFilePath, buildTarget);
@@ -1191,12 +1213,14 @@ public class Parser {
       // Warm up the cache.
       get(buildTarget);
 
-      Path buildTargetPath = targetsToFile.get(buildTarget.getUnflavoredTarget());
+      Path buildTargetPath = targetsToFile.get(
+          BuildTarget.of(buildTarget.getUnflavoredBuildTarget()));
       if (buildTargetPath == null) {
         throw new HumanReadableException("Couldn't find build target %s", buildTarget);
       }
       List<Map<String, Object>> rules = getRawRules(buildTargetPath);
       Hasher hasher = Hashing.sha1().newHasher();
+      hasher.putString(BuckVersion.getVersion(), UTF_8);
       for (Map<String, Object> map : rules) {
         if (!buildTarget.getShortName().equals(map.get("name"))) {
           continue;

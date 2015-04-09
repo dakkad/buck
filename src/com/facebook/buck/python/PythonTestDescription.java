@@ -17,6 +17,7 @@
 package com.facebook.buck.python;
 
 import com.facebook.buck.cxx.CxxPlatform;
+import com.facebook.buck.io.ProjectFilesystem;
 import com.facebook.buck.model.BuildTarget;
 import com.facebook.buck.model.BuildTargets;
 import com.facebook.buck.model.Flavor;
@@ -25,6 +26,7 @@ import com.facebook.buck.model.FlavorDomainException;
 import com.facebook.buck.model.HasSourceUnderTest;
 import com.facebook.buck.model.ImmutableFlavor;
 import com.facebook.buck.rules.AbstractBuildRule;
+import com.facebook.buck.rules.AddToRuleKey;
 import com.facebook.buck.rules.BuildContext;
 import com.facebook.buck.rules.BuildRule;
 import com.facebook.buck.rules.BuildRuleParams;
@@ -33,7 +35,6 @@ import com.facebook.buck.rules.BuildRuleType;
 import com.facebook.buck.rules.BuildTargetSourcePath;
 import com.facebook.buck.rules.BuildableContext;
 import com.facebook.buck.rules.Description;
-import com.facebook.buck.rules.ImmutableBuildRuleType;
 import com.facebook.buck.rules.Label;
 import com.facebook.buck.rules.PathSourcePath;
 import com.facebook.buck.rules.RuleKey;
@@ -58,23 +59,29 @@ import java.nio.file.Paths;
 
 public class PythonTestDescription implements Description<PythonTestDescription.Arg> {
 
-  private static final BuildRuleType TYPE = ImmutableBuildRuleType.of("python_test");
+  private static final BuildRuleType TYPE = BuildRuleType.of("python_test");
 
   private static final Flavor BINARY_FLAVOR = ImmutableFlavor.of("binary");
 
+  private final ProjectFilesystem projectFilesystem;
   private final Path pathToPex;
+  private final Path pathToPexExecuter;
   private final Optional<Path> pathToPythonTestMain;
   private final PythonEnvironment pythonEnvironment;
   private final CxxPlatform defaultCxxPlatform;
   private final FlavorDomain<CxxPlatform> cxxPlatforms;
 
   public PythonTestDescription(
+      ProjectFilesystem projectFilesystem,
       Path pathToPex,
+      Path pathToPexExecuter,
       Optional<Path> pathToPythonTestMain,
       PythonEnvironment pythonEnvironment,
       CxxPlatform defaultCxxPlatform,
       FlavorDomain<CxxPlatform> cxxPlatforms) {
+    this.projectFilesystem = projectFilesystem;
     this.pathToPex = pathToPex;
+    this.pathToPexExecuter = pathToPexExecuter;
     this.pathToPythonTestMain = pathToPythonTestMain;
     this.pythonEnvironment = pythonEnvironment;
     this.defaultCxxPlatform = defaultCxxPlatform;
@@ -108,7 +115,7 @@ public class PythonTestDescription implements Description<PythonTestDescription.
 
   @VisibleForTesting
   protected BuildTarget getBinaryBuildTarget(BuildTarget target) {
-    return BuildTargets.createFlavoredBuildTarget(target, BINARY_FLAVOR);
+    return BuildTargets.createFlavoredBuildTarget(target.checkUnflavored(), BINARY_FLAVOR);
   }
 
   /**
@@ -133,21 +140,37 @@ public class PythonTestDescription implements Description<PythonTestDescription.
   private static BuildRule createTestModulesSourceBuildRule(
       BuildRuleParams params,
       BuildRuleResolver resolver,
-      final Path outputPath,
+      Path outputPath,
       ImmutableSet<String> testModules) {
 
     // Modify the build rule params to change the target, type, and remove all deps.
     BuildRuleParams newParams = params.copyWithChanges(
-        ImmutableBuildRuleType.of("create_test_modules_list"),
+        BuildRuleType.of("create_test_modules_list"),
         BuildTargets.createFlavoredBuildTarget(
-            params.getBuildTarget(),
+            params.getBuildTarget().checkUnflavored(),
             ImmutableFlavor.of("test_module")),
         Suppliers.ofInstance(ImmutableSortedSet.<BuildRule>of()),
         Suppliers.ofInstance(ImmutableSortedSet.<BuildRule>of()));
 
-    final String contents = getTestModulesListContents(testModules);
+    String contents = getTestModulesListContents(testModules);
 
-    return new AbstractBuildRule(newParams, new SourcePathResolver(resolver)) {
+    // TODO(simons): Consider moving to file package
+    class WriteFile extends AbstractBuildRule {
+      @AddToRuleKey
+      private final String fileContents;
+      @AddToRuleKey(stringify = true)
+      private final Path output;
+
+      public WriteFile(
+          BuildRuleParams buildRuleParams,
+          SourcePathResolver resolver,
+          String fileContents,
+          Path output) {
+        super(buildRuleParams, resolver);
+
+        this.fileContents = fileContents;
+        this.output = output;
+      }
 
       @Override
       protected ImmutableCollection<Path> getInputsToCompareToOutput() {
@@ -156,26 +179,25 @@ public class PythonTestDescription implements Description<PythonTestDescription.
 
       @Override
       protected RuleKey.Builder appendDetailsToRuleKey(RuleKey.Builder builder) {
-        return builder
-            .setReflectively("contents", contents)
-            .setReflectively("output", outputPath.toString());
+        return builder;
       }
 
       @Override
       public ImmutableList<Step> getBuildSteps(
           BuildContext context, BuildableContext buildableContext) {
-        buildableContext.recordArtifact(outputPath);
+        buildableContext.recordArtifact(output);
         return ImmutableList.of(
-            new MkdirStep(outputPath.getParent()),
-            new WriteFileStep(contents, outputPath));
+            new MkdirStep(output.getParent()),
+            new WriteFileStep(fileContents, output));
       }
 
       @Override
       public Path getPathToOutputFile() {
-        return outputPath;
+        return output;
       }
 
-    };
+    }
+    return new WriteFile(newParams, new SourcePathResolver(resolver), contents, outputPath);
   }
 
   @Override
@@ -238,8 +260,12 @@ public class PythonTestDescription implements Description<PythonTestDescription.
             .<Path, SourcePath>builder()
             .put(
                 getTestModulesListName(),
-                new BuildTargetSourcePath(testModulesBuildRule.getBuildTarget()))
-            .put(getTestMainName(), new PathSourcePath(pathToPythonTestMain.get()))
+                new BuildTargetSourcePath(
+                    testModulesBuildRule.getProjectFilesystem(),
+                    testModulesBuildRule.getBuildTarget()))
+            .put(
+                getTestMainName(),
+                new PathSourcePath(projectFilesystem, pathToPythonTestMain.get()))
             .putAll(srcs)
             .build(),
         resources,
@@ -257,8 +283,9 @@ public class PythonTestDescription implements Description<PythonTestDescription.
         binaryParams,
         pathResolver,
         pathToPex,
+        pathToPexExecuter,
         pythonEnvironment,
-        getTestMainName(),
+        PythonUtil.toModuleName(params.getBuildTarget(), getTestMainName().toString()),
         allComponents);
     resolver.addToIndex(binary);
 
